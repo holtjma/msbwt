@@ -1,0 +1,6 @@
+#! /bin/env python 
+
+from MUS import CommandLineInterface
+
+if __name__ == '__main__':
+	CommandLineInterface.mainRun()

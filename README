@@ -1,0 +1,80 @@
+Introduction
+============
+
+TODO: INTRO
+
+TODO: PAPER REF
+
+For detailed usage, please type after installation:
+
+	msbwt -h
+
+System Requirements
+===================
+
+Msbwt and its modules have been tested under Python 2.7.
+
+Several python modules are required to run the code.
+
+*[pysam] - Tested with pysam 0.7.4
+
+As a wrapper of Samtools, the pysam module facilitates the manipulation of SAM/BAM files in Python. Its latest 
+package can be downloaded from:
+
+	http://code.google.com/p/pysam/
+
+
+*[argparse] - Tested with argparse 1.2.1
+
+The argparse module is used to parse the command line arguments of the module. It has been maintained in Python 
+Standard Library since Python 2.7.  Its latest package can be downloaded from:
+
+	http://code.google.com/p/argparse/
+
+Installation
+============
+
+It is recommended to use easy-install (http://packages.python.org/distribute/easy_install.html) for the 
+installation.
+
+	easy_install msbwt
+
+Alternatively, users can download the tarball of source from
+
+	http://code.google.com/p/msbwt/
+
+and then type:
+
+	easy_install msbwt-<version>.tar.gz
+
+By default, the package will be installed under the directory of Python dist-packages, and the executable of 
+msbwt can be found under '/usr/local/bin/'.
+
+If you don't have permission to install it in the system-owned directory, you can install it in locally following 
+the next steps:
+
+(1) Create a local package directory for python:
+
+	mkdir -p <local_dir>
+
+(2) Add the absolute path of <local_dir> to the environment variable PYTHONPATH:
+
+	export PYTHONPATH=$PYTHONPATH:<local_dir>
+
+(3) Use easy_install to install the package in that directory:
+
+	easy_install -d <local_dir> msbwt-<version>.tar.gz
+
+For example, if you want to install the package under the home directory in
+a Linux system, you can type:
+
+	mkdir -p /home/$USER/.local/lib/python/dist-packages/
+	export PYTHONPATH=$PYTHONPATH:/home/$USER/.local/lib/python/dist-packages/
+	easy_install -d /home/$USER/.local/lib/python/dist-packages/ msbwt-<version>.tar.gz
+
+After installation, msbwt will be located in '/home/$USER/.local/lib/python/dist-packages/'.
+
+
+Detailed Description
+===========
+TODO
