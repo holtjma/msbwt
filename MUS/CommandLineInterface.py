@@ -13,13 +13,14 @@ import MSBWTGen
 import MultiStringBWT
 import util
 
+#I see no need for the versions to be different as of now
 DESC = "A multi-string BWT package for DNA and RNA."
-VERSION = '0.1.0'
-PKG_VERSION = '0.1.0'
+VERSION = '0.1.4'
+PKG_VERSION = VERSION
 
 def initLogger():
     '''
-    This code taken from Shunping's Lapels for initializing a logger
+    This code taken from Matt's Suspenders for initializing a logger
     '''
     global logger
     logger = logging.getLogger('root')
@@ -31,6 +32,9 @@ def initLogger():
     logger.addHandler(ch)
 
 def mainRun():
+    '''
+    This is the primary function for external typical users to run when the Command Line Interface is used
+    '''
     #start up the logger
     initLogger()
     
@@ -41,17 +45,19 @@ def mainRun():
     p.add_argument('-V', '--version', action='version', version='%(prog)s' + \
                    ' %s in MSBWT %s' % (VERSION, PKG_VERSION))
     
+    #TODO: do we want subparsers groups by type or sorted by name? it's type currently
+    
     sp = p.add_subparsers(dest='subparserID')
     p2 = sp.add_parser('cffq', help='create a MSBWT from FASTQ files (pp + cfpp)')
     p2.add_argument('-p', metavar='numProcesses', dest='numProcesses', type=int, default=1, help='number of processes to run (default: 1)')
     p2.add_argument('-u', '--uniform', dest='areUniform', action='store_true', help='the input sequences have uniform length (faster)', default=False)
     p2.add_argument('outBwtDir', type=util.newDirectory, help='the output MSBWT directory')
-    p2.add_argument('inputFastqs', nargs='+', type=util.readableFastaFile, help='the input FASTQ files')
+    p2.add_argument('inputFastqs', nargs='+', type=util.readableFastqFile, help='the input FASTQ files')
     
     p7 = sp.add_parser('pp', help='pre-process FASTQ files before BWT creation')
     p7.add_argument('-u', '--uniform', dest='areUniform', action='store_true', help='the input sequences have uniform length (faster)', default=False)
     p7.add_argument('outBwtDir', type=util.newDirectory, help='the output MSBWT directory')
-    p7.add_argument('inputFastqs', nargs='+', type=util.readableFastaFile, help='the input FASTQ files')
+    p7.add_argument('inputFastqs', nargs='+', type=util.readableFastqFile, help='the input FASTQ files')
     
     p3 = sp.add_parser('cfpp', help='create a MSBWT from pre-processed sequences and offsets')
     p3.add_argument('-p', metavar='numProcesses', dest='numProcesses', type=int, default=1, help='number of processes to run (default: 1)')
@@ -88,24 +94,16 @@ def mainRun():
     args = p.parse_args()
     
     if args.subparserID == 'cffq':
-        #TODO: memory problems
-        #print 'This impl has a memory issue, instead use "pp" and "cfpp".'
-        #return
         logger.info('Inputs:\t'+str(args.inputFastqs))
         logger.info('Uniform:\t'+str(args.areUniform))
-        #logger.info('Output:\t'+args.outMSBWT)
         logger.info('Output:\t'+args.outBwtDir)
         logger.info('Processes:\t'+str(args.numProcesses))
         print
-        #MultiStringBWT.createMSBWTFromFastq(args.inputFastqs, args.outMSBWT, args.numProcesses, logger)
         MultiStringBWT.createMSBWTFromFastq(args.inputFastqs, args.outBwtDir, args.numProcesses, args.areUniform, logger)
         
     elif args.subparserID == 'pp':
         logger.info('Inputs:\t'+str(args.inputFastqs))
         logger.info('Uniform:\t'+str(args.areUniform))
-        #logger.info('Sequences:\t'+str(args.outSeqPrefix))
-        #logger.info('Offsets:\t'+str(args.outOffsetFN))
-        #logger.info('About:\t'+str(args.outAboutFN))
         logger.info('Output:\t'+args.outBwtDir)
         print
         seqFN = args.outBwtDir+'/seqs.npy'
@@ -114,11 +112,8 @@ def mainRun():
         MultiStringBWT.preprocessFastqs(args.inputFastqs, seqFN, offsetFN, aboutFN, args.areUniform, logger)
         
     elif args.subparserID == 'cfpp':
-        #logger.info('Sequences:\t'+args.inputSeqFilePrefix)
-        #logger.info('Offsets:\t'+args.inputOffsetFN)
         logger.info('BWT:\t'+args.bwtDir)
         logger.info('Uniform:\t'+str(args.areUniform))
-        #logger.info('Output:\t'+args.outMSBWT)
         logger.info('Processes:\t'+str(args.numProcesses))
         print
         seqFN = args.bwtDir+'/seqs.npy'
@@ -127,14 +122,11 @@ def mainRun():
         MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, args.numProcesses, args.areUniform, logger)
     
     elif args.subparserID == 'compress':
-        #TODO: work this into the new directory format
         logger.info('Src:'+args.srcDir)
         logger.info('Dst:'+args.dstDir)
-        #logger.info('BWT Directory: '+args.bwtDir)
         print
         MSBWTGen.compressBWT(args.srcDir+'/msbwt.npy', args.dstDir+'/comp_msbwt.npy', args.numProcesses, logger)
-        
-        #TODO: add this line, but be careful for now that we don't accidentally break something
+        #TODO: add this line or let them do it? but be careful for now that we don't accidentally break something
         #os.remove(args.bwtDir+'/msbwt.npy')
     elif args.subparserID == 'decompress':
         logger.info('Src Directory: '+args.srcDir)
@@ -142,22 +134,13 @@ def mainRun():
         logger.info('Processes: '+str(args.numProcesses))
         print
         MSBWTGen.decompressBWT(args.srcDir, args.dstDir, args.numProcesses, logger)
-        #TODO: remove if srcdir and dstdir are the same
-        
+        #TODO: remove if srcdir and dstdir are the same?
         
     elif args.subparserID == 'merge':
-        #logger.info('Inputs:\t'+args.inputBwtFN1)
-        #logger.info('\t\t'+args.inputBwtFN2)
         logger.info('Inputs:\t'+str(args.inputBwtDirs))
         logger.info('Output:\t'+args.outBwtDir)
         logger.info('Processes:\t'+str(args.numProcesses))
         print
-        
-        #bwtFNs = [None]*len(args.inputBwtDirs)
-        #for x, dirName in enumerate(args.inputBwtDirs):
-        #    bwtFNs[x] = dirName+'/msbwt.npy'
-        
-        #MSBWTGen.mergeNewMSBWT(args.outMSBWT, args.inputBwtFN1, args.inputBwtFN2, args.numProcesses, logger)
         MSBWTGen.mergeNewMSBWT(args.outBwtDir, args.inputBwtDirs, args.numProcesses, logger)
     
     elif args.subparserID == 'query':
@@ -180,8 +163,6 @@ def mainRun():
         logger.info('Output:\t'+args.outputFile)
         logger.info('Rev-comp:\t'+str(args.reverseComplement))
         print
-        #msbwt = MultiStringBWT.MultiStringBWT()
-        #msbwt.loadMsbwt(args.inputBwtDir, False, logger)
         msbwt = MultiStringBWT.loadBWT(args.inputBwtDir, logger)
         
         output = open(args.outputFile, 'w+')

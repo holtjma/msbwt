@@ -1,6 +1,8 @@
 '''
 Created on Aug 5, 2013
 
+This file mostly contains BWT construction functions such as the initial construction, compression, decomp, etc.
+
 @author: holtjma
 '''
 
@@ -320,17 +322,14 @@ def debugDump(msg, procLabel, sTime, debug):
 
 def createFromSeqs(seqFNPrefix, offsetFN, mergedFN, numProcs, areUniform, logger):
     '''
-    This function will take a preprocessed seqFN and offsetFN file and create the MSBWT from them
+    This function will take a preprocessed seqFN and offsetFN file and create the MSBWT from them, it 
+    is the main function to call from MSBWTGen when attempting to build a BWT
     @param seqFNPrefix - the preprocessed seqFN file(s) prefix, '.npy' format of uint8s
     @param offsetFN - the offsets into seqFN indicating the start of a string
     @param mergedFN - the final destination output, '.npy' file
     @param numProcs - the maximum number of processes to use
     '''
     totalStartTime = time.time()
-    
-    #IMPORTANT: MAKE SURE self.validChars IS ALWAYS IN SORTED ORDER
-    #self.validChars = ['$', 'A', 'C', 'G', 'N', 'T']
-    #TODO: probably shouldn't hard code this if we want to generalize
     numValidChars = 6
     
     #clear anything that may already have been associated with it
@@ -369,7 +368,6 @@ def createFromSeqs(seqFNPrefix, offsetFN, mergedFN, numProcs, areUniform, logger
     cOffset = {}
     totalCounts = {}
     
-    #TODO: parallelize the level one generation
     #prepare to make the first inserts
     logger.info('Generating level 1 insertions...')
     st = time.time()
@@ -392,6 +390,7 @@ def createFromSeqs(seqFNPrefix, offsetFN, mergedFN, numProcs, areUniform, logger
         for tup in tups:
             initRets.append(bwtInitialInsertionsPoolCall(tup))
     
+    #create our initial information based on the return
     fmDeltas = {}
     insertFNs = {}
     for initRet in initRets:
@@ -420,10 +419,8 @@ def createFromSeqs(seqFNPrefix, offsetFN, mergedFN, numProcs, areUniform, logger
     
     #prepare to do deeper iterations
     i = 0
-    #column = startingColumn
     
     #dummy, just for entering first loop
-    #newInserts = True
     logger.info('Finished init in '+str(et-st)+' seconds.')
     logger.info('Beginning iterations...')
     
@@ -431,137 +428,6 @@ def createFromSeqs(seqFNPrefix, offsetFN, mergedFN, numProcs, areUniform, logger
     
     iterateCreateFromSeqs(startingColumn, fmStarts, fmDeltas, allFirstCounts, allBwtCounts, cOffset, totalCounts, numValidChars,
                           mergedFN, seqFNPrefix, offsetFN, insertFNs, numProcs, areUniform, depth, logger)
-    
-    '''
-    while newInserts:
-        st = time.time()
-        
-        #iterate through the sorted keys
-        keySort = sorted(fmStarts.keys())
-        for i, key in enumerate(keySort):
-            #all deltas get copied
-            for c2 in xrange(0, numValidChars):
-                #copy only to the ones after key
-                allFirstCounts[int(key[0])] += fmDeltas[key][c2]
-                allBwtCounts[c2] += fmDeltas[key][c2]
-                for key2 in keySort[i+1:]:
-                    fmStarts[key2][c2] += fmDeltas[key][c2]
-                    
-                    if key[0] == key2[0]:
-                        cOffset[key2] += fmDeltas[key][c2]
-                    
-                fmDeltas[key][c2] = 0
-        
-        #blank out the next insertions and make sure we set up the keys we already know about
-        nextInsertFNs = {}
-        for key in keySort:
-            nextInsertFNs[key] = []
-        
-        #default to having no new insertions
-        newInserts = False
-        
-        #generate tuples of data packets for processing
-        tups = []
-        for key in keySort:
-            prevIterFN = mergedFN+'.'+key+'.'+str(column-1)+'.npy'
-            cOff = cOffset[key]
-            tup = (key, seqFNPrefix, offsetFN, mergedFN, prevIterFN, column, copy.deepcopy(fmStarts[key]), insertFNs[key], cOff, areUniform)
-            tups.append(tup)
-        
-        if numProcs > 1:
-            #TODO: chunksize?
-            #create a pool of processes based on the input
-            myPool = multiprocessing.Pool(numProcs)
-            rets = myPool.imap(bwtPartialInsertPoolCall, tups, 1)
-        else:
-            rets = []
-            for tup in tups:
-                rets.append(bwtPartialInsertPoolCall(tup))
-        
-        for i, ret in enumerate(rets):
-            #(retFmDelta, retInsertFNs, retShape) = rets[i]
-            (retFmDelta, retInsertFNs, retShape) = ret
-            key = keySort[i]
-            
-            #TODO: remove $X values, is this legit?
-            for c in xrange(1, numValidChars):
-                if retInsertFNs[c] == None:
-                    continue
-                
-                nextKey = (str(c)+key)[0:depth]
-                if not fmStarts.has_key(nextKey):
-                    fmDeltas[nextKey] = [0]*numValidChars
-                        
-                    keyInd = bisect.bisect(keySort, nextKey)
-                    if keyInd < len(keySort):
-                        fmStarts[nextKey] = copy.deepcopy(fmStarts[keySort[keyInd]])
-                    else:
-                        fmStarts[nextKey] = copy.deepcopy(allBwtCounts)
-                    
-                    if keyInd == len(keySort) or keySort[keyInd][0] != nextKey[0]:
-                        cOffset[nextKey] = allFirstCounts[int(nextKey[0])]
-                    else:
-                        cOffset[nextKey] = cOffset[keySort[keyInd]]
-                    
-                    #print 'cOffset['+nextKey+']='+str(cOffset[nextKey])
-                    #print 'fmStarts['+nextKey+']='+str(fmStarts[nextKey])
-                    np.lib.format.open_memmap(mergedFN+'.'+nextKey+'.'+str(column)+'.npy', 'w+', '<u8,<u1,<u4', (0,))
-                
-                #TODO: key stuff
-                for c2 in xrange(0, numValidChars):
-                    fmDeltas[nextKey][c2] += retFmDelta[c][c2]
-                
-                if not nextInsertFNs.has_key(nextKey):
-                    nextInsertFNs[nextKey] = []
-                
-                if retInsertFNs[c] != None:
-                    nextInsertFNs[nextKey].append(retInsertFNs[c])
-                    newInserts = True
-            
-            #None means we didn't change anything
-            if retShape != None:
-                totalCounts[key] = retShape
-        
-        if numProcs > 1:
-            myPool.terminate()
-            myPool.join()
-            myPool = None
-        
-        #at this point, we know everything is over, so we can clean up the previous step
-        for key in keySort:
-            prevIterFN = mergedFN+'.'+key+'.'+str(column-1)+'.npy'
-            try:
-                os.remove(prevIterFN)
-            except:
-                pass
-            for fn in insertFNs[key]:
-                try:
-                    os.remove(fn)
-                except:
-                    pass
-        
-        insertFNs = nextInsertFNs
-            
-        #copy inserts and move to the next column
-        column += 1
-        
-        et = time.time()
-        logger.info('Finished iteration '+str(column-2)+' in '+str(et-st)+' seconds...')
-            
-    
-    logger.info('Creating final output...')
-    
-    ei = 0
-    sortedKeys = sorted(totalCounts.keys())
-    for key in sortedKeys:
-        copyArr = np.load(mergedFN+'.'+key+'.'+str(column-1)+'.npy', 'r')
-        si = ei
-        ei += totalCounts[key]
-        bwt[si:ei] = copyArr[:]
-        
-    for key in sortedKeys:
-        os.remove(mergedFN+'.'+key+'.'+str(column-1)+'.npy')
-    '''
     
     totalEndTime = time.time()
     logger.info('Final output saved to \''+mergedFN+'\'.')
@@ -615,7 +481,12 @@ def createFromSeqs(seqFNPrefix, offsetFN, mergedFN, numProcs, areUniform, logger
     
 def iterateCreateFromSeqs(startingColumn, fmStarts, fmDeltas, allFirstCounts, allBwtCounts, cOffset, totalCounts, numValidChars,
                           mergedFN, seqFNPrefix, offsetFN, insertFNs, numProcs, areUniform, depth, logger):
-    
+    '''
+    This function is the actual series of iterations that a BWT creation will perform.  It's separate so we can build a function
+    for resuming construction if we fail for some reason.
+    TODO: build a recovery function to start midway through BWT construction.
+    TODO: @param values need explanation
+    '''
     bwt = np.load(mergedFN, 'r+')
     
     column = startingColumn
@@ -666,11 +537,9 @@ def iterateCreateFromSeqs(startingColumn, fmStarts, fmDeltas, allFirstCounts, al
                 rets.append(bwtPartialInsertPoolCall(tup))
         
         for i, ret in enumerate(rets):
-            #(retFmDelta, retInsertFNs, retShape) = rets[i]
             (retFmDelta, retInsertFNs, retShape) = ret
             key = keySort[i]
             
-            #TODO: remove $X values, is this legit?
             for c in xrange(1, numValidChars):
                 if retInsertFNs[c] == None:
                     continue
@@ -690,11 +559,8 @@ def iterateCreateFromSeqs(startingColumn, fmStarts, fmDeltas, allFirstCounts, al
                     else:
                         cOffset[nextKey] = cOffset[keySort[keyInd]]
                     
-                    #print 'cOffset['+nextKey+']='+str(cOffset[nextKey])
-                    #print 'fmStarts['+nextKey+']='+str(fmStarts[nextKey])
                     np.lib.format.open_memmap(mergedFN+'.'+nextKey+'.'+str(column)+'.npy', 'w+', '<u8,<u1,<u4', (0,))
                 
-                #TODO: key stuff
                 for c2 in xrange(0, numValidChars):
                     fmDeltas[nextKey][c2] += retFmDelta[c][c2]
                 
@@ -767,11 +633,7 @@ def writeSeqsToFiles(seqArray, seqFNPrefix, offsetFN, uniformLength):
         for c in d.keys():
             dArr[ord(c)] = d[c]
         
-        #endPoints = np.where(seqArray==ord('$'))[0]
-        #numSeqs = endPoints.shape[0]
-        #seqLen = endPoints[0]+1
         seqLen = uniformLength
-        #numSeqs = seqArray.shape[0]/seqLen
         b = np.reshape(seqArray, (-1, seqLen))
         numSeqs = b.shape[0]
         t = b.transpose()
@@ -779,29 +641,12 @@ def writeSeqsToFiles(seqArray, seqFNPrefix, offsetFN, uniformLength):
         for i in xrange(0, seqLen):
             #create a file for this column
             seqs = np.lib.format.open_memmap(seqFNPrefix+'.'+str(i)+'.npy', 'w+', '<u1', (numSeqs,))
-            #seqs[:] = dArr[t[-i-1]]
             chunkSize = 1000000
             j = 0
             while chunkSize*j < numSeqs:
                 seqs[chunkSize*j:chunkSize*(j+1)] = dArr[t[-i-1][chunkSize*j:chunkSize*(j+1)]]
                 j += 1
             del seqs
-            
-            #copy the values
-            '''
-            chunkSize = 1000000
-            j = 0
-            while chunkSize*j < numSeqs:
-                seqs[chunkSize*j:chunkSize*(j+1)] = dArr[seqArray[endPoints[chunkSize*j:chunkSize*(j+1)]-i]]
-                j += 1
-            
-            #del seqs
-            '''
-            #print seqs
-            
-            
-        #del endPoints
-        
     else:
         #count how many terminal '$' exist, 36 = '$'
         lenSums = np.add(1, np.where(seqArray == 36)[0])
@@ -835,172 +680,62 @@ def writeSeqsToFiles(seqArray, seqFNPrefix, offsetFN, uniformLength):
     #return the two filenames
     return (seqFNPrefix, offsetFN)
 
-def mergeBwtPoolCall(tup):
-    (mergedFN, inputBWTFN1, inputBWTFN2, startIndex, endIndex) = tup
-    msbwt1 = MultiStringBWT.MultiStringBWT()
-    msbwt1.loadFile(inputBWTFN1, False)
-    msbwt2 = MultiStringBWT.MultiStringBWT()
-    msbwt2.loadFile(inputBWTFN2, False)
-    
-    #keep the smaller bwt in msbwt1
-    if msbwt1.bwt.shape[0] > msbwt2.bwt.shape[0]:
-        temp = msbwt1
-        msbwt1 = msbwt2
-        msbwt2 = temp
-        del temp
-        
-    #load the pre-allocated file
-    mergedBWT = np.load(mergedFN, 'r+')
-    
-    #iterate through this particular range
-    for seqIndex in xrange(startIndex, endIndex):
-        (seqAsInt, seqIndices1) = msbwt1.recoverReversedInts(seqIndex, True)
-        l = 0
-        h = msbwt2.totalSize
-        
-        copyDetected = False
-        revLen = len(seqAsInt)
-        bwtBefores = [None]*revLen
-        j = 0
-        while bwtBefores[j] == None:
-            (l, h) = msbwt2.findIndicesOfInt(seqAsInt[j:j+1], (l, h))
-            if l == h or copyDetected:
-                bwtBefores[j] = h+seqIndices1[j]
-                mergedBWT[bwtBefores[j]] = seqAsInt[(j+1)%revLen]
-            else:
-                #do nothing
-                pass
-            j = (j+1) % revLen
-            if j == 0:
-                copyDetected = True
-        
-    #nothing to return
-    print 'Finished range '+str([startIndex, endIndex])
-
-def mergeMSBWT(mergedFN, inputBWTFN1, inputBWTFN2, numProcs, logger):
-    '''
-    @param mergedFN - the destination for the final merged MSBWT
-    @param inputBWTFN1 - the fn of the first BWT to merge
-    @param inputBWTFN2 - the fn of the second BWT to merge
-    @param numProcs - number of processes we're allowed to use
-    @param logger - output goes here
-    '''
-    #first load each file to make sure we create indices
-    logger.info('Loading files for merging...')
-    vcLen = 6
-    msbwt1 = MultiStringBWT.MultiStringBWT()
-    msbwt1.loadFile(inputBWTFN1, False)
-    msbwt2 = MultiStringBWT.MultiStringBWT()
-    msbwt2.loadFile(inputBWTFN2, False)
-    
-    #keep the smaller bwt in msbwt1
-    if msbwt1.bwt.shape[0] > msbwt2.bwt.shape[0]:
-        temp = msbwt1
-        msbwt1 = msbwt2
-        msbwt2 = temp
-        del temp
-    
-    logger.info('Allocating merge space...')
-    totalMergedSize = msbwt1.totalSize+msbwt2.totalSize
-    mergedBWT = np.lib.format.open_memmap(mergedFN, 'w+', '<u1', (totalMergedSize,))
-    mergedBWT[:] = vcLen
-    
-    logger.info('Merging sequences...')
-    numSeqs1 = msbwt1.totalCounts[0]
-    
-    tups = []
-    end = 0
-    factorize = 1000
-    for j in xrange(0, factorize*numProcs):
-        start = end
-        end = int(math.floor(((j+1)/float(factorize*numProcs))*numSeqs1))
-        tups.append((mergedFN, inputBWTFN1, inputBWTFN2, start, end))
-    
-    if numProcs <= 1:
-        for tup in tups:
-            mergeBwtPoolCall(tup)
-    else:
-        myPool = multiprocessing.Pool(numProcs)
-        myPool.map(mergeBwtPoolCall, tups, 1)
-    
-    logger.info('Copying data to final output...')
-    mergedBWT[mergedBWT == vcLen] = msbwt2.bwt[:]
-    logger.info('Merge finished.')
-
-
 def mergeNewMSBWTPoolCall(tup):
+    '''
+    This is a single process call of a chunk of the data to merge BWTs
+    @param bID - the block ID this process is processing
+    @param binSize - the size of a bin/block
+    @param vcLen - 6, hardcoded upstream
+    @param currOffsetCounts - the starting position in each input BWT for this process chunk, useful for FM extraction
+    @param placeArrayFN - the filename for the input origin bits
+    @param nextPlaceArrayFN - the filename for the output origin bits
+    @param bwtDirs - the actual input BWT directories to merge
+    '''
     (bID, binSize, vcLen, currOffsetCounts, placeArrayFN, nextPlaceArrayFN, bwtDirs) = tup
     
     #load things to run
     placeArray = np.load(placeArrayFN, 'r')
     nextPlaceArray = np.load(nextPlaceArrayFN, 'r+')
     
-    '''
-    msbwt1 = MultiStringBWT.MultiStringBWT()
-    msbwt1.loadFile(bwt1FN, False)
-    msbwt2 = MultiStringBWT.MultiStringBWT()
-    msbwt2.loadFile(bwt2FN, False)
-    bwt1 = msbwt1.bwt
-    bwt2 = msbwt2.bwt
-    '''
     numInputs = len(bwtDirs)
     msbwts = [None]*numInputs
-    #bwts = [None]*numInputs
     mergedLength = 0
     for i, bwtDir in enumerate(bwtDirs):
-        #msbwts[i] = MultiStringBWT.MultiStringBWT()
-        #msbwts[i].loadMsbwt(fn, None)
         msbwts[i] = MultiStringBWT.loadBWT(bwtDir)
-        #bwts[i] = msbwts[i].bwt
-        #mergedLength += bwts[i].shape[0]
         mergedLength += msbwts[i].totalSize
         
     #state info we need to pass back
-    #binUpdate = {}
     nextBinHasChanged = {}
     nextOffsetCounts = {}
     needsMoreIterations = False
     
-    #get the region and count the number of 0s and 1s
+    #get the region and count the number of 0s, 1s, 2s, etc.
     region = placeArray[bID*binSize:(bID+1)*binSize]
     srcCounts = np.bincount(region, minlength=numInputs)
     
     #first extract the two subregions from each bwt
     inputIndices = currOffsetCounts
-    #chunk1 = bwt1[inputIndices[0]:inputIndices[0]+srcCounts[0]]
-    #chunk2 = bwt2[inputIndices[1]:inputIndices[1]+srcCounts[1]]
     chunks = [None]*numInputs
     for x in xrange(0, numInputs):
-        #chunks[x] = bwts[x][inputIndices[x]:inputIndices[x]+srcCounts[x]]
         chunks[x] = msbwts[x].getBWTRange(int(inputIndices[x]), int(inputIndices[x]+srcCounts[x]))
         
     #count the number of characters of each
-    #bc1 = np.bincount(chunk1, minlength=vcLen)
-    #bc2 = np.bincount(chunk2, minlength=vcLen)
     bcs = [None]*numInputs
     for x in xrange(0, numInputs):
         bcs[x] = np.bincount(chunks[x], minlength=vcLen)
     
     #interleave these character based on the region
     cArray = np.zeros(dtype='<u1', shape=(region.shape[0],))
-    #cArray[region == 0] = chunk1[:]
-    #cArray[region == 1] = chunk2[:]
     for x in xrange(0, numInputs):
         cArray[region == x] = chunks[x]
     
     #calculate curr using the MSBWT searches
-    #offsets1 = msbwt1.getFullFMAtIndex(int(inputIndices[0]))
-    #offsets2 = msbwt2.getFullFMAtIndex(int(inputIndices[1]))
-    #curr = offsets1+offsets2
     curr = np.zeros(dtype='<u8', shape=(vcLen,))
     for x in xrange(0, numInputs):
         curr += msbwts[x].getFullFMAtIndex(int(inputIndices[x]))
     
     #this is the equivalent of bin sorting just this small chunk
     for c in xrange(0, vcLen):
-        #if no chars, no need to do biz
-        #if bc1[c]+bc2[c] == 0:
-        #    continue
         totalC = 0
         for x in xrange(0, numInputs):
             totalC += bcs[x][c]
@@ -1013,17 +748,14 @@ def mergeNewMSBWTPoolCall(tup):
         
         #calculate which bin they are in and mark those bins are changed if different
         b1 = int(math.floor(curr[c]/binSize))
-        #b2 = int(math.floor((curr[c]+bc1[c]+bc2[c])/binSize))
         b2 = int(math.floor((curr[c]+totalC)/binSize))
         if b1 == b2:
             if not np.array_equal(placeArray[curr[c]:curr[c]+packed.shape[0]], packed):
                 nextBinHasChanged[b1] = True
                 needsMoreIterations = True
             
-            #TODO: use these to update things as needed
             origins = np.bincount(packed, minlength=numInputs)
             nextOffsetCounts[b1] = origins+nextOffsetCounts.get(b1, (0,)*numInputs)
-            #binUpdate[b1] = origins+binUpdate.get(b1, (0, 0))
             
         else:
             #b1 and b2 are different bins
@@ -1048,17 +780,15 @@ def mergeNewMSBWTPoolCall(tup):
     #cleanup time
     del srcCounts
     del region
-    #del chunk1
-    #del chunk2
     del chunks
     del cArray
     gc.collect()
     
     return (bID, nextBinHasChanged, nextOffsetCounts, needsMoreIterations)
 
-#def mergeNewMSBWT(mergedFN, inputBWTFN1, inputBWTFN2, numProcs, logger):
 def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
     '''
+    This function will take a list of input BWTs (compressed or not) and merge them into a single BWT
     @param mergedFN - the destination for the final merged MSBWT
     @param inputBWTFN1 - the fn of the first BWT to merge
     @param inputBWTFN2 - the fn of the second BWT to merge
@@ -1072,78 +802,55 @@ def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
     #TODO: take advantage of these to skip an iteration or two perhaps
     numInputs = len(inputBwtDirs)
     msbwts = [None]*numInputs
-    #bwts = [None]*numInputs
     mergedLength = 0
     for i, dirName in enumerate(inputBwtDirs):
-        #msbwts[i] = MultiStringBWT.MultiStringBWT()
-        #msbwts[i].loadMsbwt(dirName, logger)
+        '''
+        NOTE: in practice, since we're allowing for multiprocessing, we construct the FM-index for each input BWT
+        simply because in the long run, this allows us to figure out how to start processing chunks separately.
+        Without this, we would need to track extra information that really just represent the FM-index.
+        '''
         msbwts[i] = MultiStringBWT.loadBWT(dirName, logger)
-        #bwts[i] = msbwts[i].bwt
-        #mergedLength += bwts[i].shape[0]
         mergedLength += msbwts[i].totalSize
-        
-        #print 'Input: '+str(msbwts[i].bwt)
     
     #binSize = 2**1#small bin debugging
     #binSize = 2**15#this one is just for test purposes, makes easy to debug things
     binSize = 2**24#diff in 22-23 is not that much, 23-24 was 8 seconds of difference, so REALLY no diff
-    #bitBin = binSize/8
     
     #allocate the mergedBWT space
     logger.info('Allocating space on disk...')
-    #mergedBWT = np.lib.format.open_memmap(mergedFN, 'w+', '<u1', (bwt1.shape[0]+bwt2.shape[0],))
     mergedBWT = np.lib.format.open_memmap(mergedDir+'/msbwt.npy', 'w+', '<u1', (mergedLength,))
     
     #this one will create the array using bits
     logger.info('Initializing iterations...')
     placeArray = np.lib.format.open_memmap(mergedDir+'/temp.0.npy', 'w+', '<u1', (mergedBWT.shape[0],))
     copiedPlaceArray = np.lib.format.open_memmap(mergedDir+'/temp.1.npy', 'w+', '<u1', (mergedBWT.shape[0],))
-    #placeArray[bwt1.shape[0]:] = 1
-    #start = bwts[0].shape[0]
     start = msbwts[0].totalSize
     end = 0
-    '''
-    for i, bwt in enumerate(bwts):
-        end += bwt.shape[0]
-        placeArray[start:end] = i
-        start = end
-    '''
+    
+    #fill out the initial array with 0s, 1s, 2s, etc. as our initial condition
     for i, msbwt in enumerate(msbwts):
         end += msbwt.totalSize
-        #placeArray[start:end] = i
-        #copiedPlaceArray[start:end] = i
         placeArray[start:end].fill(i)
         copiedPlaceArray[start:end].fill(i)
         start = end
     
     #create something to track the offsets
-    #TODO: x/binSize + 1 makes one too many bins if it's exactly divisiable by binSize, ex: 4 length BWT with binSize 2
+    #TODO: x/binSize + 1 makes one too many bins if it's exactly divisible by binSize, ex: 4 length BWT with binSize 2
     nextBinHasChanged = np.ones(dtype='b', shape=(mergedBWT.shape[0]/binSize+1,))
     prevOffsetCounts = np.zeros(dtype='<u8', shape=(mergedBWT.shape[0]/binSize+1, numInputs))
     currOffsetCounts = np.zeros(dtype='<u8', shape=(mergedBWT.shape[0]/binSize+1, numInputs))
     nextOffsetCounts = np.zeros(dtype='<u8', shape=(mergedBWT.shape[0]/binSize+1, numInputs))
     binUpdates = [{}]*(mergedBWT.shape[0]/binSize+1)
     
-    '''
-    for x in xrange(0, currOffsetCounts.shape[0]):
-        if x*binSize < bwt1.shape[0]:
-            nextOffsetCounts[x] = (x*binSize, 0)
-        else:
-            nextOffsetCounts[x] = (bwt1.shape[0], x*binSize-bwt1.shape[0])
-    '''
     bwtInd = 0
     offsets = [0]*numInputs
     for x in xrange(0, currOffsetCounts.shape[0]):
         #set, then change for next iter
         nextOffsetCounts[x] = offsets
-        
         remaining = binSize
         while remaining > 0 and bwtInd < numInputs:
-            #if remaining > bwts[bwtInd].shape[0]-offsets[bwtInd]:
             if remaining > msbwts[bwtInd].totalSize-offsets[bwtInd]:
-                #remaining -= bwts[bwtInd].shape[0]-offsets[bwtInd]
                 remaining -= msbwts[bwtInd].totalSize-offsets[bwtInd]
-                #offsets[bwtInd] = bwts[bwtInd].shape[0]
                 offsets[bwtInd] = msbwts[bwtInd].totalSize
                 bwtInd += 1
             else:
@@ -1156,8 +863,6 @@ def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
     sys.stdout.write('\rcp ')
     sys.stdout.flush()
         
-    #shutil.copyfile(mergedDir+'/temp.0.npy', mergedDir+'/temp.1.npy')
-    #nextPlaceArray = np.load(mergedFN+'.temp.1.npy', 'r')
     del copiedPlaceArray
     needsMoreIterations = True
     
@@ -1206,13 +911,11 @@ def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
             problem (if there's a resolution).
             '''
             if False and not binHasChanged[x] and sameOffset:
-                #print 'bu:'+str(binUpdates[x])
                 for key in binUpdates[x]:
                     nextOffsetCounts[key] += binUpdates[x][key]
                 ignored += 1
             else:
                 #note these are swapped depending on the iteration, saves time since there is no file copying
-                #(x, binSize, vcLen, currOffsetCounts, placeArrayFN, nextPlaceArrayFN, bwt1FN, bwt2FN) = tup
                 if i % 2 == 0:
                     tup = (x, binSize, vcLen, currOffsetCounts[x], mergedDir+'/temp.0.npy', mergedDir+'/temp.1.npy', inputBwtDirs)
                 else:
@@ -1223,7 +926,6 @@ def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
             #TODO: tinker with chunksize, it might matter
             myPool = multiprocessing.Pool(numProcs)
             rets = myPool.imap(mergeNewMSBWTPoolCall, tups, chunksize=10)
-            
         else:
             rets = []
             for tup in tups:
@@ -1234,6 +936,7 @@ def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
         sys.stdout.flush()
             
         for ret in rets:
+            #iterate through the returns so we can figure out information necessary for continuation
             (x, nBHC, nOC, nMI) = ret
             binUpdates[x] = nOC
             for k in nBHC:
@@ -1247,7 +950,6 @@ def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
             sys.stdout.flush()
         
         nextOffsetCounts = np.cumsum(nextOffsetCounts, axis=0)-nextOffsetCounts
-        
         if numProcs > 1:
             myPool.terminate()
             myPool.join()
@@ -1267,7 +969,6 @@ def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
         bc = np.bincount(ind, minlength=numInputs)
         
         for x in xrange(0, numInputs):
-            #mergedBWT[np.add(i*binSize, np.where(ind == x))] = bwts[x][offsets[x]:offsets[x]+bc[x]]
             mergedBWT[np.add(i*binSize, np.where(ind == x))] = msbwts[x].getBWTRange(int(offsets[x]), int(offsets[x]+bc[x]))
         offsets += bc
         
@@ -1326,7 +1027,6 @@ def compressBWT(inputFN, outputFN, numProcs, logger):
     for ret in rets:
         #start by just adding the raw size
         totalSize += ret[0]
-        #print ret
         
         #check if we need to compensate for a break point like AAA|A
         if prevChar == ret[1]:
@@ -1342,7 +1042,7 @@ def compressBWT(inputFN, outputFN, numProcs, logger):
             prevTotal = ret[4]
         prevChar = ret[3]
     
-    #make the real output
+    #make the real output by joining all of the partial compressions into a single file
     finalBWT = np.lib.format.open_memmap(outputFN, 'w+', '<u1', (totalSize,))
     logger.info('Calculated compressed size:'+str(totalSize)+'B')
     logger.info('Joining sub-compressions...')
@@ -1394,6 +1094,11 @@ def compressBWT(inputFN, outputFN, numProcs, logger):
     return finalBWT
     
 def compressBWTPoolProcess(tup):
+    '''
+    During compression, each available process will calculate a subportion of the BWT independently using this 
+    function.  This process takes the chunk and rewrites it into a given filename using the technique described
+    in the compressBWT(...) function header
+    '''
     #pull the tuple info
     inputFN = tup[0]
     startIndex = tup[1]
@@ -1461,6 +1166,8 @@ def compressBWTPoolProcess(tup):
     
 def decompressBWT(inputDir, outputDir, numProcs, logger):
     '''
+    This is called for taking a BWT and decompressing it back out to it's original form.  While unusual to do,
+    it's included in this package for completion purposes.
     @param inputDir - the directory of the compressed BWT we plan on decompressing
     @param outputFN - the directory for the output decompressed BWT, it can be the same, we don't care
     @param numProcs - number of processes we're allowed to use
@@ -1496,9 +1203,10 @@ def decompressBWT(inputDir, outputDir, numProcs, logger):
     #as of now, nothing to do we rets, so we're finished
     
 def decompressBWTPoolProcess(tup):
+    '''
+    Individual process for decompression
+    '''
     (inputDir, outputDir, startIndex, endIndex) = tup
-    
-    print tup
     
     if startIndex == endIndex:
         return True

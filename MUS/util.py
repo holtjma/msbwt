@@ -1,6 +1,7 @@
 '''
 Created on Nov 1, 2013
-
+@summary: this file mostly contains some auxiliary checks for the command line interface to make sure it's
+handed correct file types
 @author: holtjma
 '''
 
@@ -9,7 +10,10 @@ import argparse as ap
 
 validCharacters = set(['$', 'A', 'C', 'G', 'N', 'T'])
 
-def readableFastaFile(fileName):
+def readableFastqFile(fileName): 
+    '''
+    @param filename - must be both an existing and readable fastq file, supported under '.txt' and '.gz' as of now
+    '''
     if os.path.isfile(fileName) and os.access(fileName, os.R_OK):
         if fileName.endswith('.txt') or fileName.endswith('.gz'):
             return fileName
@@ -18,6 +22,9 @@ def readableFastaFile(fileName):
     else:
         raise ap.ArgumentTypeError("Cannot read file '%s'." % fileName)
 
+'''
+TODO: REMOVE UNUSED FUNCTION
+'''
 def readableNpyFile(fileName):
     if os.path.isfile(fileName) and os.access(fileName, os.R_OK):
         if fileName.endswith('.npy'):
@@ -27,6 +34,9 @@ def readableNpyFile(fileName):
     else:
         raise ap.ArgumentTypeError("Cannot read file '%s'." % fileName)
 
+'''
+TODO: REMOVE UNUSED FUNCTION
+'''
 def writableNpyFile(fileName):
     if os.access(os.path.dirname(fileName), os.W_OK):
         if fileName.endswith('.npy'):
@@ -36,7 +46,11 @@ def writableNpyFile(fileName):
     else:        
         raise ap.ArgumentTypeError("Cannot write file '%s'." % fileName)
 
+
 def newDirectory(dirName):
+    '''
+    @param dirName - will make a directory with this name, aka, this must be a new directory
+    '''
     #strip any tail '/'
     if dirName[-1] == '/':
         dirName = dirName[0:-1]
@@ -46,6 +60,10 @@ def newDirectory(dirName):
     return dirName
 
 def existingDirectory(dirName):
+    '''
+    @param dirName - checks to make sure this directory already exists
+    TODO: add checks for the bwt files?
+    '''
     #strip any tail '/'
     if dirName[-1] == '/':
         dirName = dirName[0:-1]
@@ -54,8 +72,11 @@ def existingDirectory(dirName):
         return dirName
     else:
         raise ap.ArgumentTypeError("Directory does not exist: '%s'" % dirName)
-    
+
 def newOrExistingDirectory(dirName):
+    '''
+    @param dirName - the directory could be pre-existing, if not it's created
+    '''
     if dirName[-1] == '/':
         dirName = dirName[0:-1]
     
@@ -64,10 +85,12 @@ def newOrExistingDirectory(dirName):
     else:
         os.makedirs(dirName)
         return dirName
-    
+
 def validKmer(kmer):
+    '''
+    @param kmer - must be contained in the characters used for our sequencing
+    '''
     for c in kmer:
         if not (c in validCharacters):
             raise ap.ArgumentTypeError("Invalid k-mer: All characters must be in ($, A, C, G, N, T)")
-    
     return kmer
