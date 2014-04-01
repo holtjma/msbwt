@@ -148,7 +148,7 @@ list of each along with the expected output.
 The latest release also includes installation of the Cython library used to load the MSBWTs and perform merges.  After 
 installation, the libraries are available through regular Python imports like so:
 
-	import MUS.MultiStringBWTCython as MultiStringBWT
+	import MUSCython.MultiStringBWTCython as MultiStringBWT
 	msbwt = MultiStringBWT.loadBWT('/path/to/directory')
 	msbwt.countOccurrencesOfSeq('CAT')
 

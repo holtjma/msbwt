@@ -1,7 +1,11 @@
-from distutils.core import setup
-from distutils.extension import Extension
-from distutils.command.sdist import sdist as _sdist
-#from MUS import CommandLineInterface
+#from distutils.core import setup
+#from distutils.extension import Extension
+#from distutils.command.sdist import sdist as _sdist
+
+from setuptools import setup
+from setuptools import Extension
+from setuptools.command.sdist import sdist as _sdist
+
 from MUS import util
 
 #borrowed from online code: http://stackoverflow.com/questions/4505747/how-should-i-structure-a-python-package-that-contains-cython-code
@@ -13,7 +17,6 @@ else:
     useCython = True
 
 import numpy as np
-
 
 cmdClass = {}
 extModules = []
