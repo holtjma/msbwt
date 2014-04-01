@@ -25,9 +25,10 @@ Holt, J., McMillan, L. Merging of Multi-String BWTs with Applications. Under Rev
 System Requirements
 ===================
 
-Msbwt and its modules have been tested under Python 2.7.
+Msbwt and its modules have been tested under Python 2.7.  The package is distributed with both Cython and the 
+corresponding C files.  We recommend using installing Cython prior to installing this package.
 
-Several python modules are required to run the code.
+Two Python modules are required to run the code.
 
 *[pysam] - Tested with pysam 0.7.4
 
@@ -143,3 +144,12 @@ list of each along with the expected output.
 						FM-index will need to be reconstructed for the new data format.
 	decompress			This function takes a compressed MSBWT and converts it back into its original uncompressed format.
 						The auxiliary FM-index will need to be reconstructed for this format.
+
+The latest release also includes installation of the Cython library used to load the MSBWTs and perform merges.  After 
+installation, the libraries are available through regular Python imports like so:
+
+	import MUS.MultiStringBWTCython as MultiStringBWT
+	msbwt = MultiStringBWT.loadBWT('/path/to/directory')
+	msbwt.countOccurrencesOfSeq('CAT')
+
+Other commands are available as well. For more information, refer to the code available at https://code.google.com/p/msbwt/.

@@ -10,13 +10,11 @@ import os
 import sys
 
 import MSBWTGen
-import MultiStringBWT
+#import MultiStringBWT
 import util
 
-#I see no need for the versions to be different as of now
-DESC = "A multi-string BWT package for DNA and RNA."
-VERSION = '0.1.4'
-PKG_VERSION = VERSION
+from MUSCython import MultiStringBWTCython as MultiStringBWT
+from MUSCython import MSBWTGenCython
 
 def initLogger():
     '''
@@ -39,11 +37,11 @@ def mainRun():
     initLogger()
     
     #attempt to parse the arguments
-    p = ap.ArgumentParser(description=DESC, formatter_class=ap.RawTextHelpFormatter)
+    p = ap.ArgumentParser(description=util.DESC, formatter_class=ap.RawTextHelpFormatter)
     
     #version data
     p.add_argument('-V', '--version', action='version', version='%(prog)s' + \
-                   ' %s in MSBWT %s' % (VERSION, PKG_VERSION))
+                   ' %s in MSBWT %s' % (util.VERSION, util.PKG_VERSION))
     
     #TODO: do we want subparsers groups by type or sorted by name? it's type currently
     
@@ -140,9 +138,11 @@ def mainRun():
         logger.info('Inputs:\t'+str(args.inputBwtDirs))
         logger.info('Output:\t'+args.outBwtDir)
         logger.info('Processes:\t'+str(args.numProcesses))
+        logger.warning('Multi-processing is not supported at this time, but will be included in a future release.')
         print
-        MSBWTGen.mergeNewMSBWT(args.outBwtDir, args.inputBwtDirs, args.numProcesses, logger)
-    
+        #MSBWTGen.mergeNewMSBWT(args.outBwtDir, args.inputBwtDirs, args.numProcesses, logger)
+        MSBWTGenCython.mergeMsbwts(args.inputBwtDirs, args.outBwtDir, 1, logger)
+        
     elif args.subparserID == 'query':
         #this is the easiest thing we can do, don't dump the standard info, just do it
         msbwt = MultiStringBWT.loadBWT(args.inputBwtDir, logger)

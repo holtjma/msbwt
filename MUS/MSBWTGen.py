@@ -18,8 +18,6 @@ import shutil
 import sys
 import time
 
-import MultiStringBWT
-
 def bwtInitialInsertionsPoolCall(tup):
     (offsetFN, seqFNPrefix, mergedFN, depth, numValidChars, startingIndex, endingIndex, areUniform) = tup
     
@@ -814,7 +812,8 @@ def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
     
     #binSize = 2**1#small bin debugging
     #binSize = 2**15#this one is just for test purposes, makes easy to debug things
-    binSize = 2**24#diff in 22-23 is not that much, 23-24 was 8 seconds of difference, so REALLY no diff
+    #binSize = 2**25#diff in 22-23 is not that much, 23-24 was 8 seconds of difference, so REALLY no diff
+    binSize = 2**28
     
     #allocate the mergedBWT space
     logger.info('Allocating space on disk...')
@@ -829,7 +828,7 @@ def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
     
     #fill out the initial array with 0s, 1s, 2s, etc. as our initial condition
     for i, msbwt in enumerate(msbwts):
-        end += msbwt.totalSize
+        end += msbwt.getTotalSize()
         placeArray[start:end].fill(i)
         copiedPlaceArray[start:end].fill(i)
         start = end
@@ -925,6 +924,7 @@ def mergeNewMSBWT(mergedDir, inputBwtDirs, numProcs, logger):
         if numProcs > 1:
             #TODO: tinker with chunksize, it might matter
             myPool = multiprocessing.Pool(numProcs)
+            #myPool = multiprocessing.pool.ThreadPool(numProcs)
             rets = myPool.imap(mergeNewMSBWTPoolCall, tups, chunksize=10)
         else:
             rets = []
@@ -1178,19 +1178,19 @@ def decompressBWT(inputDir, outputDir, numProcs, logger):
     msbwt.loadMsbwt(inputDir, logger)
     
     #make the output file
-    outputFile = np.lib.format.open_memmap(outputDir+'/msbwt.npy', 'w+', '<u1', (msbwt.totalSize,))
+    outputFile = np.lib.format.open_memmap(outputDir+'/msbwt.npy', 'w+', '<u1', (msbwt.getTotalSize(),))
     del outputFile
     
     worksize = 1000000
-    tups = [None]*(msbwt.totalSize/worksize+1)
+    tups = [None]*(msbwt.getTotalSize()/worksize+1)
     x = 0
     
-    if msbwt.totalSize > worksize:
-        for x in xrange(0, msbwt.totalSize/worksize):
+    if msbwt.getTotalSize() > worksize:
+        for x in xrange(0, msbwt.getTotalSize()/worksize):
             tups[x] = (inputDir, outputDir, x*worksize, (x+1)*worksize)
-        tups[-1] = (inputDir, outputDir, (x+1)*worksize, msbwt.totalSize)
+        tups[-1] = (inputDir, outputDir, (x+1)*worksize, msbwt.getTotalSize())
     else:
-        tups[0] = (inputDir, outputDir, 0, msbwt.totalSize)
+        tups[0] = (inputDir, outputDir, 0, msbwt.getTotalSize())
         
     if numProcs > 1:
         myPool = multiprocessing.Pool(numProcs)
@@ -1231,6 +1231,9 @@ def clearAuxiliaryData(dirName):
         
         if os.path.exists(dirName+'/totalCounts.p'):
             os.remove(dirName+'/totalCounts.p')
+        
+        if os.path.exists(dirName+'/totalCounts.npy'):
+            os.remove(dirName+'/totalCounts.npy')
         
         if os.path.exists(dirName+'/fmIndex.npy'):
             os.remove(dirName+'/fmIndex.npy')

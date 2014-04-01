@@ -1,3 +1,6 @@
+#!python
+#cython: boundscheck=False
+
 '''
 Created on Aug 5, 2013
 
@@ -12,20 +15,24 @@ import gzip
 import heapq
 import math
 import numpy as np
+cimport numpy as np
 import os
 import pickle
 import pysam#@UnresolvedImport
 import shutil
 import sys
+import time
 
-import MSBWTGen
+from MUS import MSBWTGen
+
+from cython.operator cimport preincrement as inc
 
 #flags for samtools
 REVERSE_COMPLEMENTED_FLAG = 1 << 4#0x10
 FIRST_SEGMENT_FLAG = 1 << 6#0x40
 #SECOND_SEGMENT_FLAG = 1 << 7#0x80
 
-class BasicBWT(object):
+cdef class BasicBWT(object):
     '''
     This class is the root class for ANY msbwt created by this code regardless of it being compressed or no.
     Shared Functions:
@@ -43,17 +50,50 @@ class BasicBWT(object):
     getOccurrenceOfCharAtIndex
     getFullFMAtIndex
     '''
+    
+    cdef np.ndarray numToChar
+    cdef unsigned char [:] numToChar_view
+    cdef np.ndarray charToNum
+    cdef unsigned char [:] charToNum_view
+    cdef unsigned int vcLen
+    cdef unsigned int cacheDepth
+    
+    cdef char * dirName
+    cdef np.ndarray bwt
+    cdef np.uint8_t [:] bwt_view
+    
+    cdef unsigned long totalSize
+    cdef np.ndarray totalCounts
+    cdef np.uint64_t [:] totalCounts_view
+    
+    cdef np.ndarray startIndex
+    cdef np.uint64_t [:] startIndex_view
+    cdef np.ndarray endIndex
+    cdef np.uint64_t [:] endIndex_view
+    
+    cdef dict searchCache
+    cdef unsigned long bitPower
+    cdef unsigned long binSize
+    cdef np.ndarray partialFM
+    cdef np.uint64_t[:, :] partialFM_view
+    
     def __init__(self):
         '''
         Constructor
         Nothing special, use this for all at the start
         '''
+        cdef unsigned long i
+        
         #valid characters are hard-coded for now
-        self.numToChar = np.array(sorted(['$', 'A', 'C', 'G', 'N', 'T']))
-        self.charToNum = {}
-        for i, c in enumerate(self.numToChar):
-            self.charToNum[c] = i
+        self.numToChar = np.array([ord(c) for c in sorted(['$', 'A', 'C', 'G', 'N', 'T'])], dtype='<u1')
+        self.numToChar_view = self.numToChar
         self.vcLen = len(self.numToChar)
+        
+        #construct a reverse map from a character to a number
+        self.charToNum = np.zeros(dtype='<u1', shape=(256,))
+        self.charToNum_view = self.charToNum
+        for i in range(0, self.vcLen):
+            self.charToNum_view[self.numToChar_view[i]] = i
         
         #this is purely for querying and determines how big our cache will be to shorten query times
         #TODO: experiment with this number
@@ -65,24 +105,31 @@ class BasicBWT(object):
         generated here is for quickly finding offsets.  This is run AFTER self.constructTotalCounts(...)
         '''
         #mark starts and ends of key elements
-        self.startIndex = [None]*self.vcLen
-        self.endIndex = [None]*self.vcLen
-        pos = 0
+        self.startIndex = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        self.startIndex_view = self.startIndex
+        self.endIndex = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        self.endIndex_view = self.endIndex
         
-        #go through the 1-mers
-        for c in xrange(0, self.vcLen):
-            #build start and end indexes
-            self.startIndex[c] = pos
-            pos += self.totalCounts[c]
-            self.endIndex[c] = pos
+        cdef unsigned long pos = 0
+        cdef unsigned long i
+        with nogil:
+            for i in range(0, self.vcLen):
+                self.startIndex_view[i] = pos
+                pos += self.totalCounts_view[i]
+                self.endIndex_view[i] = pos
     
-    def countOccurrencesOfSeq(self, seq, givenRange=None):
+    def getTotalSize(self):
+        return self.totalSize
+    
+    def countOccurrencesOfSeq(BasicBWT self, seq, givenRange=None):
         '''
         This function counts the number of occurrences of the given sequence
         @param seq - the sequence to search for
         @param givenRange - the range to start from (if a partial search has already been run), default=whole range
         @return - an integer count of the number of times seq occurred in this BWT
         '''
+        '''
+        #TODO: is the cache mattering?
         #init the current range
         if givenRange == None:
             if not self.searchCache.has_key(seq[-self.cacheDepth:]):
@@ -95,18 +142,30 @@ class BasicBWT(object):
         else:
             l = givenRange[0]
             h = givenRange[1]
-            
-        #reverse sequence and convert to ints so we can iterate through it
-        revSeq = [self.charToNum[c] for c in reversed(seq)]
+        '''
         
-        for c in revSeq:
-            #get the start and end offsets
-            l = self.getOccurrenceOfCharAtIndex(c, l)
-            h = self.getOccurrenceOfCharAtIndex(c, h)
-            
-            #early exit for counts
-            if l == h:
-                return 0
+        cdef unsigned long l, h
+        cdef unsigned long x, s
+        cdef unsigned int c
+        
+        #initialize our search to the whole BWT
+        l = 0
+        h = self.totalSize
+        s = len(seq)
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        
+        with nogil:
+            for x in range(0, s):
+                #get the character from the sequence, then search at both high and low
+                c = self.charToNum_view[seq_view[s-x-1]]
+                l = self.getOccurrenceOfCharAtIndex(c, l)
+                h = self.getOccurrenceOfCharAtIndex(c, h)
+                
+                #early exit for counts
+                if l == h:
+                    break
         
         #return the difference
         return h - l
@@ -119,29 +178,43 @@ class BasicBWT(object):
         @param givenRange - the range to search for, whole range by default
         @return - a python range representing the start and end of the sequence in the bwt
         '''
-        #init the current range
-        if givenRange == None:
-            if not self.searchCache.has_key(seq[-self.cacheDepth:]):
-                res = self.findIndicesOfStr(seq[-self.cacheDepth:], [0, self.totalSize])
-                self.searchCache[seq[-self.cacheDepth:]] = (int(res[0]), int(res[1]))
-            
-            l, h = self.searchCache[seq[-self.cacheDepth:]]
-            seq = seq[0:-self.cacheDepth]
-        else:
-            l = givenRange[0]
-            h = givenRange[1]
-            
-        #reverse sequence and convert to ints so we can iterate through it
-        revSeq = [self.charToNum[c] for c in reversed(seq)]
+        cdef unsigned long l, h
+        cdef unsigned long x, s
+        cdef unsigned int c
         
-        for c in revSeq:
-            #get the start and end offsets
-            l = self.getOccurrenceOfCharAtIndex(c, l)
-            h = self.getOccurrenceOfCharAtIndex(c, h)
-            
+        #initialize our search to the whole BWT
+        l = 0
+        h = self.totalSize
+        s = len(seq)
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        
+        with nogil:
+            for x in range(0, s):
+                #get the character from the sequence, then search at both high and low
+                c = self.charToNum_view[seq_view[s-x-1]]
+                l = self.getOccurrenceOfCharAtIndex(c, l)
+                h = self.getOccurrenceOfCharAtIndex(c, h)
+        
+        #return the difference
         return (l, h)
     
-    def getSequenceDollarID(self, strIndex, returnOffset=False):
+    cdef unsigned int getCharAtIndex(BasicBWT self, unsigned long index) nogil:
+        '''
+        dummy function, shouldn't be called
+        '''
+        cdef unsigned int ret = 0
+        return ret
+    
+    cdef unsigned long getOccurrenceOfCharAtIndex(BasicBWT self, unsigned int sym, unsigned long index) nogil:
+        '''
+        dummy function, shouldn't be called
+        '''
+        cdef unsigned long ret = 0
+        return ret
+    
+    def getSequenceDollarID(BasicBWT self, unsigned long strIndex, returnOffset=False):
         '''
         This will take a given index and work backwards until it encounters a '$' indicating which dollar ID is
         associated with this read
@@ -149,24 +222,28 @@ class BasicBWT(object):
         @return - an integer indicating the dollar ID of the string the given character belongs to
         '''
         #figure out the first hop backwards
-        currIndex = strIndex
-        prevChar = self.getCharAtIndex(currIndex)
-        currIndex = self.getOccurrenceOfCharAtIndex(prevChar, currIndex)
-        i = 0
+        cdef unsigned long currIndex = strIndex
+        cdef unsigned int prevChar
+        cdef unsigned long i
         
-        #while we haven't looped back to the start
-        while prevChar != 0:
-            #figure out where to go from here
+        with nogil:
             prevChar = self.getCharAtIndex(currIndex)
             currIndex = self.getOccurrenceOfCharAtIndex(prevChar, currIndex)
-            i += 1
+            i = 0
+        
+            #while we haven't looped back to the start
+            while prevChar != 0:
+                #figure out where to go from here
+                prevChar = self.getCharAtIndex(currIndex)
+                currIndex = self.getOccurrenceOfCharAtIndex(prevChar, currIndex)
+                inc(i)
         
         if returnOffset:
             return (currIndex, i)
         else:
             return currIndex
     
-    def recoverString(self, strIndex, withIndex=False):
+    def recoverString(BasicBWT self, unsigned long strIndex, withIndex=False):
         '''
         This will return the string that starts at the given index
         @param strIndex - the index of the string we want to recover
@@ -176,9 +253,9 @@ class BasicBWT(object):
         indices = []
         
         #figure out the first hop backwards
-        currIndex = strIndex
-        prevChar = self.getCharAtIndex(currIndex)
-        currIndex = self.getOccurrenceOfCharAtIndex(prevChar, currIndex)
+        #cdef unsigned long currIndex = strIndex
+        cdef unsigned int prevChar = self.getCharAtIndex(strIndex)
+        cdef unsigned long currIndex = self.getOccurrenceOfCharAtIndex(prevChar, strIndex)
         
         #while we haven't looped back to the start
         while currIndex != strIndex:
@@ -200,7 +277,7 @@ class BasicBWT(object):
             indices.append(strIndex)
         
         #reverse the numbers, convert to characters, and join them in to a single sequence
-        ret = ''.join(self.numToChar[retNums[::-1]])
+        ret = ''.join([chr(x) for x in self.numToChar[retNums[::-1]]])
         
         #return what we found
         if withIndex:
@@ -208,14 +285,14 @@ class BasicBWT(object):
         else:
             return ret
 
-class MultiStringBWT(BasicBWT):
+cdef class MultiStringBWT(BasicBWT):
     '''
     This class is a BWT capable of hosting multiple strings inside one structure.  Basically, this would allow you to
     search for a given string across several strings simultaneously.  Note: this class is for the non-compressed version,
     for general purposes use the function loadBWT(...) which automatically detects whether this class or CompressedMSBWT 
     is correct
     '''
-    def loadMsbwt(self, dirName, logger):
+    def loadMsbwt(self, char * dirName, logger):
         '''
         This functions loads a BWT file and constructs total counts, indexes start positions, and constructs an FM index
         on disk if it doesn't already exist
@@ -223,7 +300,8 @@ class MultiStringBWT(BasicBWT):
         '''
         #open the file with our BWT in it
         self.dirName = dirName
-        self.bwt = np.load(self.dirName+'/msbwt.npy', 'r')
+        self.bwt = np.load(self.dirName+'/msbwt.npy', 'r+')
+        self.bwt_view = self.bwt
         
         #build auxiliary structures
         self.constructTotalCounts(logger)
@@ -235,29 +313,22 @@ class MultiStringBWT(BasicBWT):
         This function constructs the total count for each valid character in the array or loads them if they already exist.
         These will always be stored in '<DIR>/totalCounts.p', a pickled file
         '''
+        cdef unsigned long i
         self.totalSize = self.bwt.shape[0]
-        
-        abtFN = self.dirName+'/totalCounts.p'
+        abtFN = self.dirName+'/totalCounts.npy'
         if os.path.exists(abtFN):
-            fp = open(abtFN, 'r')
-            self.totalCounts = pickle.load(fp)
-            fp.close()
+            self.totalCounts = np.load(abtFN, 'r+')
+            self.totalCounts_view = self.totalCounts
         else:
-            chunkSize = 2**20
             if logger != None:
                 logger.info('First time calculation of \'%s\'' % abtFN)
             
-            #figure out the counts using the standard counting techniques, one chunk at a time
-            self.totalCounts = [0]*self.vcLen
-            i = 0
-            while i*chunkSize < self.bwt.shape[0]:
-                self.totalCounts = np.add(self.totalCounts, np.bincount(self.bwt[i*chunkSize:(i+1)*chunkSize], minlength=self.vcLen))
-                i += 1
-            
-            #save the total count to '<DIR>/totalCounts.p'
-            fp = open(abtFN, 'w+')
-            pickle.dump(self.totalCounts, fp)
-            fp.close()
+            self.totalCounts = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+            self.totalCounts_view = self.totalCounts
+            with nogil:
+                for i in range(0, self.totalSize):
+                    inc(self.totalCounts_view[self.bwt_view[i]])
+            np.save(abtFN, self.totalCounts)
     
     def constructFMIndex(self, logger):
         '''
@@ -277,32 +348,45 @@ class MultiStringBWT(BasicBWT):
         self.searchCache = {}
         self.bitPower = 11
         self.binSize = 2**self.bitPower
-        self.fmIndexFN = self.dirName+'/fmIndex.npy'
+        fmIndexFN = self.dirName+'/fmIndex.npy'
         
-        if os.path.exists(self.fmIndexFN):
-            self.partialFM = np.load(self.fmIndexFN, 'r')
+        cdef np.ndarray[np.uint64_t, ndim=1] counts
+        cdef np.uint64_t [:] counts_view
+        cdef unsigned long i, j
+        cdef unsigned long samplingSize
+        
+        if os.path.exists(fmIndexFN):
+            self.partialFM = np.load(fmIndexFN, 'r')
         else:
             if logger != None:
-                logger.info('First time calculation of \'%s\'' % self.fmIndexFN)
+                logger.info('First time calculation of \'%s\'' % fmIndexFN)
             
             #pre-allocate space
-            self.partialFM = np.lib.format.open_memmap(self.fmIndexFN, 'w+', '<u8', (self.bwt.shape[0]/self.binSize+1, self.vcLen))
+            samplingSize = int(math.ceil(float(self.totalSize+1)/self.binSize))
+            #self.partialFM = np.lib.format.open_memmap(fmIndexFN, 'w+', '<u8', (self.bwt.shape[0]/self.binSize+1, self.vcLen))
+            self.partialFM = np.lib.format.open_memmap(fmIndexFN, 'w+', '<u8', (samplingSize, self.vcLen))
+            self.partialFM_view = self.partialFM
             
             #now perform each count and store it to disk
             counts = np.zeros(dtype='<u8', shape=(self.vcLen,))
+            counts_view = counts
             counts[:] = self.startIndex
             self.partialFM[0] = self.startIndex
-            for j in xrange(1, self.partialFM.shape[0]):
-                counts += np.bincount(self.bwt[self.binSize*(j-1):self.binSize*j], minlength=self.vcLen)
-                self.partialFM[j] = counts
-        
-    def getCharAtIndex(self, index):
+            with nogil:
+                for i in range(1, self.partialFM.shape[0]):
+                    for j in range(self.binSize*(i-1), self.binSize*i):
+                        inc(counts_view[self.bwt_view[j]])
+                        
+                    for j in range(0, self.vcLen):
+                        self.partialFM_view[i][j] = counts_view[j]
+            
+    cdef unsigned int getCharAtIndex(MultiStringBWT self, unsigned long index) nogil:
         '''
         This function is only necessary for other functions which perform searches generically without knowing if the 
         underlying structure is compressed or not
         @param index - the index to retrieve the character from
         '''
-        return self.bwt[index]
+        return self.bwt_view[index]
     
     def getBWTRange(self, start, end):
         '''
@@ -313,7 +397,7 @@ class MultiStringBWT(BasicBWT):
         '''
         return self.bwt[start:end]
         
-    def getOccurrenceOfCharAtIndex(self, sym, index):
+    cdef unsigned long getOccurrenceOfCharAtIndex(MultiStringBWT self, unsigned int sym, unsigned long index) nogil:
         '''
         This functions gets the FM-index value of a character at the specified position
         @param sym - the character to find the occurrence level
@@ -322,17 +406,20 @@ class MultiStringBWT(BasicBWT):
         '''
         #sampling method
         #get the bin we occupy
-        binID = index >> self.bitPower
+        cdef unsigned long binID = index >> self.bitPower
+        cdef unsigned long ret = self.partialFM_view[binID][sym]
+        cdef unsigned long start = binID << self.bitPower
+        cdef unsigned long i
         
-        #these two methods seem to have the same approximate run time
-        if (binID << self.bitPower) == index:
-            ret = self.partialFM[binID][sym]
-        else:
-            ret = self.partialFM[binID][sym] + np.bincount(self.bwt[binID << self.bitPower:index], minlength=6)[sym]
-        return int(ret)
+        for i in range(start, index):
+            if self.bwt_view[i] == sym:
+                inc(ret)
+        
+        return ret
         
     def getFullFMAtIndex(self, index):
         '''
+        TODO: cythonize
         This function creates a complete FM-index for a specific position in the BWT.  Example using the above example:
         BWT    Full FM-index
                  $ A C G T
@@ -350,46 +437,23 @@ class MultiStringBWT(BasicBWT):
         else:
             ret = self.partialFM[binID] + np.bincount(self.bwt[binID << self.bitPower:index], minlength=6)
         return ret
-    
-    def createKmerProfile(self, k, profileCsvFN):
-        '''
-        TODO: this method is oldddddd, needs to be ported into BasicBWT AND reworked to do this better
-        @param k - the length of the k-mers to profile
-        @param profileCsvFN - the filename of the csv to create
-        '''
-        searches = [('', 0, self.bwt.shape[0])]
-        normTotal = 0
-        lines = []
-        while len(searches) > 0:
-            (seq, start, end) = searches.pop(0)
-            
-            if len(seq) == k:
-                lines.append(seq+','+str(end-start))
-                normTotal += (end-start)**2
-            else:
-                nls = self.getFullFMAtIndex(start)
-                nhs = self.getFullFMAtIndex(end)
-                for c in xrange(self.vcLen-1, -1, -1):
-                    if nls[c] == nhs[c]:
-                        #do nothing
-                        pass
-                    else:
-                        newSeq = self.numToChar[c]+seq
-                        searches.insert(0, (newSeq, int(nls[c]), int(nhs[c])))
-        
-        fp = open(profileCsvFN, 'w+')
-        fp.write('total,'+str(math.sqrt(normTotal))+'\n')
-        for l in sorted(lines):
-            fp.write(l+'\n')
-        fp.close()
 
-class CompressedMSBWT(BasicBWT):
+cdef class CompressedMSBWT(BasicBWT):
     '''
     This structure inherits from the BasicBWT and includes several functions with identical functionality to the MultiStringBWT
     class.  However, the implementations are different as this class represents a version of the BWT that is stored in a 
     compressed format.  Generally speaking, this class is slower due to partial decompressions and more complicated routines.
     For understanding the compression, refer to MSBWTGen.compressBWT(...).
     '''
+    cdef unsigned long letterBits
+    cdef unsigned long numberBits
+    cdef unsigned long numPower
+    cdef np.uint8_t mask
+    
+    cdef np.ndarray refFM
+    cdef np.uint64_t [:] refFM_view
+    cdef unsigned long offsetSum
+    
     def loadMsbwt(self, dirName, logger):
         '''
         This functions loads a BWT file and constructs total counts, indexes start positions, and constructs an FM index in memory
@@ -397,7 +461,8 @@ class CompressedMSBWT(BasicBWT):
         '''
         #open the file with our BWT in it
         self.dirName = dirName
-        self.bwt = np.load(self.dirName+'/comp_msbwt.npy', 'r')
+        self.bwt = np.load(self.dirName+'/comp_msbwt.npy', 'r+')
+        self.bwt_view = self.bwt
         
         #build auxiliary structures
         self.constructTotalCounts(logger)
@@ -409,53 +474,45 @@ class CompressedMSBWT(BasicBWT):
         This function constructs the total count for each valid character in the array and stores it under '<DIR>/totalCounts.p'
         since these values are independent of compression
         '''
+        cdef unsigned long i
+        cdef unsigned long numBytes
+        cdef np.uint8_t currentChar
+        cdef np.uint8_t prevChar
+        cdef unsigned long currentCount
+        cdef unsigned long powerMultiple
+        
         self.letterBits = 3
         self.numberBits = 8-self.letterBits
         self.numPower = 2**self.numberBits
         self.mask = 255 >> self.numberBits
         
-        abtFN = self.dirName+'/totalCounts.p'
+        abtFN = self.dirName+'/totalCounts.npy'
         if os.path.exists(abtFN):
-            fp = open(abtFN, 'r')
-            self.totalCounts = pickle.load(fp)
-            fp.close()
+            self.totalCounts = np.load(abtFN, 'r+')
+            self.totalCounts_view = self.totalCounts
         else:
             if logger != None:
                 logger.info('First time calculation of \'%s\'' % abtFN)
             
-            self.totalCounts = [0]*self.vcLen
+            self.totalCounts = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+            self.totalCounts_view = self.totalCounts
+            numBytes = self.bwt.shape[0]
+            prevChar = 255
+            powerMultiple = 1
             
-            binSize = 2**15
-            end = 0
+            with nogil:
+                for i in range(0, numBytes):
+                    currentChar = self.bwt_view[i] & self.mask
+                    if currentChar == prevChar:
+                        powerMultiple *= self.numPower
+                    else:
+                        powerMultiple = 1
+                    prevChar = currentChar
+                    
+                    currentCount = (self.bwt_view[i] >> self.letterBits) * powerMultiple
+                    self.totalCounts_view[currentChar] += currentCount
             
-            while end < self.bwt.shape[0]:
-                start = end
-                end = end + binSize
-                if end > self.bwt.shape[0]:
-                    end = self.bwt.shape[0]
-                
-                #find a clean break in the characters
-                while end < self.bwt.shape[0] and ((self.bwt[end] & self.mask) == (self.bwt[end-1] & self.mask)):
-                    end += 1
-                
-                letters = np.bitwise_and(self.bwt[start:end], self.mask)
-                counts = np.right_shift(self.bwt[start:end], self.letterBits, dtype='<u8')
-                powers = np.zeros(dtype='<u8', shape=(end-start,))
-                
-                #solve the actual powers
-                i = 1
-                same = (letters[0:-1] == letters[1:])
-                while np.sum(same) > 0:
-                    (powers[i:])[same] += 1
-                    i += 1
-                    same = np.bitwise_and(same[0:-1], same[1:])
-                
-                #each letter has a variable 'weight' which is the runlength of that region
-                self.totalCounts += np.bincount(letters, np.multiply(counts, self.numPower**powers), minlength=self.vcLen)
-                
-            fp = open(abtFN, 'w+')
-            pickle.dump(self.totalCounts, fp)
-            fp.close()
+            np.save(abtFN, self.totalCounts)
         
         self.totalSize = int(np.sum(self.totalCounts))
     
@@ -479,118 +536,129 @@ class CompressedMSBWT(BasicBWT):
         self.bitPower = 11
         self.binSize = 2**self.bitPower
         
-        self.fmIndexFN = self.dirName+'/comp_fmIndex.npy'
-        self.fmRefFN = self.dirName+'/comp_refIndex.npy'
+        cdef unsigned long i, j
+        cdef unsigned long binID
+        cdef unsigned long totalCharCount
+        cdef unsigned long bwtIndex
+        cdef np.uint8_t currentChar
+        cdef np.uint8_t prevChar
+        cdef unsigned long prevStart
+        cdef unsigned long powerMultiple
+        cdef unsigned long binEnd
         
-        if os.path.exists(self.fmIndexFN) and os.path.exists(self.fmRefFN):
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] countsSoFar
+        cdef np.uint64_t [:] countsSoFar_view
+        
+        fmIndexFN = self.dirName+'/comp_fmIndex.npy'
+        fmRefFN = self.dirName+'/comp_refIndex.npy'
+        
+        if os.path.exists(fmIndexFN) and os.path.exists(fmRefFN):
             #both exist, just memmap them
-            self.partialFM = np.load(self.fmIndexFN, 'r')
-            self.refFM = np.load(self.fmRefFN, 'r')
+            self.partialFM = np.load(fmIndexFN, 'r+')
+            self.partialFM_view = self.partialFM
+            self.refFM = np.load(fmRefFN, 'r+')
+            self.refFM_view = self.refFM
         else:
             if logger != None:
-                logger.info('First time calculation of \'%s\'' % self.fmIndexFN)
+                logger.info('First time calculation of \'%s\'' % fmIndexFN)
             
             #pre-allocate space
-            samplingSize = int(math.ceil(float(self.totalSize)/self.binSize))
-            self.partialFM = np.lib.format.open_memmap(self.fmIndexFN, 'w+', '<u8', (samplingSize, self.vcLen))
-            self.refFM = np.lib.format.open_memmap(self.fmRefFN, 'w+', '<u8', (samplingSize,))
+            samplingSize = int(math.ceil(float(self.totalSize+1)/self.binSize))
+            self.partialFM = np.lib.format.open_memmap(fmIndexFN, 'w+', '<u8', (samplingSize, self.vcLen))
+            self.partialFM_view = self.partialFM
+            self.refFM = np.lib.format.open_memmap(fmRefFN, 'w+', '<u8', (samplingSize,))
+            self.refFM_view = self.refFM
+            
+            numBytes = self.bwt.shape[0]
+            prevChar = 0
+            totalCharCount = 0
+            powerMultiple = 1
+            binEnd = 0
+            binID = 0
+            bwtIndex = 0
+            prevStart = 0
             
             countsSoFar = np.cumsum(self.totalCounts)-self.totalCounts
-            totalCounts = 0
+            countsSoFar_view = countsSoFar
             
-            prevStart = 0
-            bwtIndex = 0
-            chunkSize = 10000
-            
-            samplingID = 0
-            
-            #iterate through the whole file creating dynamically sized bins
-            while bwtIndex < self.bwt.shape[0] and samplingID < samplingSize:
-                #extract letters and counts so we can do sums
-                letters = np.bitwise_and(self.bwt[bwtIndex:bwtIndex+chunkSize], self.mask)
-                counts = np.right_shift(self.bwt[bwtIndex:bwtIndex+chunkSize], self.letterBits, dtype='<u8')
-                
-                #numpy methods for find the powers
-                i = 1
-                same = (letters[0:-1] == letters[1:])
-                while np.count_nonzero(same) > 0:
-                    (counts[i:])[same] *= self.numPower
-                    i += 1
-                    same = np.bitwise_and(same[0:-1], same[1:])
-                
-                offsets = np.cumsum(counts)
-                
-                #this is basically looking for a clean breakpoint for our bin to end
-                moreToUpdate = True
-                while moreToUpdate:
-                    prevStart = np.searchsorted(offsets, samplingID*self.binSize-totalCounts, 'right')
-                    if prevStart == letters.shape[0]:
-                        prevStart -= 1
-                        while prevStart > 0 and letters[prevStart] == letters[prevStart-1]:
-                            prevStart -= 1
-                        moreToUpdate = False
+            with nogil:
+                #go through each byte, we'll determine when to save inside the loop
+                for i in range(0, numBytes):
+                    currentChar = self.bwt_view[i] & self.mask
+                    if currentChar == prevChar:
+                        totalCharCount += (self.bwt_view[i] >> self.letterBits) * powerMultiple
+                        powerMultiple *= self.numPower
                     else:
-                        while prevStart > 0 and letters[prevStart] == letters[prevStart-1]:
-                            prevStart -= 1
+                        #first save this count
+                        while bwtIndex + totalCharCount >= binEnd:
+                            self.refFM_view[binID] = prevStart
+                            for j in range(0, self.vcLen):
+                                self.partialFM_view[binID][j] = countsSoFar_view[j]
+                            binEnd += self.binSize
+                            inc(binID)
                         
-                        self.refFM[samplingID] = bwtIndex+prevStart
-                        if prevStart > 0:
-                            self.partialFM[samplingID][:] = np.add(countsSoFar, np.bincount(letters[0:prevStart], counts[0:prevStart], self.vcLen))
-                        else:
-                            self.partialFM[samplingID][:] = countsSoFar
-                        samplingID += 1
+                        #add the previous
+                        countsSoFar_view[prevChar] += totalCharCount
+                        bwtIndex += totalCharCount
                         
-                        
-                bwtIndex += prevStart
-                if prevStart > 0:
-                    countsSoFar += np.bincount(letters[0:prevStart], counts[0:prevStart], self.vcLen)
-                    totalCounts += np.sum(np.bincount(letters[0:prevStart], counts[0:prevStart], self.vcLen))
+                        prevChar = currentChar
+                        prevStart = i
+                        totalCharCount = (self.bwt_view[i] >> self.letterBits)
+                        powerMultiple = self.numPower
+                
+                while bwtIndex + totalCharCount >= binEnd:
+                    self.refFM_view[binID] = prevStart
+                    for j in range(0, self.vcLen):
+                        self.partialFM_view[binID][j] = countsSoFar_view[j]
+                    binEnd += self.binSize
+                    inc(binID)
             
         #we'll use this later when we do lookups
         self.offsetSum = np.sum(self.partialFM[0])
         
-    def getCharAtIndex(self, index):
+    cdef unsigned int getCharAtIndex(CompressedMSBWT self, unsigned long index) nogil:
         '''
         Used for searching, this function masks the complexity behind retrieving a specific character at a specific index
         in our compressed BWT.
         @param index - the index to retrieve the character from
         @param return - return the character in our BWT that's at a particular index (integer format)
         '''
+        
         #get the bin we should start from
-        binID = index >> self.bitPower
-        bwtIndex = self.refFM[binID]
+        cdef unsigned long binID = index >> self.bitPower
+        cdef unsigned long bwtIndex = self.refFM_view[binID]
         
         #these are the values that indicate how far in we really are
-        trueIndex = np.sum(self.partialFM[binID])-self.offsetSum
-        dist = index-trueIndex
+        cdef unsigned long trueIndex = 0
+        cdef unsigned long i
+        for i in range(0, self.vcLen):
+            trueIndex += self.partialFM_view[binID][i]
+        trueIndex -= self.offsetSum
         
-        #calculate how big of a region we actually need to 'decompress'
-        if binID == self.refFM.shape[0]-1:
-            endRange = self.bwt.shape[0]
-        else:
-            endRange = self.refFM[binID+1]+1
-            while endRange < self.bwt.shape[0] and (self.bwt[endRange] & self.mask) == (self.bwt[endRange-1] & self.mask):
-                endRange += 1
+        cdef unsigned int prevChar = self.bwt_view[bwtIndex] & self.mask
+        cdef unsigned int currentChar
+        cdef unsigned long prevCount = self.bwt_view[bwtIndex] >> self.letterBits
+        cdef unsigned powerMultiple = 1
         
-        #extract the symbols and counts associated with each byte
-        letters = np.bitwise_and(self.bwt[bwtIndex:endRange], self.mask)
-        counts = np.right_shift(self.bwt[bwtIndex:endRange], self.letterBits, dtype='<u8')
+        while trueIndex + prevCount <= index:
+            trueIndex += prevCount
+            inc(bwtIndex)
+            
+            currentChar = self.bwt_view[bwtIndex] & self.mask
+            if currentChar == prevChar:
+                powerMultiple *= self.numPower
+                prevCount = (self.bwt_view[bwtIndex] >> self.letterBits) * powerMultiple
+            else:
+                powerMultiple = 1
+                prevCount = self.bwt_view[bwtIndex] >> self.letterBits
+            
+            prevChar = currentChar
         
-        #numpy methods for find the powers
-        i = 1
-        same = (letters[0:-1] == letters[1:])
-        while np.count_nonzero(same) > 0:
-            (counts[i:])[same] *= self.numPower
-            i += 1
-            same = np.bitwise_and(same[0:-1], same[1:])
-        
-        #these are the true counts after raising to the appropriate power
-        cs = np.cumsum(counts)
-        x = np.searchsorted(cs, dist, 'right')
-        return letters[x]
+        return prevChar
         
     def getBWTRange(self, start, end):
         '''
+        TODO: cythonize
         This function masks the complexity of retrieving a chunk of the BWT from the compressed format
         @param start - the beginning of the range to retrieve
         @param end - the end of the range in normal python notation (bwt[end] is not part of the return)
@@ -604,8 +672,9 @@ class CompressedMSBWT(BasicBWT):
         #first we will extract the range of blocks
         return self.decompressBlocks(startBlockIndex, endBlockIndex)[start-trueStart:end-trueStart]
     
-    def decompressBlocks(self, startBlock, endBlock):
+    def decompressBlocks(self, unsigned long startBlock, unsigned long endBlock):
         '''
+        TODO: cythonize
         This is mostly a helper function to get BWT range, but I wanted it to be a separate thing for use possibly in 
         decompression
         @param startBlock - the index of the start block we will decode
@@ -631,7 +700,7 @@ class CompressedMSBWT(BasicBWT):
         
         #split the letters and numbers in the compressed bwt
         letters = np.bitwise_and(self.bwt[startRange:endRange], self.mask)
-        counts = np.right_shift(self.bwt[startRange:endRange], self.letterBits, dtype='<u8')
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] counts = np.right_shift(self.bwt[startRange:endRange], self.letterBits, dtype='<u8')
         
         #multiply counts where needed
         i = 1
@@ -642,8 +711,8 @@ class CompressedMSBWT(BasicBWT):
             same = np.bitwise_and(same[0:-1], same[1:])
         
         #now I have letters and counts, time to fill in the array
-        s = 0
-        lInd = 0
+        cdef unsigned long s = 0
+        cdef unsigned long lInd = 0
         while dist > 0:
             if counts[lInd] < dist:
                 dist -= counts[lInd]
@@ -662,17 +731,53 @@ class CompressedMSBWT(BasicBWT):
         
         return ret
     
-    def getOccurrenceOfCharAtIndex(self, sym, index):
+    cdef unsigned long getOccurrenceOfCharAtIndex(CompressedMSBWT self, unsigned int sym, unsigned long index) nogil:
         '''
         This functions gets the FM-index value of a character at the specified position
         @param sym - the character to find the occurrence level
         @param index - the index we want to find the occurrence level at
         @return - the number of occurrences of char before the specified index
         '''
-        return int(self.getFullFMAtIndex(index)[sym])
+        #return self.getFullFMAtIndex(index)[sym]
+        cdef unsigned long binID = index >> self.bitPower
+        cdef unsigned long compressedIndex = self.refFM_view[binID]
+        cdef unsigned long bwtIndex = 0
+        cdef unsigned long j
+        for j in range(0, self.vcLen):
+            bwtIndex += self.partialFM_view[binID][j]
+        bwtIndex -= self.offsetSum
+            
+        cdef unsigned long ret = self.partialFM_view[binID][sym]
+        
+        cdef np.uint8_t prevChar = 255
+        cdef np.uint8_t currentChar
+        cdef unsigned long prevCount = 0
+        cdef unsigned long powerMultiple = 1
+        
+        while bwtIndex + prevCount < index:
+            currentChar = self.bwt_view[compressedIndex] & self.mask
+            if currentChar == prevChar:
+                prevCount += (self.bwt_view[compressedIndex] >> self.letterBits) * powerMultiple
+                powerMultiple *= self.numPower
+            else:
+                if prevChar == sym:
+                    ret += prevCount
+                
+                bwtIndex += prevCount
+                prevCount = (self.bwt_view[compressedIndex] >> self.letterBits)
+                prevChar = currentChar
+                powerMultiple = self.numPower
+                
+            inc(compressedIndex)
+        
+        if prevChar == sym:
+            ret += index-bwtIndex
+        
+        return ret
     
-    def getFullFMAtIndex(self, index):
+    def getFullFMAtIndex(self, np.uint64_t index):
         '''
+        TODO: cythonize
         This function creates a complete FM-index for a specific position in the BWT.  Example using the above example:
         BWT    Full FM-index
                  $ A C G T
@@ -683,12 +788,14 @@ class CompressedMSBWT(BasicBWT):
                  1 2 4 4 4
         @return - the above information in the form of an array that already incorporates the offset value into the counts
         '''
+        cdef unsigned long endRange
+        
         if index == self.totalSize:
             return np.cumsum(self.totalCounts)
         
         #get the bin we start from
-        binID = index >> self.bitPower
-        bwtIndex = self.refFM[binID]
+        cdef unsigned long binID = index >> self.bitPower
+        cdef unsigned long bwtIndex = self.refFM_view[binID]
         
         #figure out how far in we really are
         ret = np.copy(self.partialFM[binID])
