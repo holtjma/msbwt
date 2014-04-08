@@ -121,6 +121,13 @@ cdef class BasicBWT(object):
     def getTotalSize(self):
         return self.totalSize
     
+    def getSymbolCount(self, symbol):
+        '''
+        @param symbol - this is an integer from [0, 6)
+        '''
+        ret = int(self.totalCounts_view[symbol])
+        return ret
+    
     def countOccurrencesOfSeq(BasicBWT self, seq, givenRange=None):
         '''
         This function counts the number of occurrences of the given sequence
@@ -148,9 +155,13 @@ cdef class BasicBWT(object):
         cdef unsigned long x, s
         cdef unsigned int c
         
-        #initialize our search to the whole BWT
-        l = 0
-        h = self.totalSize
+        if givenRange == None:
+            #initialize our search to the whole BWT
+            l = 0
+            h = self.totalSize
+        else:
+            l = givenRange[0]
+            h = givenRange[1]
         s = len(seq)
         
         #create a view of the sequence that can be used in a nogil region
@@ -183,8 +194,13 @@ cdef class BasicBWT(object):
         cdef unsigned int c
         
         #initialize our search to the whole BWT
-        l = 0
-        h = self.totalSize
+        if givenRange == None:
+            #initialize our search to the whole BWT
+            l = 0
+            h = self.totalSize
+        else:
+            l = givenRange[0]
+            h = givenRange[1]
         s = len(seq)
         
         #create a view of the sequence that can be used in a nogil region
@@ -356,7 +372,8 @@ cdef class MultiStringBWT(BasicBWT):
         cdef unsigned long samplingSize
         
         if os.path.exists(fmIndexFN):
-            self.partialFM = np.load(fmIndexFN, 'r')
+            self.partialFM = np.load(fmIndexFN, 'r+')
+            self.partialFM_view = self.partialFM
         else:
             if logger != None:
                 logger.info('First time calculation of \'%s\'' % fmIndexFN)
