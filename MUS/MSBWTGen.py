@@ -18,6 +18,8 @@ import shutil
 import sys
 import time
 
+import MultiStringBWT
+
 def bwtInitialInsertionsPoolCall(tup):
     (offsetFN, seqFNPrefix, mergedFN, depth, numValidChars, startingIndex, endingIndex, areUniform) = tup
     

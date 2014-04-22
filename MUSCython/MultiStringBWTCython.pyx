@@ -23,7 +23,8 @@ import shutil
 import sys
 import time
 
-from MUS import MSBWTGen
+#from MUSCython import MSBWTGenCython as MSBWTGen
+import MSBWTGenCython as MSBWTGen
 
 from cython.operator cimport preincrement as inc
 
@@ -50,7 +51,6 @@ cdef class BasicBWT(object):
     getOccurrenceOfCharAtIndex
     getFullFMAtIndex
     '''
-    
     cdef np.ndarray numToChar
     cdef unsigned char [:] numToChar_view
     cdef np.ndarray charToNum
@@ -77,7 +77,14 @@ cdef class BasicBWT(object):
     cdef np.ndarray partialFM
     cdef np.uint64_t[:, :] partialFM_view
     
-    def __init__(self):
+    cdef unsigned long iterIndex
+    cdef unsigned long iterCount
+    cdef unsigned long iterPower
+    cdef np.uint8_t iterCurrChar
+    cdef np.uint8_t iterCurrCount
+    cdef unsigned long fileSize
+    
+    def __init__(BasicBWT self):
         '''
         Constructor
         Nothing special, use this for all at the start
@@ -99,7 +106,7 @@ cdef class BasicBWT(object):
         #TODO: experiment with this number
         self.cacheDepth = 6
     
-    def constructIndexing(self):
+    cdef void constructIndexing(BasicBWT self):
         '''
         This helper function calculates the start and end index for each character in the BWT.  Basically, the information
         generated here is for quickly finding offsets.  This is run AFTER self.constructTotalCounts(...)
@@ -118,17 +125,17 @@ cdef class BasicBWT(object):
                 pos += self.totalCounts_view[i]
                 self.endIndex_view[i] = pos
     
-    def getTotalSize(self):
+    def getTotalSize(BasicBWT self):
         return self.totalSize
     
-    def getSymbolCount(self, symbol):
+    def getSymbolCount(BasicBWT self, unsigned int symbol):
         '''
         @param symbol - this is an integer from [0, 6)
         '''
         ret = int(self.totalCounts_view[symbol])
         return ret
     
-    def countOccurrencesOfSeq(BasicBWT self, seq, givenRange=None):
+    def countOccurrencesOfSeq(BasicBWT self, bytes seq, givenRange=None):
         '''
         This function counts the number of occurrences of the given sequence
         @param seq - the sequence to search for
@@ -167,21 +174,21 @@ cdef class BasicBWT(object):
         #create a view of the sequence that can be used in a nogil region
         cdef unsigned char * seq_view = seq
         
-        with nogil:
-            for x in range(0, s):
-                #get the character from the sequence, then search at both high and low
-                c = self.charToNum_view[seq_view[s-x-1]]
-                l = self.getOccurrenceOfCharAtIndex(c, l)
-                h = self.getOccurrenceOfCharAtIndex(c, h)
-                
-                #early exit for counts
-                if l == h:
-                    break
+        #with nogil:
+        for x in range(0, s):
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[s-x-1]]
+            l = self.getOccurrenceOfCharAtIndex(c, l)
+            h = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            #early exit for counts
+            if l == h:
+                break
         
         #return the difference
         return h - l
     
-    def findIndicesOfStr(self, seq, givenRange=None):
+    def findIndicesOfStr(BasicBWT self, bytes seq, givenRange=None):
         '''
         This function will search for a string and find the location of that string OR the last index less than it. It also
         will start its search within a given range instead of the whole structure
@@ -206,12 +213,12 @@ cdef class BasicBWT(object):
         #create a view of the sequence that can be used in a nogil region
         cdef unsigned char * seq_view = seq
         
-        with nogil:
-            for x in range(0, s):
-                #get the character from the sequence, then search at both high and low
-                c = self.charToNum_view[seq_view[s-x-1]]
-                l = self.getOccurrenceOfCharAtIndex(c, l)
-                h = self.getOccurrenceOfCharAtIndex(c, h)
+        #with nogil:
+        for x in range(0, s):
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[s-x-1]]
+            l = self.getOccurrenceOfCharAtIndex(c, l)
+            h = self.getOccurrenceOfCharAtIndex(c, h)
         
         #return the difference
         return (l, h)
@@ -223,14 +230,36 @@ cdef class BasicBWT(object):
         cdef unsigned int ret = 0
         return ret
     
-    cdef unsigned long getOccurrenceOfCharAtIndex(BasicBWT self, unsigned int sym, unsigned long index) nogil:
+    cpdef unsigned long getOccurrenceOfCharAtIndex(BasicBWT self, unsigned int sym, unsigned long index):# nogil:
         '''
         dummy function, shouldn't be called
         '''
         cdef unsigned long ret = 0
         return ret
     
-    def getSequenceDollarID(BasicBWT self, unsigned long strIndex, returnOffset=False):
+    def iterInit(BasicBWT self):
+        '''
+        this function must be called to reset the iterator to the beginning, used for both normal and
+        compressed data structures since it's so simple
+        '''
+        self.iterIndex = 0
+        self.iterCount = 0
+        self.iterPower = 0
+        self.fileSize = self.bwt.shape[0]
+        self.iterCurrChar = 255
+        self.iterCurrCount = 0
+        return self
+    
+    def iterNext(BasicBWT self):
+        return self.iterNext_cython()
+    
+    cdef np.uint8_t iterNext_cython(BasicBWT self) nogil:
+        '''
+        dummy function, override in all subclasses
+        '''
+        return 255
+    
+    def getSequenceDollarID(BasicBWT self, unsigned long strIndex, bint returnOffset=False):
         '''
         This will take a given index and work backwards until it encounters a '$' indicating which dollar ID is
         associated with this read
@@ -242,24 +271,24 @@ cdef class BasicBWT(object):
         cdef unsigned int prevChar
         cdef unsigned long i
         
-        with nogil:
+        #with nogil:
+        prevChar = self.getCharAtIndex(currIndex)
+        currIndex = self.getOccurrenceOfCharAtIndex(prevChar, currIndex)
+        i = 0
+    
+        #while we haven't looped back to the start
+        while prevChar != 0:
+            #figure out where to go from here
             prevChar = self.getCharAtIndex(currIndex)
             currIndex = self.getOccurrenceOfCharAtIndex(prevChar, currIndex)
-            i = 0
-        
-            #while we haven't looped back to the start
-            while prevChar != 0:
-                #figure out where to go from here
-                prevChar = self.getCharAtIndex(currIndex)
-                currIndex = self.getOccurrenceOfCharAtIndex(prevChar, currIndex)
-                inc(i)
+            inc(i)
         
         if returnOffset:
             return (currIndex, i)
         else:
             return currIndex
     
-    def recoverString(BasicBWT self, unsigned long strIndex, withIndex=False):
+    def recoverString(BasicBWT self, unsigned long strIndex, bint withIndex=False):
         '''
         This will return the string that starts at the given index
         @param strIndex - the index of the string we want to recover
@@ -308,7 +337,7 @@ cdef class MultiStringBWT(BasicBWT):
     for general purposes use the function loadBWT(...) which automatically detects whether this class or CompressedMSBWT 
     is correct
     '''
-    def loadMsbwt(self, char * dirName, logger):
+    def loadMsbwt(MultiStringBWT self, char * dirName, logger):
         '''
         This functions loads a BWT file and constructs total counts, indexes start positions, and constructs an FM index
         on disk if it doesn't already exist
@@ -324,7 +353,7 @@ cdef class MultiStringBWT(BasicBWT):
         self.constructIndexing()
         self.constructFMIndex(logger)
     
-    def constructTotalCounts(self, logger):
+    def constructTotalCounts(MultiStringBWT self, logger):
         '''
         This function constructs the total count for each valid character in the array or loads them if they already exist.
         These will always be stored in '<DIR>/totalCounts.p', a pickled file
@@ -346,7 +375,7 @@ cdef class MultiStringBWT(BasicBWT):
                     inc(self.totalCounts_view[self.bwt_view[i]])
             np.save(abtFN, self.totalCounts)
     
-    def constructFMIndex(self, logger):
+    def constructFMIndex(MultiStringBWT self, logger):
         '''
         This function iterates through the BWT and counts the letters as it goes to create the FM index.  For example, the string 'ACC$' would have BWT
         'C$CA'.  The FM index would iterate over this and count the occurence of the letter it found so you'd end up with this:
@@ -405,7 +434,7 @@ cdef class MultiStringBWT(BasicBWT):
         '''
         return self.bwt_view[index]
     
-    def getBWTRange(self, start, end):
+    def getBWTRange(MultiStringBWT self, unsigned long start, unsigned long end):
         '''
         This function is only necessary for other functions which perform searches generically without knowing if the 
         underlying structure is compressed or not
@@ -414,7 +443,7 @@ cdef class MultiStringBWT(BasicBWT):
         '''
         return self.bwt[start:end]
         
-    cdef unsigned long getOccurrenceOfCharAtIndex(MultiStringBWT self, unsigned int sym, unsigned long index) nogil:
+    cpdef unsigned long getOccurrenceOfCharAtIndex(MultiStringBWT self, unsigned int sym, unsigned long index):# nogil:
         '''
         This functions gets the FM-index value of a character at the specified position
         @param sym - the character to find the occurrence level
@@ -434,7 +463,7 @@ cdef class MultiStringBWT(BasicBWT):
         
         return ret
         
-    def getFullFMAtIndex(self, index):
+    def getFullFMAtIndex(MultiStringBWT self, unsigned long index):
         '''
         TODO: cythonize
         This function creates a complete FM-index for a specific position in the BWT.  Example using the above example:
@@ -447,14 +476,45 @@ cdef class MultiStringBWT(BasicBWT):
                  1 2 4 4 4
         @return - the above information in the form of an array that already incorporates the offset value into the counts
         '''
+        
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret
+        cdef np.uint64_t [:] ret_view
+        cdef unsigned long binID = index >> self.bitPower
+        cdef unsigned long bwtInd = binID * self.binSize
+        cdef unsigned long i
+        
+        ret = np.copy(self.partialFM[binID])
+        ret_view = ret
+        
+        for i in xrange(bwtInd, index):
+            inc(ret_view[self.bwt[i]])
+        
+        return ret
+        
         #get the bin we occupy
+        '''
         binID = index >> self.bitPower
         if binID << self.bitPower == index:
             ret = self.partialFM[binID]
         else:
-            ret = self.partialFM[binID] + np.bincount(self.bwt[binID << self.bitPower:index], minlength=6)
+            ret = np.add(self.partialFM[binID], np.bincount(self.bwt[binID << self.bitPower:index], minlength=6), dtype='<u8')
         return ret
-
+        '''
+        
+    cdef np.uint8_t iterNext_cython(MultiStringBWT self) nogil:
+        '''
+        returns each character one at a time
+        '''
+        cdef np.uint8_t ret 
+        
+        if self.iterIndex < self.fileSize:
+            ret = self.bwt_view[self.iterIndex]
+            inc(self.iterIndex)
+        else:
+            ret = 255
+        
+        return ret
+    
 cdef class CompressedMSBWT(BasicBWT):
     '''
     This structure inherits from the BasicBWT and includes several functions with identical functionality to the MultiStringBWT
@@ -471,7 +531,7 @@ cdef class CompressedMSBWT(BasicBWT):
     cdef np.uint64_t [:] refFM_view
     cdef unsigned long offsetSum
     
-    def loadMsbwt(self, dirName, logger):
+    def loadMsbwt(CompressedMSBWT self, char * dirName, logger):
         '''
         This functions loads a BWT file and constructs total counts, indexes start positions, and constructs an FM index in memory
         @param dirName - the directory to load, inside should be '<DIR>/comp_msbwt.npy' or it will fail
@@ -486,7 +546,7 @@ cdef class CompressedMSBWT(BasicBWT):
         self.constructIndexing()
         self.constructFMIndex(logger)
     
-    def constructTotalCounts(self, logger):
+    def constructTotalCounts(CompressedMSBWT self, logger):
         '''
         This function constructs the total count for each valid character in the array and stores it under '<DIR>/totalCounts.p'
         since these values are independent of compression
@@ -533,7 +593,7 @@ cdef class CompressedMSBWT(BasicBWT):
         
         self.totalSize = int(np.sum(self.totalCounts))
     
-    def constructFMIndex(self, logger):
+    def constructFMIndex(CompressedMSBWT self, logger):
         '''
         This function iterates through the BWT and counts the letters as it goes to create the FM index.  For example, the string 'ACC$' would have BWT
         'C$CA'.  The FM index would iterate over this and count the occurence of the letter it found so you'd end up with this:
@@ -673,7 +733,7 @@ cdef class CompressedMSBWT(BasicBWT):
         
         return prevChar
         
-    def getBWTRange(self, start, end):
+    def getBWTRange(CompressedMSBWT self, unsigned long start, unsigned long end):
         '''
         TODO: cythonize
         This function masks the complexity of retrieving a chunk of the BWT from the compressed format
@@ -689,7 +749,7 @@ cdef class CompressedMSBWT(BasicBWT):
         #first we will extract the range of blocks
         return self.decompressBlocks(startBlockIndex, endBlockIndex)[start-trueStart:end-trueStart]
     
-    def decompressBlocks(self, unsigned long startBlock, unsigned long endBlock):
+    def decompressBlocks(CompressedMSBWT self, unsigned long startBlock, unsigned long endBlock):
         '''
         TODO: cythonize
         This is mostly a helper function to get BWT range, but I wanted it to be a separate thing for use possibly in 
@@ -748,7 +808,7 @@ cdef class CompressedMSBWT(BasicBWT):
         
         return ret
     
-    cdef unsigned long getOccurrenceOfCharAtIndex(CompressedMSBWT self, unsigned int sym, unsigned long index) nogil:
+    cpdef unsigned long getOccurrenceOfCharAtIndex(CompressedMSBWT self, unsigned int sym, unsigned long index):# nogil:
         '''
         This functions gets the FM-index value of a character at the specified position
         @param sym - the character to find the occurrence level
@@ -792,7 +852,7 @@ cdef class CompressedMSBWT(BasicBWT):
         
         return ret
     
-    def getFullFMAtIndex(self, np.uint64_t index):
+    def getFullFMAtIndex(CompressedMSBWT self, np.uint64_t index):
         '''
         TODO: cythonize
         This function creates a complete FM-index for a specific position in the BWT.  Example using the above example:
@@ -848,6 +908,43 @@ cdef class CompressedMSBWT(BasicBWT):
         
         return ret
     
+    cdef np.uint8_t iterNext_cython(CompressedMSBWT self) nogil:
+        '''
+        returns each character, one at a time
+        '''
+        cdef np.uint8_t ret
+        cdef np.uint8_t sym
+        
+        #print (self.iterCount, self.iterCurrCount, self.iterIndex, self.fileSize, sym)
+        
+        if self.iterCount < self.iterCurrCount:
+            #we are still in the same byte of storage, increment and return the symbol there
+            ret = self.iterCurrChar
+            inc(self.iterCount)
+        elif self.iterIndex < self.fileSize:
+            #we have more bytes to process
+            sym = self.bwt_view[self.iterIndex] & self.mask
+            
+            #increment our power if necessary
+            if sym == self.iterCurrChar:
+                inc(self.iterPower)
+            else:
+                self.iterCount = 0
+                self.iterCurrCount = 0
+                self.iterPower = 0
+                self.iterCurrChar = sym
+                
+            #pull out the number of counts here and reset our counting
+            self.iterCurrCount += (self.bwt_view[self.iterIndex] >> self.letterBits) * (self.numPower**self.iterPower)
+            inc(self.iterCount) 
+            ret = self.iterCurrChar
+            inc(self.iterIndex)
+        else:
+            #we have run out of stuff
+            ret = 255
+        
+        return ret
+    
 def loadBWT(bwtDir, logger=None):
     '''
     Generic load function, this is recommended for anyone wishing to use this code as it will automatically detect compression
@@ -886,6 +983,7 @@ def createMSBWTFromSeqs(seqArray, mergedDir, numProcs, areUniform, logger):
         uniformLength = len(seqArray[0])
     else:
         uniformLength = 0
+        #raise Exception('non-uniform is not handled anymore due to speed, consider building uniform and merging')
         
     #join into one massive string
     seqCopy = ''.join(seqCopy)
@@ -894,7 +992,10 @@ def createMSBWTFromSeqs(seqArray, mergedDir, numProcs, areUniform, logger):
     seqCopy = np.fromstring(seqCopy, dtype='<u1')
     
     MSBWTGen.writeSeqsToFiles(seqCopy, seqFN, offsetFN, uniformLength)
-    MSBWTGen.createFromSeqs(seqFN, offsetFN, mergedDir+'/msbwt.npy', numProcs, areUniform, logger)
+    if areUniform:
+        MSBWTGen.createMsbwtFromSeqs(mergedDir, numProcs, logger)
+    else:
+        MSBWTGen.createFromSeqs(seqFN, offsetFN, mergedDir+'/msbwt.npy', numProcs, areUniform, logger)
         
 def createMSBWTFromFastq(fastqFNs, outputDir, numProcs, areUniform, logger):
     '''
@@ -914,8 +1015,12 @@ def createMSBWTFromFastq(fastqFNs, outputDir, numProcs, areUniform, logger):
     
     MSBWTGen.clearAuxiliaryData(outputDir)
     preprocessFastqs(fastqFNs, seqFN, offsetFN, abtFN, areUniform, logger)
-    MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, numProcs, areUniform, logger)
-
+    #MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, numProcs, areUniform, logger)
+    if areUniform:
+        MSBWTGen.createMsbwtFromSeqs(outputDir, numProcs, logger)
+    else:
+        MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, numProcs, areUniform, logger)
+    
 def createMSBWTFromBam(bamFNs, outputDir, numProcs, areUniform, logger):
     '''
     This function takes a fasta filename and creates the BWT using the technique from Cox and Bauer
@@ -933,8 +1038,12 @@ def createMSBWTFromBam(bamFNs, outputDir, numProcs, areUniform, logger):
     
     MSBWTGen.clearAuxiliaryData(outputDir)
     preprocessBams(bamFNs, seqFN, offsetFN, abtFN, areUniform, logger)
-    MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, numProcs, areUniform, logger)
-
+    #MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, numProcs, areUniform, logger)
+    if areUniform:
+        MSBWTGen.createMsbwtFromSeqs(outputDir, numProcs, logger)
+    else:
+        MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, numProcs, areUniform, logger)
+    
 def customiter(numpyArray):
     '''
     dummy iterator, for some reason numpy doesn't like to act like one by default

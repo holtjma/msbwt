@@ -10,7 +10,6 @@ import os
 import sys
 
 import MSBWTGen
-#import MultiStringBWT
 import util
 
 from MUSCython import MultiStringBWTCython as MultiStringBWT
@@ -117,8 +116,12 @@ def mainRun():
         seqFN = args.bwtDir+'/seqs.npy'
         offsetFN = args.bwtDir+'/offsets.npy'
         bwtFN = args.bwtDir+'/msbwt.npy'
-        MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, args.numProcesses, args.areUniform, logger)
-    
+        #MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, args.numProcesses, args.areUniform, logger)
+        if areUniform:
+            MSBWTGenCython.createMsbwtFromSeqs(args.bwtDir, args.numProcesses, logger)
+        else:
+            MSBWTGenCython.createFromSeqs(seqFN, offsetFN, bwtFN, args.numProcesses, args.areUniform, logger)
+        
     elif args.subparserID == 'compress':
         logger.info('Src:'+args.srcDir)
         logger.info('Dst:'+args.dstDir)
