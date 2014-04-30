@@ -1,6 +1,7 @@
-import os
 
+import copy
 import numpy as np
+import os
 
 import pyximport
 pyximport.install(setup_args=dict(include_dirs=np.get_include()))
@@ -35,6 +36,7 @@ class PathNode(object):
         self.pathThreshold = settingsDict.get('pathThreshold', 10)
         self.overloadThreshold = settingsDict.get('overloadThreshold', 1000)
         self.drawDollarTerminals = settingsDict.get('drawDollarTerminals', False)
+        self.trackReads = settingsDict.get('trackReads', False) or settingsDict.get('trackPairs', False)
         self.isMerged = settingsDict.get('isMerged', False)
         if self.isMerged:
             self.interleave = np.load(settingsDict['interleaveFN'], 'r')
@@ -123,10 +125,11 @@ class PathNode(object):
                 self.pileups.append(kmerCount)
                 perc = float(maxV)/total
                 
-                for i in xrange(r1[0], r1[1]):
-                    self.readSet.add((int(self.msbwt.getSequenceDollarID(i)), 0))
-                for i in xrange(r2[0], r2[1]):
-                    self.readSet.add((int(self.msbwt.getSequenceDollarID(i)), 1))
+                if self.trackReads == True:
+                    for i in xrange(r1[0], r1[1]):
+                        self.readSet.add((int(self.msbwt.getSequenceDollarID(i)), 0))
+                    for i in xrange(r2[0], r2[1]):
+                        self.readSet.add((int(self.msbwt.getSequenceDollarID(i)), 1))
                 
                 #if kmerCount > self.overloadThreshold:
                 if self.pileups[0] > self.overloadThreshold:
@@ -197,153 +200,137 @@ class PathEdge(object):
         self.label = str(label)
         self.edgeStyle = style
 
-'''
-def interactiveTranscriptConstruction(bwtDir, seedKmer, endSeeds, pathK, countK, pathThreshold, overloadThreshold, 
-                                      numNodes, direction, drawDollarTerminals, trackPairs, isMerged, logger):
-'''
-def interactiveTranscriptConstruction(bwtDir, seedKmer, endSeeds, settingsDict, logger):
-    '''
-    This function is intended to be an interactive technique for constructing transcripts, probably to be released
-    in a future version of msbwt
-    @param bwtFN - the filename of the BWT to load
-    @param seedKmer - the seed sequence to use for construction
-    @param threshold - minimum number for a path to be considered a path
-    @param direction - True is forward, False is backward
-    @param logger - the logger
-    @param 
-    '''
-    
-    pathK = settingsDict.get('kmerSize', len(seedKmer))
-    countK = settingsDict.get('countK', pathK)
-    isMerged = settingsDict.get('isMerged', False)
-    trackPairs = settingsDict.get('trackPairs', False)
-    
-    numNodes = settingsDict['numNodes']
-    validChars = ['$', 'A', 'C', 'G', 'N', 'T']
-    
-    logger.info('Loading '+bwtDir+'...')
-    msbwt = MultiStringBWT.loadBWT(bwtDir, logger)
-    if os.path.exists(bwtDir+'/origins.npy'):
-        raise Exception("You haven\'t reimplemented the handling of origin files")
-        origins = np.load(bwtDir+'/origins.npy', 'r')
-    else:
-        origins = None
-    
-    '''
-    if isMerged:
-        interleave = np.load(bwtDir+'/inter0.npy', 'r')
-    else:
-        interleave = None
-    '''
-    settingsDict['interleaveFN'] = bwtDir+'/inter0.npy'
-    
-    kmer = seedKmer
-    
-    foundKmers = {kmer:0}
-    nodes = []
-    nodes.append(PathNode(len(nodes), kmer, msbwt, 0, settingsDict))
-    edges = []
-    
-    for i, endSeed in enumerate(endSeeds):
-        if len(endSeed) != pathK:
-            raise Exception(endSeed+': NOT CORRECT LENGTH')
+
+class Assembler(object):
+    def __init__(self, bwtDir, settingsDict, logger):
+        self.bwtDir = bwtDir
+        self.settingsDict = copy.deepcopy(settingsDict)
+        self.logger = logger
+        self.nodes = []
+        self.edges = []
+        self.foundKmers = {}
+        self.abtDict = {}
+
+    def extendSeed(self, seedKmer, endSeeds):
+        '''
+        This function is intended to be an interactive technique for constructing transcripts, probably to be released
+        in a future version of msbwt
+        @param bwtFN - the filename of the BWT to load
+        @param seedKmer - the seed sequence to use for construction
+        @param threshold - minimum number for a path to be considered a path
+        @param direction - True is forward, False is backward
+        @param logger - the logger
+        @param 
+        '''
+        
+        if self.foundKmers.has_key(seedKmer):
+            return
+        
+        pathK = self.settingsDict.get('kmerSize', len(seedKmer))
+        countK = self.settingsDict.get('countK', pathK)
+        isMerged = self.settingsDict.get('isMerged', False)
+        trackPairs = self.settingsDict.get('trackPairs', False)
+        trackReads = self.settingsDict.get('trackReads', False)
+        
+        if len(seedKmer) != pathK:
+            raise Exception('Seed k-mer incorrect length')
+        
+        numNodes = self.settingsDict['numNodes']
+        validChars = ['$', 'A', 'C', 'G', 'N', 'T']
+        
+        self.logger.info('Loading '+self.bwtDir+'...')
+        msbwt = MultiStringBWT.loadBWT(self.bwtDir, self.logger)
+        if os.path.exists(self.bwtDir+'/origins.npy'):
+            raise Exception("You haven\'t reimplemented the handling of origin files")
+            origins = np.load(self.bwtDir+'/origins.npy', 'r')
         else:
-            endID = len(nodes)
-            nodes.append(PathNode(endID, endSeed, msbwt, 0, settingsDict))
-            nodes[endID].termCondition = 'END_SEED_'+str(i)
-            foundKmers[endSeed] = endID
-    
-    logger.info('Beginning with seed \''+seedKmer+'\', pathK='+str(pathK)+', countK='+str(countK))
-    
-    unexploredPaths = [nodes[0]]
-    
-    #init the kmer dictionary
-    execID = 0
-    
-    while len(unexploredPaths) > 0:
-        #uncomment to make this smallest first
-        unexploredPaths.sort(key = lambda node: node.minDistToSeed)
-        print 'UP: '+'['+','.join([str((node.minDistToSeed, node.nodeID)) for node in unexploredPaths])+']'
-        nextNode = unexploredPaths.pop(0)
+            origins = None
         
-        if nextNode.nodeID < numNodes:
-            nextNode.execOrder = execID
-            execID += 1
+        self.settingsDict['interleaveFN'] = self.bwtDir+'/inter0.npy'
+        
+        kmer = seedKmer
+        
+        firstID = len(self.nodes)
+        self.nodes.append(PathNode(firstID, kmer, msbwt, 0, self.settingsDict))
+        self.foundKmers[kmer] = firstID
+        
+        for i, endSeed in enumerate(endSeeds):
+            if len(endSeed) != pathK:
+                raise Exception(endSeed+': NOT CORRECT LENGTH')
+            else:
+                endID = len(self.nodes)
+                self.nodes.append(PathNode(endID, endSeed, msbwt, 0, self.settingsDict))
+                self.nodes[endID].termCondition = 'END_SEED_'+str(i)
+                self.foundKmers[endSeed] = endID
+        
+        self.logger.info('Beginning with seed \''+seedKmer+'\', pathK='+str(pathK)+', countK='+str(countK))
+        
+        unexploredPaths = [self.nodes[firstID]]
+        
+        #init the kmer dictionary
+        execID = firstID
+        
+        while len(unexploredPaths) > 0:
+            #uncomment to make this smallest first
+            unexploredPaths.sort(key = lambda node: node.minDistToSeed)
+            print 'UP: '+'['+','.join([str((node.minDistToSeed, node.nodeID)) for node in unexploredPaths])+']'
+            nextNode = unexploredPaths.pop(0)
             
-            logger.info('Exploring new node')
-            nextNode.firstTimeExtension(foundKmers, unexploredPaths, nodes, edges)
-        else:
-            nextNode.termCondition = 'UNEXPLORED'
-        
-    if isMerged:
-        interleaveFN = bwtDir+'/inter0.npy'
-        interleave = np.load(interleaveFN, 'r')
-        
-        for node in nodes:
-            dIDs = set([])
-            for s in xrange(0, len(node.seq)-pathK+1):
-                kmer = node.seq[s:s+pathK]
-                r = msbwt.findIndicesOfStr(kmer)
-                for ind in xrange(r[0], r[1]):
-                    dID = msbwt.getSequenceDollarID(ind)
-                    dIDs.add(dID)
+            if nextNode.nodeID < numNodes:
+                nextNode.execOrder = execID
+                execID += 1
                 
-                r2 = msbwt.findIndicesOfStr(MultiStringBWT.reverseComplement(kmer))
-                for ind in xrange(r2[0], r2[1]):
-                    dID = msbwt.getSequenceDollarID(ind)
-                    dIDs.add(dID)
+                self.logger.info('Exploring new node')
+                nextNode.firstTimeExtension(self.foundKmers, unexploredPaths, self.nodes, self.edges)
+            else:
+                nextNode.termCondition = 'UNEXPLORED'
             
-            for dID in dIDs:
-                sourceID = interleave[dID]
-                node.sourceCounts[sourceID] = node.sourceCounts.get(sourceID, 0)+1
-        
-    if trackPairs:
-        abtFN = bwtDir+'/abt.npy'
-        abt = np.load(abtFN, 'r')
-                
-        abtDict = {}
-        
-        for node in nodes:
-            '''
-            dIDs = set([])
-            for s in xrange(0, len(node.seq)-pathK+1):
-                kmer = node.seq[s:s+pathK]
-                r = msbwt.findIndicesOfStr(kmer)
-                for ind in xrange(r[0], r[1]):
-                    dID = msbwt.getSequenceDollarID(ind)
-                    dIDs.add((dID, 0))
-                
-                r2 = msbwt.findIndicesOfStr(MultiStringBWT.reverseComplement(kmer))
-                for ind in xrange(r2[0], r2[1]):
-                    dID = msbwt.getSequenceDollarID(ind)
-                    dIDs.add((dID, 1))
-            '''
-            dIDs = node.readSet
+        if isMerged and trackReads:
+            interleaveFN = self.bwtDir+'/inter0.npy'
+            interleave = np.load(interleaveFN, 'r')
             
-            for dID, direction in dIDs:
-                (fID, rID) = abt[dID]
-                if fID % 2 == 0:
-                    oFID = fID+1
-                else:
-                    oFID = fID-1
+            #we only need to do this for newly processed nodes
+            for node in self.nodes[firstID:]:
+                dIDs = node.readSet
+                for dID in dIDs:
+                    sourceID = interleave[dID[0]]
+                    node.sourceCounts[sourceID] = node.sourceCounts.get(sourceID, 0)+1
                 
-                if abtDict.has_key((oFID, rID, 1-direction)):
-                    otherNIDs = abtDict[(oFID, rID, 1-direction)][1]
-                    for n in otherNIDs:
-                        nodes[n].pairedNodes[node.nodeID] = nodes[n].pairedNodes.get(node.nodeID, 0)+1
-                        node.pairedNodes[n] = node.pairedNodes.get(n, 0)+1
+        if trackPairs:
+            abtFN = self.bwtDir+'/abt.npy'
+            abt = np.load(abtFN, 'r')
+                    
+            #abtDict = {}
+            
+            #only need to process new nodes
+            for node in self.nodes[firstID:]:
+                dIDs = node.readSet
                 
-                if not abtDict.has_key((fID, rID, direction)):
-                    abtDict[(fID, rID, direction)] = (dID, set([]))
-                abtDict[(fID, rID, direction)][1].add(node.nodeID)
-    
-    retData = []
-    retEdges = []
-    for node in nodes:
-        retData.append((node.nodeID, node.execOrder, node.seq, node.pileups, node.termCondition, node.minDistToSeed,
-                        node.inversionSet, node.readSet, node.pairedNodes, node.sourceCounts))
-    for edge in edges:
-        retEdges.append((edge.fromID, edge.toID, edge.label, edge.edgeStyle))
-    
-    return (retData, retEdges)
+                for dID, direction in dIDs:
+                    (fID, rID) = abt[dID]
+                    if fID % 2 == 0:
+                        oFID = fID+1
+                    else:
+                        oFID = fID-1
+                    
+                    if self.abtDict.has_key((oFID, rID, 1-direction)):
+                        otherNIDs = self.abtDict[(oFID, rID, 1-direction)][1]
+                        for n in otherNIDs:
+                            self.nodes[n].pairedNodes[node.nodeID] = self.nodes[n].pairedNodes.get(node.nodeID, 0)+1
+                            node.pairedNodes[n] = node.pairedNodes.get(n, 0)+1
+                    
+                    if not self.abtDict.has_key((fID, rID, direction)):
+                        self.abtDict[(fID, rID, direction)] = (dID, set([]))
+                    self.abtDict[(fID, rID, direction)][1].add(node.nodeID)
+        
+    def getGraphResults(self):
+        retData = []
+        retEdges = []
+        for node in self.nodes:
+            retData.append((node.nodeID, node.execOrder, node.seq, node.pileups, node.termCondition, node.minDistToSeed,
+                            node.inversionSet, node.readSet, node.pairedNodes, node.sourceCounts))
+        for edge in self.edges:
+            retEdges.append((edge.fromID, edge.toID, edge.label, edge.edgeStyle))
+        
+        return (retData, retEdges)
         

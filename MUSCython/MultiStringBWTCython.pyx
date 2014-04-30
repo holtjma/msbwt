@@ -1043,6 +1043,20 @@ def createMSBWTFromBam(bamFNs, outputDir, numProcs, areUniform, logger):
         MSBWTGen.createMsbwtFromSeqs(outputDir, numProcs, logger)
     else:
         MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, numProcs, areUniform, logger)
+        
+def createMSBWTFromFasta(fastaFNs, outputDir, numProcs, areUniform, logger):
+    logger.info('Saving sorted sequences...')
+    seqFN = outputDir+'/seqs.npy'
+    offsetFN = outputDir+'/offsets.npy'
+    abtFN = outputDir+'/about.npy'
+    bwtFN = outputDir+'/msbwt.npy'
+    
+    MSBWTGen.clearAuxiliaryData(outputDir)
+    preprocessFastas(fastaFNs, seqFN, offsetFN, abtFN, areUniform, logger)
+    if areUniform:
+        MSBWTGen.createMsbwtFromSeqs(outputDir, numProcs, logger)
+    else:
+        MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, numProcs, areUniform, logger)
     
 def customiter(numpyArray):
     '''
@@ -1296,6 +1310,128 @@ def preprocessBams(bamFNs, seqFNPrefix, offsetFN, abtFN, areUniform, logger):
         
     fp.close()
     
+    for fn in subSortFNs:
+        os.remove(fn)
+    
+    #convert the sequences into uint8s and then save it
+    del seqArray
+    seqArray = np.memmap(tempFN)
+    
+    if areUniform:
+        uniformLength = maxSeqLen
+    else:
+        uniformLength = 0
+    
+    logger.info('Saving sorted sequences for BWT construction...')
+    MSBWTGen.writeSeqsToFiles(seqArray, seqFNPrefix, offsetFN, uniformLength)
+    
+    #wipe this
+    del seqArray
+    os.remove(tempFN)
+
+def preprocessFastas(fastaFNs, seqFNPrefix, offsetFN, abtFN, areUniform, logger):
+    '''
+    This function does the grunt work behind string extraction for fasta files
+    @param fastaFNs - a list of .fq filenames for parsing
+    @param seqFNPrefix - this is always of the form '<DIR>/seqs.npy'
+    @param offsetFN - this is always of the form '<DIR>/offsets.npy'
+    @param abtFN - this is always of the form '<DIR>/about.npy'
+    @param areUniform - True if all sequences are of uniform length
+    @param logger - logger object for output 
+    '''
+    #create a seqArray
+    seqArray = []
+    
+    #TODO: make the seqPerFile work better for when they aren't uniform
+    tempFileId = 0
+    seqsPerFile = 1000000
+    maxSeqLen = -1
+    numSeqs = 0
+    
+    subSortFNs = []
+    
+    for fnID, fn in enumerate(fastaFNs):
+        #open the file and read in starting form the second, every 4th line
+        logger.info('Loading \''+fn+'\'...')
+        fp = open(fn, 'r')
+        i = 0
+        
+        currRead = ''
+        
+        #go through each line
+        for line in fp:
+            if line[0] == '>':
+                if currRead == '':
+                    continue
+                
+                #end of a read
+                seqArray.append((currRead+'$', fnID, i))
+                if len(seqArray) == seqsPerFile:
+                    if not areUniform or maxSeqLen == -1:
+                        maxSeqLen = 0
+                        for seq, fID, seqID in seqArray:
+                            if len(seq) > maxSeqLen:
+                                maxSeqLen = len(seq)
+                    
+                    tempFN = seqFNPrefix+'.sortTemp.'+str(tempFileId)+'.npy'
+                    subSortFNs.append(tempFN)
+                    
+                    tempArray = np.lib.format.open_memmap(tempFN, 'w+', 'a'+str(maxSeqLen)+',<u1,<u8', (len(seqArray),))
+                    tempArray[:] = sorted(seqArray)
+                    numSeqs += len(seqArray)
+                    del tempArray
+                    tempFileId += 1
+                    seqArray = []
+                
+                #reset to empty read now
+                currRead = ''
+                i += 1
+                
+            else:
+                currRead += line.strip('\n')
+            
+        fp.close()
+    
+    if len(seqArray) > 0 or currRead != '':
+        seqArray.append((currRead+'$', fnID, i))
+        
+        if not areUniform or maxSeqLen == -1:
+            maxSeqLen = 0
+            for seq, fID, seqID in seqArray:
+                if len(seq) > maxSeqLen:
+                    maxSeqLen = len(seq)
+        
+        tempFN = seqFNPrefix+'.sortTemp.'+str(tempFileId)+'.npy'
+        subSortFNs.append(tempFN)
+        
+        tempArray = np.lib.format.open_memmap(tempFN, 'w+', 'a'+str(maxSeqLen)+',<u1,<u8', (len(seqArray),))
+        tempArray[:] = sorted(seqArray)
+        numSeqs += len(seqArray)
+        del tempArray
+        tempFileId += 1
+        seqArray = []
+    
+    logger.info('Pre-sorting '+str(numSeqs)+' sequences...')
+    iters = []
+    for fn in subSortFNs:
+        iters.append(customiter(np.load(fn, 'r')))
+    
+    #save it
+    tempFN = seqFNPrefix+'.temp.npy'
+    fp = open(tempFN, 'w+')
+    
+    aboutFile = np.lib.format.open_memmap(abtFN, 'w+', '<u1,<u8', (numSeqs,))
+    ind = 0
+    
+    for tup in heapq.merge(*iters):
+        (seq, fID, seqID) = tup
+        aboutFile[ind] = (fID, seqID)
+        fp.write(seq)
+        ind += 1
+        
+    fp.close()
+    
+    #clean up disk space
     for fn in subSortFNs:
         os.remove(fn)
     

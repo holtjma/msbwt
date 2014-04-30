@@ -584,6 +584,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     #fmStarts is basically an fm-index offset, fmdeltas tells us how much fmStarts should change each iterations
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmStarts = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmDeltas = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
+    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmEnds = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] nextFmDeltas
     fmDeltas[0][:] = initialFmDeltas[:]
     
@@ -593,6 +594,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     for c in range(0, numValidChars):
         #create an initial empty region for each symbol
         np.lib.format.open_memmap(bwtDir+'/state.'+str(c)+'.0.npy', 'w+', '<u1', (0, ))
+        #np.memmap(bwtDir+'/state.'+str(c)+'.0.npy', '<u1', 'w+', shape=(0, ))
         
         #create an empty list of files for insertion
         insertionFNDict[c] = []
@@ -613,6 +615,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
         
         #first take into accoun the new fmDeltas coming in from all insertions
         fmStarts = fmStarts+(np.cumsum(fmDeltas, axis=0)-fmDeltas)
+        fmEnds = fmEnds+np.cumsum(fmDeltas, axis=0)
         
         #clear out the next fmDeltas
         nextFmDeltas = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
@@ -621,7 +624,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
             currentSymbolFN = bwtDir+'/state.'+str(c)+'.'+str(columnID)+'.npy'
             nextSymbolFN = bwtDir+'/state.'+str(c)+'.'+str(columnID+1)+'.npy'
             nextSeqFN = seqFNPrefix+'.'+str((columnID+2) % seqLen)+'.npy'
-            tup = (c, np.copy(fmStarts[c]), np.copy(fmDeltas[c]), insertionFNDict[c], currentSymbolFN, nextSymbolFN, bwtDir, columnID, nextSeqFN)
+            tup = (c, np.copy(fmStarts[c]), np.copy(fmDeltas[c]), np.copy(fmEnds[c]), insertionFNDict[c], currentSymbolFN, nextSymbolFN, bwtDir, columnID, nextSeqFN)
             ret = iterateMsbwtCreate(tup)
             
             #update the fmDeltas
@@ -673,7 +676,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     for c in range(0, numValidChars):
         tempBWT = np.load(bwtDir+'/state.'+str(c)+'.'+str(seqLen)+'.npy', 'r')
         totalLength += tempBWT.shape[0]
-    
+        
     #prepare the final structure for copying
     cdef unsigned long finalInd = 0
     cdef unsigned long tempLen
@@ -681,7 +684,11 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     finalBWT_view = finalBWT
     
     for c in range(0, numValidChars):
-        tempBWT = np.load(bwtDir+'/state.'+str(c)+'.'+str(seqLen)+'.npy', 'r+')
+        stateFN = bwtDir+'/state.'+str(c)+'.'+str(seqLen)+'.npy'
+        if os.path.exists(stateFN):
+            tempBWT = np.load(stateFN, 'r+')
+        else:
+            continue
         tempBWT_view = tempBWT
         tempLen = tempBWT.shape[0]
         
@@ -689,6 +696,8 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
             for i in range(0, tempLen):
                 finalBWT_view[finalInd] = tempBWT_view[i]
                 inc(finalInd)
+    
+    #print finalBWT
     
     #finally, clear the last state files
     tempBWT = None
@@ -717,11 +726,14 @@ def iterateMsbwtCreate(tup):
     cdef np.uint8_t idChar
     cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] fmIndex
     cdef np.uint64_t [:] fmIndex_view
+    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] fmEndex
+    cdef np.uint64_t [:] fmEndex_view
     cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] prevFmDelta
     cdef np.uint64_t [:] prevFmDelta_view
     cdef unsigned long column
-    (idChar, fmIndex, prevFmDelta, insertionFNs, currentSymbolFN, nextSymbolFN, bwtDir, column, nextSeqFN) = tup
+    (idChar, fmIndex, prevFmDelta, fmEndex, insertionFNs, currentSymbolFN, nextSymbolFN, bwtDir, column, nextSeqFN) = tup
     fmIndex_view = fmIndex
+    fmEndex_view = fmEndex
     prevFmDelta_view = prevFmDelta
     
     #hardcoded
@@ -772,11 +784,11 @@ def iterateMsbwtCreate(tup):
     if len(insertionFNs) == 0:
         #we don't need to do anything except rename our file
         #print str(idChar)+', No change'
-        os.rename(currentSymbolFN, nextSymbolFN)
+        if os.path.exists(currentSymbolFN):
+            os.rename(currentSymbolFN, nextSymbolFN)
     else:
         #first we need to count how big the new iteration is
         totalInsertionCounts = np.sum(prevFmDelta)
-        #nextBwt = np.zeros(dtype='<u1', shape=(currentBwt.shape[0]+totalInsertionCounts, ))
         totalNewLen = currentBwt.shape[0]+totalInsertionCounts
         nextBwt = np.lib.format.open_memmap(nextSymbolFN, 'w+', '<u1', (totalNewLen, ))
         nextBwt_view = nextBwt
@@ -802,6 +814,7 @@ def iterateMsbwtCreate(tup):
         currIndex = 0
         
         #go through each file, one at a time
+        #for fn in insertionFNs:
         for fn in insertionFNs:
             #load the actual inserts
             inserts = np.load(fn, 'r+')
@@ -821,7 +834,7 @@ def iterateMsbwtCreate(tup):
                         
                         inc(fmIndex_view[symbol])
                         inc(currIndex)
-                    
+                        
                     #now we actually write the value from the insert
                     symbol = inserts_view[i][1]
                     nextBwt_view[insertIndex] = symbol
@@ -840,7 +853,7 @@ def iterateMsbwtCreate(tup):
                     inc(fmIndex_view[symbol])
                     outputInsert_p[ind+1] = nextSymbol
                     outputInsert_p[ind+2] = inserts_view[i][2]
-        
+                    
         with nogil:
             #at the end we need to copy all values that come after the final insert
             for j in range(prevIndex, totalNewLen):
@@ -1164,18 +1177,23 @@ def writeSeqsToFiles(np.ndarray[np.uint8_t, ndim=1, mode='c'] seqArray, seqFNPre
             dArr[ord(c)] = d[c]
         
         #'''
-        seqOutArray = []
+        seqOutArray = [None]*seqLen
         seqOutArrayPointers = np.zeros(dtype='<u8', shape=(seqLen, ))
         seqOutArrayPointers_view = seqOutArrayPointers
         for i in range(0, seqLen):
-            seqOutArray.append(np.lib.format.open_memmap(seqFNPrefix+'.'+str(i)+'.npy', 'w+', '<u1', (numSeqs,)))
-            seq_view = seqOutArray[i]
-            seqOutArrayPointers_view[i] = <np.uint64_t> &seq_view[0]
-        
+            #seqOutArray.append(np.lib.format.open_memmap(seqFNPrefix+'.'+str(i)+'.npy', 'w+', '<u1', (numSeqs,)))
+            #seq_view = seqOutArray[i]
+            #seqOutArrayPointers_view[i] = <np.uint64_t> &seq_view[0]
+            
+            seqOutArray[seqLen-1-i] = np.lib.format.open_memmap(seqFNPrefix+'.'+str(i)+'.npy', 'w+', '<u1', (numSeqs,))
+            seq_view = seqOutArray[seqLen-1-i]
+            seqOutArrayPointers_view[seqLen-1-i] = <np.uint64_t> &seq_view[0]
+            
         with nogil:
             for i in range(0, numSeqs):
                 for j in range(0, seqLen):
-                    (<np.uint8_t *>seqOutArrayPointers_view[seqLen-j-1])[i] = dArr_view[seqArray_view[k]]
+                    #(<np.uint8_t *>seqOutArrayPointers_view[seqLen-j-1])[i] = dArr_view[seqArray_view[k]]
+                    (<np.uint8_t *>seqOutArrayPointers_view[j])[i] = dArr_view[seqArray_view[k]]
                     inc(k)
         
         '''

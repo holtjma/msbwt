@@ -117,7 +117,7 @@ def mainRun():
         offsetFN = args.bwtDir+'/offsets.npy'
         bwtFN = args.bwtDir+'/msbwt.npy'
         #MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, args.numProcesses, args.areUniform, logger)
-        if areUniform:
+        if args.areUniform:
             MSBWTGenCython.createMsbwtFromSeqs(args.bwtDir, args.numProcesses, logger)
         else:
             MSBWTGenCython.createFromSeqs(seqFN, offsetFN, bwtFN, args.numProcesses, args.areUniform, logger)
