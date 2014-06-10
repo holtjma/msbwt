@@ -10,7 +10,7 @@ import argparse as ap
 
 #I see no need for the versions to be different as of now
 DESC = "A multi-string BWT package for DNA and RNA."
-VERSION = '0.1.7b'
+VERSION = '0.2.0'
 PKG_VERSION = VERSION
 
 validCharacters = set(['$', 'A', 'C', 'G', 'N', 'T'])

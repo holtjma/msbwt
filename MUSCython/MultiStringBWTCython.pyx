@@ -1,5 +1,6 @@
 #!python
 #cython: boundscheck=False
+#cython: wraparound=False
 
 '''
 Created on Aug 5, 2013
@@ -142,24 +143,9 @@ cdef class BasicBWT(object):
         @param givenRange - the range to start from (if a partial search has already been run), default=whole range
         @return - an integer count of the number of times seq occurred in this BWT
         '''
-        '''
-        #TODO: is the cache mattering?
-        #init the current range
-        if givenRange == None:
-            if not self.searchCache.has_key(seq[-self.cacheDepth:]):
-                res = self.findIndicesOfStr(seq[-self.cacheDepth:])
-                self.searchCache[seq[-self.cacheDepth:]] = (int(res[0]), int(res[1]))
-            
-            l, h = self.searchCache[seq[-self.cacheDepth:]]
-            seq = seq[0:-self.cacheDepth]
-            
-        else:
-            l = givenRange[0]
-            h = givenRange[1]
-        '''
-        
         cdef unsigned long l, h
-        cdef unsigned long x, s
+        cdef long x
+        cdef unsigned long s
         cdef unsigned int c
         
         if givenRange == None:
@@ -175,9 +161,10 @@ cdef class BasicBWT(object):
         cdef unsigned char * seq_view = seq
         
         #with nogil:
-        for x in range(0, s):
+        #for x in range(0, s):
+        for x in range(s-1, -1, -1):
             #get the character from the sequence, then search at both high and low
-            c = self.charToNum_view[seq_view[s-x-1]]
+            c = self.charToNum_view[seq_view[x]]
             l = self.getOccurrenceOfCharAtIndex(c, l)
             h = self.getOccurrenceOfCharAtIndex(c, h)
             
@@ -197,7 +184,8 @@ cdef class BasicBWT(object):
         @return - a python range representing the start and end of the sequence in the bwt
         '''
         cdef unsigned long l, h
-        cdef unsigned long x, s
+        cdef unsigned long s
+        cdef long x
         cdef unsigned int c
         
         #initialize our search to the whole BWT
@@ -214,14 +202,117 @@ cdef class BasicBWT(object):
         cdef unsigned char * seq_view = seq
         
         #with nogil:
-        for x in range(0, s):
+        for x in range(s-1, -1, -1):
             #get the character from the sequence, then search at both high and low
-            c = self.charToNum_view[seq_view[s-x-1]]
+            c = self.charToNum_view[seq_view[x]]
             l = self.getOccurrenceOfCharAtIndex(c, l)
             h = self.getOccurrenceOfCharAtIndex(c, h)
         
         #return the difference
         return (l, h)
+    
+    def findIndicesOfRegex(BasicBWT self, bytes seq, givenRange=None):
+        '''
+        This function will search for a string and find the location of that string OR the last index less than it. It also
+        will start its search within a given range instead of the whole structure
+        @param seq - the sequence to search for with valid symbols [$, A, C, G, N, T, *, ?]
+            $, A, C, G, N, T - exact match of specific symbol
+            * - matches 0 or more of any non-$ symbols (may be different symbols)
+            ? - matches exactly one of any non-$ symbol
+        @param givenRange - the range to search for, whole range by default
+        @return - a python list of ranges representing the start and end of the sequence in the bwt
+        '''
+        cdef list ret = []
+        
+        cdef unsigned long l, h
+        cdef unsigned long lc, hc
+        cdef unsigned long s
+        cdef long x
+        cdef unsigned int c
+        
+        #initialize our search to the whole BWT
+        if givenRange == None:
+            #initialize our search to the whole BWT
+            l = 0
+            h = self.totalSize
+        else:
+            l = givenRange[0]
+            h = givenRange[1]
+        s = len(seq)
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        cdef bint recursed = False
+        
+        for x in range(s-1, -1, -1):
+            if seq_view[x] == ord('*'):
+                #handle the asterisk
+                recursed = True
+                
+                if x > 0:
+                    ret += self.findIndicesOfRegex(seq[0:x], (l, h))
+                
+                #skip that end in '$'
+                for c in range(1, self.vcLen):
+                    lc = self.getOccurrenceOfCharAtIndex(c, l)
+                    hc = self.getOccurrenceOfCharAtIndex(c, h)
+                    if hc > lc:
+                        ret += self.findIndicesOfRegex(seq[0:x+1], (lc, hc))
+                    
+            elif seq_view[x] == ord('?'):
+                #handle the single character match
+                recursed = True
+                
+                #don't allow '$' as a ? symbol
+                for c in range(1, self.vcLen):
+                    lc = self.getOccurrenceOfCharAtIndex(c, l)
+                    hc = self.getOccurrenceOfCharAtIndex(c, h)
+                    if hc > lc:
+                        ret += self.findIndicesOfRegex(seq[0:x], (lc, hc))
+                
+            else:
+                #get the character from the sequence, then search at both high and low
+                c = self.charToNum_view[seq_view[x]]
+                l = self.getOccurrenceOfCharAtIndex(c, l)
+                h = self.getOccurrenceOfCharAtIndex(c, h)
+        
+        #return the difference
+        cdef list finalRet = []
+        cdef unsigned long currStart, currEnd, nextStart, nextEnd
+        
+        if (not recursed) and (h-l > 0):
+            #normal search, no variable symbols like * or ?
+            finalRet += [(l, h)]
+        elif recursed and len(ret) > 1:
+            #we had to recurse, may need to condense groups that overlap
+            ret.sort()
+            
+            currStart = ret[0][0]
+            currEnd = ret[0][1]
+            
+            for x in range(0, len(ret)):
+                nextStart = ret[x][0]
+                nextEnd = ret[x][1]
+                if nextStart <= currEnd:
+                    if nextEnd <= currEnd:
+                        #this range is totally enclosed by the current range, do nothing
+                        pass
+                    else:
+                        #this range overlaps, so we need to extend our current end
+                        currEnd = nextEnd
+                else:
+                    #this range starts past our current end, so add the current end and then set the new currs
+                    finalRet.append((currStart, currEnd))
+                    currStart = nextStart
+                    currEnd = nextEnd
+            
+            #add the range that still remains
+            finalRet.append((currStart, currEnd))
+                    
+        else:
+            finalRet = ret
+        
+        return finalRet
     
     cdef unsigned int getCharAtIndex(BasicBWT self, unsigned long index) nogil:
         '''
@@ -271,7 +362,6 @@ cdef class BasicBWT(object):
         cdef unsigned int prevChar
         cdef unsigned long i
         
-        #with nogil:
         prevChar = self.getCharAtIndex(currIndex)
         currIndex = self.getOccurrenceOfCharAtIndex(prevChar, currIndex)
         i = 0
@@ -294,11 +384,10 @@ cdef class BasicBWT(object):
         @param strIndex - the index of the string we want to recover
         @return - string that we found starting at the specified '$' index
         '''
-        retNums = []
-        indices = []
+        cdef list retNums = []
+        cdef list indices = []
         
         #figure out the first hop backwards
-        #cdef unsigned long currIndex = strIndex
         cdef unsigned int prevChar = self.getCharAtIndex(strIndex)
         cdef unsigned long currIndex = self.getOccurrenceOfCharAtIndex(prevChar, strIndex)
         
@@ -322,7 +411,22 @@ cdef class BasicBWT(object):
             indices.append(strIndex)
         
         #reverse the numbers, convert to characters, and join them in to a single sequence
-        ret = ''.join([chr(x) for x in self.numToChar[retNums[::-1]]])
+        #ret = ''.join([chr(x) for x in self.numToChar[retNums[::-1]]])
+        
+        #build up all the converted numbers in their encoding
+        cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] retConvert = np.zeros(dtype='<u1', shape=(len(retNums, )))
+        cdef np.uint8_t [:] retConvert_arr = retConvert
+        cdef unsigned long retVal
+        cdef unsigned long x
+        cdef unsigned long retNumPos = len(retNums)-1
+        for x in range(0, len(retNums)):
+            retVal = retNums[retNumPos]
+            retNumPos -= 1
+            retConvert_arr[x] = self.numToChar_view[retVal]
+        
+        #have to make this view to do a bytes conversion
+        cdef char * retConvert_view = <char *>&retConvert_arr[0]
+        cdef bytes ret = retConvert_view[0:len(retNums)]
         
         #return what we found
         if withIndex:
@@ -465,7 +569,6 @@ cdef class MultiStringBWT(BasicBWT):
         
     def getFullFMAtIndex(MultiStringBWT self, unsigned long index):
         '''
-        TODO: cythonize
         This function creates a complete FM-index for a specific position in the BWT.  Example using the above example:
         BWT    Full FM-index
                  $ A C G T
@@ -477,29 +580,19 @@ cdef class MultiStringBWT(BasicBWT):
         @return - the above information in the form of an array that already incorporates the offset value into the counts
         '''
         
-        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret
-        cdef np.uint64_t [:] ret_view
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.empty(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] ret_view = ret
         cdef unsigned long binID = index >> self.bitPower
         cdef unsigned long bwtInd = binID * self.binSize
         cdef unsigned long i
         
-        ret = np.copy(self.partialFM[binID])
-        ret_view = ret
+        for i in range(0, self.vcLen):
+            ret_view[i] = self.partialFM_view[binID][i]
         
-        for i in xrange(bwtInd, index):
-            inc(ret_view[self.bwt[i]])
+        for i in range(bwtInd, index):
+            inc(ret_view[self.bwt_view[i]])
         
         return ret
-        
-        #get the bin we occupy
-        '''
-        binID = index >> self.bitPower
-        if binID << self.bitPower == index:
-            ret = self.partialFM[binID]
-        else:
-            ret = np.add(self.partialFM[binID], np.bincount(self.bwt[binID << self.bitPower:index], minlength=6), dtype='<u8')
-        return ret
-        '''
         
     cdef np.uint8_t iterNext_cython(MultiStringBWT self) nogil:
         '''
@@ -775,17 +868,22 @@ cdef class CompressedMSBWT(BasicBWT):
         
         ret = np.zeros(dtype='<u1', shape=(returnSize,))
         
+        startRange = int(startRange)
+        endRange = int(endRange)
+        
         #split the letters and numbers in the compressed bwt
         letters = np.bitwise_and(self.bwt[startRange:endRange], self.mask)
         cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] counts = np.right_shift(self.bwt[startRange:endRange], self.letterBits, dtype='<u8')
         
         #multiply counts where needed
         i = 1
-        same = (letters[0:-1] == letters[1:])
+        #same = (letters[0:-1] == letters[1:])
+        same = (letters[0:letters.shape[0]-1] == letters[1:])
         while np.count_nonzero(same) > 0:
             (counts[i:])[same] *= self.numPower
             i += 1
-            same = np.bitwise_and(same[0:-1], same[1:])
+            #same = np.bitwise_and(same[0:-1], same[1:])
+            same = np.bitwise_and(same[0:same.shape[0]-1], same[1:])
         
         #now I have letters and counts, time to fill in the array
         cdef unsigned long s = 0
@@ -815,7 +913,6 @@ cdef class CompressedMSBWT(BasicBWT):
         @param index - the index we want to find the occurrence level at
         @return - the number of occurrences of char before the specified index
         '''
-        #return self.getFullFMAtIndex(index)[sym]
         cdef unsigned long binID = index >> self.bitPower
         cdef unsigned long compressedIndex = self.refFM_view[binID]
         cdef unsigned long bwtIndex = 0
@@ -854,7 +951,6 @@ cdef class CompressedMSBWT(BasicBWT):
     
     def getFullFMAtIndex(CompressedMSBWT self, np.uint64_t index):
         '''
-        TODO: cythonize
         This function creates a complete FM-index for a specific position in the BWT.  Example using the above example:
         BWT    Full FM-index
                  $ A C G T
@@ -865,46 +961,41 @@ cdef class CompressedMSBWT(BasicBWT):
                  1 2 4 4 4
         @return - the above information in the form of an array that already incorporates the offset value into the counts
         '''
-        cdef unsigned long endRange
-        
-        if index == self.totalSize:
-            return np.cumsum(self.totalCounts)
-        
-        #get the bin we start from
         cdef unsigned long binID = index >> self.bitPower
-        cdef unsigned long bwtIndex = self.refFM_view[binID]
+        cdef unsigned long compressedIndex = self.refFM_view[binID]
+        cdef unsigned long bwtIndex = 0
+        cdef unsigned long j
         
-        #figure out how far in we really are
-        ret = np.copy(self.partialFM[binID])
-        trueIndex = np.sum(ret)-self.offsetSum
-        dist = index-trueIndex
-        if dist == 0:
-            return ret
+        #cdef unsigned long ret = self.partialFM_view[binID][sym]
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.empty(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] ret_view = ret
         
-        #find the end of the region of interest
-        if binID == self.refFM.shape[0]-1:
-            endRange = self.bwt.shape[0]
-        else:
-            endRange = self.refFM[binID+1]+1
-            while endRange < self.bwt.shape[0] and (self.bwt[endRange] & self.mask) == (self.bwt[endRange-1] & self.mask):
-                endRange += 1
+        for j in range(0, self.vcLen):
+            bwtIndex += self.partialFM_view[binID][j]
+            ret_view[j] = self.partialFM_view[binID][j]
+        bwtIndex -= self.offsetSum
         
-        #split the letters and numbers in the compressed bwt
-        letters = np.bitwise_and(self.bwt[bwtIndex:endRange], self.mask)
-        counts = np.right_shift(self.bwt[bwtIndex:endRange], self.letterBits, dtype='<u8')
+        cdef np.uint8_t prevChar = 255
+        cdef np.uint8_t currentChar
+        cdef unsigned long prevCount = 0
+        cdef unsigned long powerMultiple = 1
         
-        i = 1
-        same = (letters[0:-1] == letters[1:])
-        while np.count_nonzero(same) > 0:
-            (counts[i:])[same] *= self.numPower
-            i += 1
-            same = np.bitwise_and(same[0:-1], same[1:])
+        while bwtIndex + prevCount < index:
+            currentChar = self.bwt_view[compressedIndex] & self.mask
+            if currentChar == prevChar:
+                prevCount += (self.bwt_view[compressedIndex] >> self.letterBits) * powerMultiple
+                powerMultiple *= self.numPower
+            else:
+                ret_view[prevChar] += prevCount
+                
+                bwtIndex += prevCount
+                prevCount = (self.bwt_view[compressedIndex] >> self.letterBits)
+                prevChar = currentChar
+                powerMultiple = self.numPower
+                
+            inc(compressedIndex)
         
-        cs = np.subtract(np.cumsum(counts), counts)
-        x = np.searchsorted(cs, dist, 'left')
-        if x > 1:
-            ret += np.bincount(letters[0:x-1], counts[0:x-1], minlength=self.vcLen)
-        ret[letters[x-1]] += dist-cs[x-1]
+        ret_view[prevChar] += index-bwtIndex
         
         return ret
     
@@ -1552,231 +1643,13 @@ def parseProfileLine(fp):
     else:
         pieces = nextLine.strip('\n').split(',')
         return (pieces[0], int(pieces[1]))
-
-def interactiveTranscriptConstruction(bwtDir, seedKmer, endSeeds, threshold, numNodes, direction, logger):
-    '''
-    This function is intended to be an interactive technique for constructing transcripts, probably to be released
-    in a future version of msbwt
-    @param bwtFN - the filename of the BWT to load
-    @param seedKmer - the seed sequence to use for construction
-    @param threshold - minimum number for a path to be considered a path
-    @param direction - True is forward, False is backward
-    @param logger - the logger
-    @param 
-    '''
-    kmerLen = len(seedKmer)
-    validChars = ['$', 'A', 'C', 'G', 'N', 'T']
-    
-    pileups = []
-    
-    logger.info('Loading '+bwtDir+'...')
-    msbwt = loadBWT(bwtDir)
-    if os.path.exists(bwtDir+'/origins.npy'):
-        raise Exception("You haven\'t reimplemented the handling of origin files")
-        origins = np.load(bwtDir+'/origins.npy', 'r')
-    else:
-        origins = None
-    
-    logger.info('Beginning with seed \''+seedKmer+'\', len='+str(kmerLen))
-    
-    kmer = seedKmer
-    pos = kmerLen
-    ret = ''+kmer
-    
-    #these variable are for counting the average pileup
-    totalPileup = 0
-    numCovered = 0
-    
-    discoveredBlocks = []
-    discoveredEdges = []
-    pathTups = []
-    parentID = -1
-    blockID = 0
-    
-    #TODO: make it an input
-    #we're stating that 5 reads indicates a path here
-    pathThreshold = threshold
-    
-    foundKmers = {}
-    movingAverage = 0
-    
-    for es in endSeeds:
-        foundKmers[es] = 'END_SEED'
-    
-    terminate = False
-    while not terminate and len(discoveredBlocks) < numNodes:
-        
-        if len(kmer) != kmerLen:
-            print 'ERROR: DIFFERENT SIZED K-MER '+str(len(kmer))
-            raise Exception('ERROR')
-        
-        #First, perform all the counts of paths going both forwards and backwards
-        counts = {}
-        revCounts = {}
-        
-        maxV = 0
-        maxC = ''
-        total = 0
-        
-        numPaths = 0
-        numRevPaths = 0
-        
-        for c in validChars:
-            #forward counts
-            fr1 = msbwt.findIndicesOfStr(kmer+c)
-            fr2 = msbwt.findIndicesOfStr(reverseComplement(kmer+c))
-            
-            #backward counts
-            br1 = msbwt.findIndicesOfStr(c+kmer)
-            br2 = msbwt.findIndicesOfStr(reverseComplement(c+kmer))
-            
-            counts[c] = (fr1[1]-fr1[0])+(fr2[1]-fr2[0])
-            revCounts[c] = (br1[1]-br1[0])+(br2[1]-br2[0])
-            
-            if c != '$':
-                total += counts[c]
-                if counts[c] > maxV:
-                    maxV = counts[c]
-                    maxC = c
-                
-                if counts[c] > pathThreshold:
-                    numPaths += 1
-                    
-                if revCounts[c] > pathThreshold:
-                    numRevPaths += 1
-            
-            if origins != None:
-                pass
-        
-        totalPileup += total
-        numCovered += 1
-        
-        if numRevPaths > 1:
-            discoveredBlocks.append((parentID, ret, pileups, 'MERGE_'+str(blockID+1)))
-            discoveredEdges.append((blockID, blockID+1, revCounts))
-            
-            print 'INCOMING MERGE FOUND: '+str(discoveredBlocks[blockID])
-            parentID = blockID
-            blockID += 1
-            
-            ret = ''+kmer
-            pileups = []
-            
-        if total == 0:
-            print 'No strings found.'
-            discoveredBlocks.append((parentID, ret, pileups, 'TERMINAL'))
-            
-            pileups = []
-            
-            print pathTups
-            print discoveredBlocks
-            
-            if len(pathTups) == 0:
-                terminate = True
-            else:
-                nextPathTup = pathTups.pop(0)
-                print 'Handling1: '+str(nextPathTup)
-                parentID = nextPathTup[1]
-                direction = nextPathTup[2]
-                kmer = nextPathTup[3]
-                ret = ''+kmer
-                    
-                discoveredEdges.append((parentID, blockID+1, nextPathTup[0]))
-            
-            blockID += 1
-            continue
-        
-        
-        #now we identify this kmer as being part of the block
-        foundKmers[kmer] = blockID
-        r1 = msbwt.findIndicesOfStr(kmer)
-        r2 = msbwt.findIndicesOfStr(reverseComplement(kmer))
-        kmerCount = (r1[1]-r1[0])+(r2[1]-r2[0])
-        pileups.append(kmerCount)
-        
-        if total == 0:
-            perc = 0
-        else:
-            perc = float(maxV)/total
-            
-        if numPaths > 1:
-            #TODO: reverse ret if direction is reversed
-            discoveredBlocks.append((parentID, ret, pileups, 'SPLIT'))
-            
-            for c in validChars[1:]:
-                if counts[c] > pathThreshold:
-                    #counts, parent block, direction, starting seed
-                    if direction:
-                        pathSeed = kmer[1:]+c
-                    else:
-                        pathSeed = c+kmer[0:-1]
-                    
-                    pathTup = (counts[c], blockID, direction, pathSeed)
-                    pathTups.append(pathTup)
-            
-            print pathTups
-            print discoveredBlocks
-            
-            if len(pathTups) == 0:
-                terminate = True
-            else:
-                nextPathTup = pathTups.pop(0)
-                print 'Handling2: '+str(nextPathTup)
-                parentID = nextPathTup[1]
-                direction = nextPathTup[2]
-                kmer = nextPathTup[3]
-                
-                ret = ''+kmer    
-                pileups = []
-                                
-                discoveredEdges.append((parentID, blockID+1, nextPathTup[0]))
-            
-            blockID += 1
-            
-        else:
-            if direction:
-                kmer = kmer[1:]+maxC
-                ret += maxC
-            else:
-                kmer = maxC+kmer[0:-1]
-                ret = maxC+ret
-            pos += 1
-            
-            movingAverage = .9*movingAverage+.1*maxV
-            print str(pos)+':\t'+kmer+'\t'+str(perc)+'\t'+str(maxV)+'/'+str(total)+'\t'+str(total-maxV)+'\t'+str(movingAverage)
-            
-        while foundKmers.has_key(kmer) and not terminate:
-            #TODO: reverse ret if direction is reversed
-            discoveredBlocks.append((parentID, ret, pileups, 'MERGE_'+str(foundKmers[kmer])))
-            discoveredEdges.append((blockID, foundKmers[kmer], ''))
-            
-            print pathTups
-            print discoveredBlocks
-            
-            if len(pathTups) == 0:
-                terminate = True
-            else:
-                nextPathTup = pathTups.pop(0)
-                print 'Handling3: '+str(nextPathTup)
-                #pileups.append(nextPathTup[0])
-                parentID = nextPathTup[1]
-                direction = nextPathTup[2]
-                kmer = nextPathTup[3]
-                
-                ret = ''+kmer
-                pileups = []
-                    
-                discoveredEdges.append((parentID, blockID+1, nextPathTup[0]))
-            blockID += 1
-    
-    return (discoveredBlocks, discoveredEdges)
     
 def reverseComplement(seq):
     '''
     Helper function for generating reverse-complements
     '''
     revComp = ''
-    complement = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N', '$':'$'}
+    complement = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N', '$':'$', '?':'?', '*':'*'}
     for c in reversed(seq):
         revComp += complement[c]
     return revComp

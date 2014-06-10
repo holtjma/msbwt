@@ -1,8 +1,6 @@
 #!python
 #cython: boundscheck=False
 #cython: wraparound=False
-# distutils: extra_compile_args = -fopenmp
-# distutils: extra_link_args = -fopenmp
 
 '''
 Created on Mar 19, 2014
@@ -198,17 +196,6 @@ def mergeCythonImpl_st(list inputDirs, char *outDir, logger):
     cdef np.uint64_t [:] iterPower_view = iterPower
     cdef np.uint8_t [:] iterCurrChar_view = iterCurrChar
     
-    '''
-    with nogil:
-        #now iterate through the input interleave
-        for i in range(ends[numValidChars-1]):
-            #get the bit here and pull the appropriate symbol, c, increment the place we're looking
-            b = inter0_view[i]
-            c = (<np.uint8_t *>bwtAddress_view[b])[bwtOffsets_view[b]]
-            inc(bwtOffsets_view[b])
-            outBWT_view[i] = c
-    '''
-    
     with nogil:
         #init iter values
         for i in range(numInputs):
@@ -248,15 +235,13 @@ def mergeCythonImpl_st(list inputDirs, char *outDir, logger):
                 
             outBWT_view[i] = c
     
-def mergeIter_st(#np.ndarray[np.uint8_t, ndim=1, mode='c'] inArray not None, 
-              #np.ndarray[np.uint8_t, ndim=1, mode='c'] outArray not None, 
-              np.uint8_t [:] inArray_view,
-              np.uint8_t [:] outArray_view,
-              np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtAddress not None,
-              np.ndarray[np.uint64_t, ndim=1, mode='c'] offsets not None, 
-              unsigned long end,
-              np.uint8_t [:] iteratorType_view,
-              np.uint64_t [:] fileSizes_view):
+def mergeIter_st(np.uint8_t [:] inArray_view,
+                 np.uint8_t [:] outArray_view,
+                 np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtAddress not None,
+                 np.ndarray[np.uint64_t, ndim=1, mode='c'] offsets not None, 
+                 unsigned long end,
+                 np.uint8_t [:] iteratorType_view,
+                 np.uint64_t [:] fileSizes_view):
     #iterator, symbol (as uint), bwt ID from interleave, number of input BWTs
     cdef unsigned int sym, nextSym, bwtID, numInputs
     cdef unsigned long i
@@ -321,7 +306,6 @@ def mergeIter_st(#np.ndarray[np.uint8_t, ndim=1, mode='c'] inArray not None,
                     #pull out the number of counts here and reset our counting
                     iterCurrCount_view[bwtID] += ((<np.uint8_t *>bwtAddress_view[bwtID])[bwtOffsets_view[bwtID]] >> letterBits) * (numPower**iterPower_view[bwtID])
                     inc(iterCount_view[bwtID])
-                    #ret = self.iterCurrChar
                     inc(bwtOffsets_view[bwtID])
                 
                 
@@ -384,7 +368,6 @@ def mergeCythonImpl_mt(list inputDirs, char *outDir, unsigned int numProcs, logg
         with nogil:
             #first construct the total counts for this input
             for j in range(l):
-                #inc(totalCounts_view[bwt_view[j]])
                 inc(totalCountsByInput_view[i][bwt_view[j]])
             
             #add it to the overall total counts
@@ -425,12 +408,6 @@ def mergeCythonImpl_mt(list inputDirs, char *outDir, unsigned int numProcs, logg
                 for k in range(begin, begin+totalCountsByInput_view[j][i]):
                     inter0_view[k] = j
                 begin += totalCountsByInput_view[j][i]
-        '''
-        for b in range(1, numInputs):
-            for i in range(0, bwtLens[b]):
-                inter0_view[start] = b
-                start += 1
-        '''
     
     #second interleave can be all zeroes for now, we will just fill it in
     cdef np.ndarray[np.uint8_t, ndim=1] inter1 = np.lib.format.open_memmap(outDir+'/inter1.npy', 'w+', '<u1', (ends[numValidChars-1],))
@@ -439,15 +416,12 @@ def mergeCythonImpl_mt(list inputDirs, char *outDir, unsigned int numProcs, logg
     cdef int iterID = 0
     cdef float st, et
     
-    #cdef np.ndarray[np.uint8_t, ndim=1] offsetCopy = None
-    
     #iterate until convergence
     logger.info( 'Beginning iterations...')
     while not np.array_equal(inter0, inter1):
         totalOffsetsByOnemer_copy = np.copy(totalOffsetsByOnemer)
         bwtOffsetsByOnemer_copy = np.copy(bwtOffsetsByOnemer)
         offsetCopy = np.copy(totalOffsetsByOnemer[0])
-        #mergeIter(inArray, outArray)
         stw = time.time()
         st = time.clock()
         
@@ -463,12 +437,11 @@ def mergeCythonImpl_mt(list inputDirs, char *outDir, unsigned int numProcs, logg
         tp.terminate()
         tp.join()
         tp = None
-        #'''
         et = time.clock()
         etw = time.time()
         iterID += 1
         
-        logger.info( 'Finished iter '+str(iterID)+' in '+str(et-st)+' CPU, '+str(etw-stw)+' secs')
+        logger.info('Finished iter '+str(iterID)+' in '+str(et-st)+' CPU, '+str(etw-stw)+' secs')
         
     #create the output file and 0-offsets into each input
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] outBWT = np.lib.format.open_memmap(outDir+'/msbwt.npy', 'w+', '<u1', (ends[numValidChars-1],))
@@ -1150,11 +1123,14 @@ def writeSeqsToFiles(np.ndarray[np.uint8_t, ndim=1, mode='c'] seqArray, seqFNPre
     
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] dArr
     cdef np.uint8_t [:] dArr_view
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] seqs
     cdef np.uint8_t [:] seq_view
     cdef np.uint8_t [:] seqArray_view = seqArray
     
     cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] seqOutArrayPointers
     cdef np.uint64_t [:] seqOutArrayPointers_view
+    
+    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] offsets
     
     cdef unsigned long i, j
     cdef unsigned long k = 0
@@ -1176,15 +1152,10 @@ def writeSeqsToFiles(np.ndarray[np.uint8_t, ndim=1, mode='c'] seqArray, seqFNPre
         for c in d.keys():
             dArr[ord(c)] = d[c]
         
-        #'''
         seqOutArray = [None]*seqLen
         seqOutArrayPointers = np.zeros(dtype='<u8', shape=(seqLen, ))
         seqOutArrayPointers_view = seqOutArrayPointers
         for i in range(0, seqLen):
-            #seqOutArray.append(np.lib.format.open_memmap(seqFNPrefix+'.'+str(i)+'.npy', 'w+', '<u1', (numSeqs,)))
-            #seq_view = seqOutArray[i]
-            #seqOutArrayPointers_view[i] = <np.uint64_t> &seq_view[0]
-            
             seqOutArray[seqLen-1-i] = np.lib.format.open_memmap(seqFNPrefix+'.'+str(i)+'.npy', 'w+', '<u1', (numSeqs,))
             seq_view = seqOutArray[seqLen-1-i]
             seqOutArrayPointers_view[seqLen-1-i] = <np.uint64_t> &seq_view[0]
@@ -1192,29 +1163,9 @@ def writeSeqsToFiles(np.ndarray[np.uint8_t, ndim=1, mode='c'] seqArray, seqFNPre
         with nogil:
             for i in range(0, numSeqs):
                 for j in range(0, seqLen):
-                    #(<np.uint8_t *>seqOutArrayPointers_view[seqLen-j-1])[i] = dArr_view[seqArray_view[k]]
                     (<np.uint8_t *>seqOutArrayPointers_view[j])[i] = dArr_view[seqArray_view[k]]
                     inc(k)
         
-        '''
-        for j in range(0, seqLen):
-            print j, seqOutArray[j]
-        '''
-        '''
-        seqLen = uniformLength
-        b = np.reshape(seqArray, (-1, seqLen))
-        numSeqs = b.shape[0]
-        t = b.transpose()
-        for i in range(0, seqLen):
-            #create a file for this column
-            seqs = np.lib.format.open_memmap(seqFNPrefix+'.'+str(i)+'.npy', 'w+', '<u1', (numSeqs,))
-            chunkSize = 1000000
-            j = 0
-            while chunkSize*j < numSeqs:
-                seqs[chunkSize*j:chunkSize*(j+1)] = dArr[t[seqLen-i-1][chunkSize*j:chunkSize*(j+1)]]
-                j += 1
-            del seqs
-        '''
     else:
         #count how many terminal '$' exist, 36 = '$'
         lenSums = np.add(1, np.where(seqArray == 36)[0])
@@ -1224,6 +1175,7 @@ def writeSeqsToFiles(np.ndarray[np.uint8_t, ndim=1, mode='c'] seqArray, seqFNPre
         #track the total length thus far and open the files we plan to fill in
         seqFN = seqFNPrefix
         seqs = np.lib.format.open_memmap(seqFN, 'w+', '<u1', (totalLen,))
+        seq_view = seqs
         offsets = np.lib.format.open_memmap(offsetFN, 'w+', '<u8', (numSeqs+1,))
         offsets[1:] = lenSums
         
@@ -1232,17 +1184,22 @@ def writeSeqsToFiles(np.ndarray[np.uint8_t, ndim=1, mode='c'] seqArray, seqFNPre
         dArr = np.add(np.zeros(dtype='<u1', shape=(256,)), len(d.keys()))
         for c in d.keys():
             dArr[ord(c)] = d[c]
+        dArr_view = dArr
         
         #copy the values
+        '''
         chunkSize = 1000000
         i = 0
         while chunkSize*i < seqArray.shape[0]:
             seqs[chunkSize*i:chunkSize*(i+1)] = dArr[seqArray[chunkSize*i:chunkSize*(i+1)]]
             i += 1
+        '''
+        
+        for i in xrange(0, seqArray.shape[0]):
+            seq_view[i] = dArr_view[seqArray_view[i]]
         
         #clear memory
         del lenSums
-        del seqs
         del offsets
     
     #return the two filenames

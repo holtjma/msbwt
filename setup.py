@@ -23,7 +23,8 @@ extModules = []
 
 if useCython:
     extModules += [Extension('MUSCython.MSBWTGenCython', ['MUSCython/MSBWTGenCython.pyx'], include_dirs=['.']),
-                   Extension('MUSCython.MultiStringBWTCython', ['MUSCython/MultiStringBWTCython.pyx'], include_dirs=['.'])]
+                   Extension('MUSCython.MultiStringBWTCython', ['MUSCython/MultiStringBWTCython.pyx'], include_dirs=['.']),
+                   Extension('MUSCython.MultimergeCython', ['MUSCython/MultimergeCython.pyx'], include_dirs=['.'])]
     cmdClass.update({'build_ext':build_ext})
     
     #this is also from the stackoverflow link above, used to auto-compile when you do the sdist command
@@ -38,7 +39,8 @@ if useCython:
     
 else:
     extModules += [Extension('MUSCython.MSBWTGenCython', ['MUSCython/MSBWTGenCython.c'], include_dirs=['.']),
-                   Extension('MUSCython.MultiStringBWTCython', ['MUSCython/MultiStringBWTCython.c'], include_dirs=['.'])]
+                   Extension('MUSCython.MultiStringBWTCython', ['MUSCython/MultiStringBWTCython.c'], include_dirs=['.']),
+                   Extension('MUSCython.MultimergeCython', ['MUSCython/MultimergeCython.c'], include_dirs=['.'])]
 
 setup(name='msbwt',
       version=util.VERSION,

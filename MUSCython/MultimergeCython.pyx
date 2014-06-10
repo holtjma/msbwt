@@ -105,6 +105,182 @@ def createMSBWTFromFastq(list fastqFNs, char * outputDir, unsigned long numProcs
     #interleaveSeqs(outputDir, areUniform, logger)
     interleaveLevelMerge(outputDir, numProcs, areUniform, logger)
 
+def mergeTwoMSBWTs(char * inputMsbwtDir1, char * inputMsbwtDir2, char * mergedDir, unsigned long numProcs, logger):
+    '''
+    @param inputMsbwtDir1 - the directory of the first MSBWT
+    @param inputMsbwtDir2 - the directory of the second MSBWT
+    @param mergedDir - the directory for output
+    @param numProcs - number of processes we're allowed to use
+    @param logger - use for logging outputs and progress
+    '''
+    logger.info('Beginning Merge:')
+    logger.info('Input 1:\t'+inputMsbwtDir1)
+    logger.info('Input 2:\t'+inputMsbwtDir2)
+    logger.info('Output:\t'+mergedDir)
+    
+    #hardcode this as we do everywhere else
+    cdef unsigned long numValidChars = 6
+    
+    #map the seqs, note we map msbwt.npy because that's where all changes happen
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inputBwt1 = np.load(inputMsbwtDir1+'/msbwt.npy', 'r+')
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inputBwt2 = np.load(inputMsbwtDir2+'/msbwt.npy', 'r+')
+    cdef np.uint8_t [:] inputBwt1_view = inputBwt1
+    cdef np.uint8_t [:] inputBwt2_view = inputBwt2
+    cdef unsigned long bwtLen1 = inputBwt1.shape[0]
+    cdef unsigned long bwtLen2 = inputBwt2.shape[0]
+    
+    #prepare to construct total counts for the symbols
+    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] totalCounts = np.zeros(dtype='<u8', shape=(numValidChars, ))
+    cdef np.uint64_t [:] totalCounts_view = totalCounts
+    
+    #first calculate the total counts for our region
+    cdef unsigned long x, y
+    with nogil:
+        for x in xrange(0, bwtLen1):
+            totalCounts_view[inputBwt1_view[x]] += 1
+        for x in xrange(0, bwtLen2):
+            totalCounts_view[inputBwt2_view[x]] += 1
+    
+    #now find our offsets which we will keep FOREVER
+    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] fmStarts = np.cumsum(totalCounts)-totalCounts
+    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] fmCurrent
+    cdef np.uint64_t [:] fmCurrent_view
+    
+    #now we should load the interleaves
+    cdef unsigned long interleaveBytes
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inter0
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inter1
+    
+    #this needs 1 bit per base, so we allocate bases/8 bytes plus one due to integer division
+    interleaveBytes = (bwtLen1+bwtLen2)/8+1
+    
+    #hardcoded as 1 GB right now
+    cdef unsigned long interThresh = 1*10**9
+    interleaveFN0 = mergedDir+'/inter0.npy'
+    interleaveFN1 = mergedDir+'/inter1.npy'
+    
+    if interleaveBytes > interThresh:
+        inter0 = np.lib.format.open_memmap(interleaveFN0, 'w+', '<u1', (interleaveBytes, ))
+        inter1 = np.lib.format.open_memmap(interleaveFN1, 'w+', '<u1', (interleaveBytes, ))
+    else:
+        inter0 = np.zeros(dtype='<u1', shape=(interleaveBytes, ))
+        inter1 = np.zeros(dtype='<u1', shape=(interleaveBytes, ))
+    
+    cdef np.uint8_t [:] inter0_view = inter0
+    cdef np.uint8_t [:] inter1_view = inter1
+    
+    cdef unsigned long binBits = 11
+    cdef unsigned long binSize = 2**binBits
+    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmIndex0
+    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmIndex1
+    cdef np.uint64_t [:, :] fmIndex0_view
+    cdef np.uint64_t [:, :] fmIndex1_view
+    
+    #initialize the first interleave based on the offsets
+    cdef np.uint8_t * inter0_p
+    
+    #with two, we will initialize both arrays
+    inter0_p = &inter0_view[0]
+    
+    #initialize the first half to all 0s, 0x00
+    for y in xrange(0, bwtLen1/8):
+        inter0_view[y] = 0x00
+        inter1_view[y] = 0x00
+    
+    #one byte in the middle can be mixed zeros and ones
+    inter0_view[bwtLen1/8] = 0xFF << (bwtLen1 % 8)
+    inter1_view[bwtLen1/8] = 0xFF << (bwtLen1 % 8)
+    
+    #all remaining bytes are all ones, 0xFF
+    for y in xrange(bwtLen1/8+1, (bwtLen1+bwtLen2)/8+1):
+        inter0_view[y] = 0xFF
+        inter1_view[y] = 0xFF
+    
+    #fmindex stuff now
+    logger.info('Initializing FM-indices...')
+    fmIndex0 = np.zeros(dtype='<u8', shape=(bwtLen1/binSize + 2, numValidChars))
+    fmIndex1 = np.zeros(dtype='<u8', shape=(bwtLen2/binSize + 2, numValidChars))
+    fmIndex0_view = fmIndex0
+    fmIndex1_view = fmIndex1
+    #initializeFMIndex(&seqs_view[offsets_view[0]], &fmIndex0_view[0][0], offsets_view[1]-offsets_view[0], binSize, numValidChars)
+    initializeFMIndex(&inputBwt1_view[0], &fmIndex0_view[0][0], bwtLen1, binSize, numValidChars)
+    #initializeFMIndex(&seqs_view[offsets_view[1]], &fmIndex1_view[0][0], offsets_view[2]-offsets_view[1], binSize, numValidChars)
+    initializeFMIndex(&inputBwt2_view[0], &fmIndex1_view[0][0], bwtLen2, binSize, numValidChars)
+    
+    #values tracking progress
+    cdef unsigned int iterCount = 0
+    cdef bint changesMade = True
+    
+    #make a copy of the offset that the subfunction can modify safely
+    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] ranges
+    cdef double st, el
+    
+    #format is (position in bwt0, position in bwt1, total length)
+    ranges = np.zeros(dtype='<u8', shape=(1, 3))
+    ranges[0][2] = bwtLen1+bwtLen2
+    
+    while changesMade:
+        #copy the fm info
+        fmCurrent = np.copy(fmStarts)
+        fmCurrent_view = fmCurrent
+        
+        if iterCount % 2 == 0:
+            st = time.time()
+            ret = targetedIterationMerge2(&inputBwt1_view[0], &inputBwt2_view[0], 
+                                          &inter0_view[0], &inter1_view[0], bwtLen1+bwtLen2, 
+                                          fmIndex0_view, fmIndex1_view, ranges, binBits, numValidChars, iterCount)
+            changesMade = ret[0]
+            ranges = ret[1]
+            el = time.time()-st
+            logText = '\t'.join([str(val) for val in (0, iterCount, ranges.shape[0], el, np.sum(ranges[:, 2]))])
+        else:
+            st = time.time()
+            ret = targetedIterationMerge2(&inputBwt1_view[0], &inputBwt2_view[0], 
+                                          &inter1_view[0], &inter0_view[0], bwtLen1+bwtLen2, 
+                                          fmIndex0_view, fmIndex1_view, ranges, binBits, numValidChars, iterCount)
+            el = time.time()-st
+            changesMade = ret[0]
+            ranges = ret[1]
+            logText = '\t'.join([str(val) for val in (0, iterCount, ranges.shape[0], el, np.sum(ranges[:, 2]))])
+        
+        logger.info(logText)
+        iterCount += 1
+    
+    #create access points to our result and a temporary result
+    #cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] msbwt = np.load(mergedDir+'/msbwt.npy', 'r+')
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] msbwt = np.lib.format.open_memmap(mergedDir+'/msbwt.npy', 'w+', '<u1', (bwtLen1+bwtLen2,))
+    cdef np.uint8_t [:] msbwt_view = msbwt
+    
+    cdef unsigned long readID
+    cdef unsigned long pos1 = 0
+    cdef unsigned long pos2 = 0
+
+    for x in xrange(0, bwtLen1+bwtLen2):
+        #get the read, the symbol, and increment the position in that read
+        if getBit_p(inter0_p, x):
+            msbwt_view[x] = inputBwt2_view[pos2]
+            pos2 += 1
+        else:
+            msbwt_view[x] = inputBwt1_view[pos1]
+            pos1 += 1
+    '''
+    print inputBwt1
+    print fmIndex0
+    print inputBwt2
+    print fmIndex1
+    print inter0
+    print inter1
+    print msbwt
+    '''
+    #remove this temp files also
+    if interleaveBytes > interThresh:
+        os.remove(interleaveFN1)
+    else:
+        np.save(interleaveFN0, inter0)
+    
+    #return the number of iterations it took us to converge
+    return iterCount
+    
 def fastaIterator(list fastaFNs, logger):
     '''
     This function is a generator for parsing the a list of fasta files.  Each yield returns a string containing
@@ -397,10 +573,10 @@ def interleaveLevelMerge(char * mergedDir, unsigned long numProcs, bint areUnifo
         if numProcs <= 1:
             results = []
             for tup in inputIter:
-                results.append(merge256(tup))
+                results.append(buildViaMerge256(tup))
         else:
             pool = multiprocessing.Pool(numProcs)
-            results = pool.imap(merge256, inputIter)
+            results = pool.imap(buildViaMerge256, inputIter)
         
         #make sure we wait for all inputs, the result is just the number of iterations needed
         totalIters = 0
@@ -496,7 +672,7 @@ def levelIterator(offsets, bint areUniform, mergedDir, unsigned long currMultipl
             retOffsets = retOffsets[0:y+1]
             yield (retOffsets, mergedDir)
     
-def merge256(tup):
+def buildViaMerge256(tup):
     '''
     This function takes an offset range and merges it into a single BWT
     @param tup[0], offsets - numpy array indicating where the strings in this merge start and end in our seqs.npy file
@@ -535,20 +711,14 @@ def merge256(tup):
     
     #now we should load the interleaves
     #TODO: create methods to dynamically decide how to make the interleave array, size and/or on disk
-    #cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inter0 = np.load(mergedDir+'/inter0.npy', 'r+')
-    #cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inter1 = np.load(mergedDir+'/inter1.npy', 'r+')
     cdef unsigned long interleaveBytes
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inter0
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inter1
     if numInputs == 2:
         #this needs 1 bit per base, so we allocate bases/8 bytes plus one due to integer division
-        #inter0 = np.zeros(dtype='<u1', shape=((offsets_view[numInputs]-offsets_view[0])/8+1, ))
-        #inter1 = np.zeros(dtype='<u1', shape=((offsets_view[numInputs]-offsets_view[0])/8+1, ))
         interleaveBytes = (offsets_view[numInputs]-offsets_view[0])/8+1
     else:
         #this needs one bytes per base since we have 256 inputs
-        #inter0 = np.zeros(dtype='<u1', shape=(offsets_view[numInputs]-offsets_view[0], ))
-        #inter1 = np.zeros(dtype='<u1', shape=(offsets_view[numInputs]-offsets_view[0], ))
         interleaveBytes = offsets_view[numInputs]-offsets_view[0]
     
     #hardcoded as 1 GB right now
@@ -613,15 +783,10 @@ def merge256(tup):
     #make a copy of the offset that the subfunction can modify safely
     cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] offsetsCopy = np.zeros(dtype='<u8', shape=(offsets.shape[0], ))
     cdef np.uint64_t [:] offsetsCopy_view = offsetsCopy
-    '''
-    cdef list ranges
-    if numInputs == 2:
-        #format is [changesMade, (position in bwt0, position in bwt1, total length)]
-        ranges = [(0, 0, offsets[2]-offsets[0])]
-    '''
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] ranges
+    cdef double st, el
     if numInputs == 2:
-        #format is [changesMade, (position in bwt0, position in bwt1, total length)]
+        #format is (position in bwt0, position in bwt1, total length)
         ranges = np.zeros(dtype='<u8', shape=(1, 3))
         ranges[0][2] = offsets[2]-offsets[0]
         
@@ -637,28 +802,26 @@ def merge256(tup):
         
         if iterCount % 2 == 0:
             if numInputs == 2:
-                #changesMade = singleIterationMerge2(&seqs_view[offsets_view[0]], &seqs_view[offsets_view[1]], offsetsCopy_view, &inter0_view[0], &inter1_view[0], fmCurrent_view, offsets[numInputs]-offsets[0])
                 st = time.time()
-                ret = targetedIterationMerge2(&seqs_view[offsets_view[0]], &seqs_view[offsets_view[1]], offsetsCopy_view, 
+                ret = targetedIterationMerge2(&seqs_view[offsets_view[0]], &seqs_view[offsets_view[1]],
                                               &inter0_view[0], &inter1_view[0], offsets[numInputs]-offsets[0], 
                                               fmIndex0_view, fmIndex1_view, ranges, binBits, numValidChars, iterCount)
                 changesMade = ret[0]
                 ranges = ret[1]
                 el = time.time()-st
-                #print '\t'.join([str(x) for x in (offsets_view[0], iterCount, ranges.shape[0], el)])
+                print '\t'.join([str(val) for val in (offsets_view[0], iterCount, ranges.shape[0], el, np.sum(ranges[:, 2]))])
             else:
                 changesMade = singleIterationMerge256(&seqs_view[offsets_view[0]], offsetsCopy_view, &inter0_view[0], &inter1_view[0], fmCurrent_view, offsets[numInputs]-offsets[0])
         else:
             if numInputs == 2:
-                #changesMade = singleIterationMerge2(&seqs_view[offsets_view[0]], &seqs_view[offsets_view[1]], offsetsCopy_view, &inter1_view[0], &inter0_view[0], fmCurrent_view, offsets[numInputs]-offsets[0])
                 st = time.time()
-                ret = targetedIterationMerge2(&seqs_view[offsets_view[0]], &seqs_view[offsets_view[1]], offsetsCopy_view, 
+                ret = targetedIterationMerge2(&seqs_view[offsets_view[0]], &seqs_view[offsets_view[1]],
                                               &inter1_view[0], &inter0_view[0], offsets[numInputs]-offsets[0], 
                                               fmIndex0_view, fmIndex1_view, ranges, binBits, numValidChars, iterCount)
                 el = time.time()-st
                 changesMade = ret[0]
                 ranges = ret[1]
-                #print '\t'.join([str(x) for x in (offsets_view[0], iterCount, ranges.shape[0], el)])
+                print '\t'.join([str(val) for val in (offsets_view[0], iterCount, ranges.shape[0], el, np.sum(ranges[:, 2]))])
             else:
                 changesMade = singleIterationMerge256(&seqs_view[offsets_view[0]], offsetsCopy_view, &inter1_view[0], &inter0_view[0], fmCurrent_view, offsets[numInputs]-offsets[0])
         
@@ -843,7 +1006,7 @@ cdef bint singleIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_view
     
     return changesMade
 
-cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_view, np.uint64_t [:] offsets_view, 
+cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_view, 
                                   np.uint8_t * inputInter_view, np.uint8_t * outputInter_view, 
                                   unsigned long bwtLen, np.uint64_t [:, :] fmIndex0_view, np.uint64_t [:, :] fmIndex1_view, 
                                   np.ndarray[np.uint64_t, ndim=2, mode='c'] ranges, unsigned long binBits, unsigned long nvc,
@@ -1104,6 +1267,7 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
     #here's where we'll do the collapse
     cdef unsigned long shrinkIndex = 0, currIndex = 1
     cdef bint collapseEntries = (iterCount <= 20)
+    #cdef bint collapseEntries = (exIndex >= 1000)
     if collapseEntries:
         for currIndex in xrange(1, exIndex):
             if (extendedEntries_view[shrinkIndex][0]+extendedEntries_view[shrinkIndex][1]+extendedEntries_view[shrinkIndex][2] ==

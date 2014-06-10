@@ -207,7 +207,10 @@ class BasicBWT(object):
             return (ret, indices[::-1])
         else:
             return ret
-
+    
+    def getTotalSize(self):
+        return self.totalSize
+    
 class MultiStringBWT(BasicBWT):
     '''
     This class is a BWT capable of hosting multiple strings inside one structure.  Basically, this would allow you to
