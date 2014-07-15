@@ -1112,6 +1112,9 @@ def clearAuxiliaryData(dirName):
         
         if os.path.exists(dirName+'/backrefs.npy'):
             os.remove(dirName+'/backrefs.npy')
+        
+        if os.path.exists(dirName+'/lzw_fmIndex.npy'):
+            os.remove(dirName+'/lzw_fmIndex.npy')
 
 def writeSeqsToFiles(np.ndarray[np.uint8_t, ndim=1, mode='c'] seqArray, seqFNPrefix, offsetFN, uniformLength):    
     '''

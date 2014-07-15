@@ -22,9 +22,13 @@ cmdClass = {}
 extModules = []
 
 if useCython:
-    extModules += [Extension('MUSCython.MSBWTGenCython', ['MUSCython/MSBWTGenCython.pyx'], include_dirs=['.']),
+    extModules += [Extension('MUSCython.BasicBWT', ['MUSCython/BasicBWT.pyx'], include_dirs=['.']),
+                   Extension('MUSCython.ByteBWTCython', ['MUSCython/ByteBWTCython.pyx'], include_dirs=['.']),
+                   Extension('MUSCython.MSBWTGenCython', ['MUSCython/MSBWTGenCython.pyx'], include_dirs=['.']),
                    Extension('MUSCython.MultiStringBWTCython', ['MUSCython/MultiStringBWTCython.pyx'], include_dirs=['.']),
-                   Extension('MUSCython.MultimergeCython', ['MUSCython/MultimergeCython.pyx'], include_dirs=['.'])]
+                   Extension('MUSCython.MultimergeCython', ['MUSCython/MultimergeCython.pyx'], include_dirs=['.']),
+                   Extension('MUSCython.RLE_BWTCython', ['MUSCython/RLE_BWTCython.pyx'], include_dirs=['.']),
+                   Extension('MUSCython.LZW_BWTCython', ['MUSCython/LZW_BWTCython.pyx'], include_dirs=['.'])]
     cmdClass.update({'build_ext':build_ext})
     
     #this is also from the stackoverflow link above, used to auto-compile when you do the sdist command
@@ -32,15 +36,24 @@ if useCython:
         def run(self):
             # Make sure the compiled Cython files in the distribution are up-to-date
             from Cython.Build import cythonize
+            cythonize('MUSCython/BasicBWT.pyx', include_path=[np.get_include()])
+            cythonize('MUSCython/ByteBWTCython.pyx', include_path=[np.get_include()])
             cythonize('MUSCython/MSBWTGenCython.pyx', include_path=[np.get_include()])
             cythonize('MUSCython/MultiStringBWTCython.pyx', include_path=[np.get_include()])
+            cythonize('MUSCython/MultimergeCython.pyx', include_path=[np.get_include()])
+            cythonize('MUSCython/RLE_BWTCython.pyx', include_path=[np.get_include()])
+            cythonize('MUSCython/LZW_BWTCython.pyx', include_path=[np.get_include()])
             _sdist.run(self)
     cmdClass['sdist'] = sdist
     
 else:
-    extModules += [Extension('MUSCython.MSBWTGenCython', ['MUSCython/MSBWTGenCython.c'], include_dirs=['.']),
+    extModules += [Extension('MUSCython.BasicBWT', ['MUSCython/BasicBWT.c'], include_dirs=['.']),
+                   Extension('MUSCython.ByteBWTCython', ['MUSCython/ByteBWTCython.c'], include_dirs=['.']),
+                   Extension('MUSCython.MSBWTGenCython', ['MUSCython/MSBWTGenCython.c'], include_dirs=['.']),
                    Extension('MUSCython.MultiStringBWTCython', ['MUSCython/MultiStringBWTCython.c'], include_dirs=['.']),
-                   Extension('MUSCython.MultimergeCython', ['MUSCython/MultimergeCython.c'], include_dirs=['.'])]
+                   Extension('MUSCython.MultimergeCython', ['MUSCython/MultimergeCython.c'], include_dirs=['.']),
+                   Extension('MUSCython.RLE_BWTCython', ['MUSCython/RLE_BWTCython.c'], include_dirs=['.']),
+                   Extension('MUSCython.LZW_BWTCython', ['MUSCython/LZW_BWTCython.c'], include_dirs=['.'])]
 
 setup(name='msbwt',
       version=util.VERSION,
