@@ -10,7 +10,7 @@ import argparse as ap
 
 #I see no need for the versions to be different as of now
 DESC = "A multi-string BWT package for DNA and RNA."
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 PKG_VERSION = VERSION
 
 validCharacters = set(['$', 'A', 'C', 'G', 'N', 'T'])
@@ -20,10 +20,10 @@ def readableFastqFile(fileName):
     @param filename - must be both an existing and readable fastq file, supported under '.txt' and '.gz' as of now
     '''
     if os.path.isfile(fileName) and os.access(fileName, os.R_OK):
-        if fileName.endswith('.txt') or fileName.endswith('.gz'):
+        if fileName.endswith('.txt') or fileName.endswith('.gz') or fileName.endswith('.fastq') or fileName.endswith('.fq'):
             return fileName
         else:
-            raise ap.ArgumentTypeError("Wrong file format ('.txt' or '.gz' required): '%s'" % fileName)
+            raise ap.ArgumentTypeError("Wrong file format ('.txt', '.gz', '.fastq', or '.fq' required): '%s'" % fileName)
     else:
         raise ap.ArgumentTypeError("Cannot read file '%s'." % fileName)
 
