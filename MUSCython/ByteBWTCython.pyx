@@ -17,7 +17,7 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
     for general purposes use the function loadBWT(...) which automatically detects whether this class or CompressedMSBWT 
     is correct
     '''
-    def loadMsbwt(ByteBWT self, char * dirName, logger):
+    def loadMsbwt(ByteBWT self, char * dirName, bint useMemmap=True, logger=None):
         '''
         This functions loads a BWT file and constructs total counts, indexes start positions, and constructs an FM index
         on disk if it doesn't already exist
@@ -25,7 +25,10 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
         '''
         #open the file with our BWT in it
         self.dirName = dirName
-        self.bwt = np.load(self.dirName+'/msbwt.npy', 'r+')
+        if useMemmap:
+            self.bwt = np.load(self.dirName+'/msbwt.npy', 'r+')
+        else:
+            self.bwt = np.load(self.dirName+'/msbwt.npy')
         self.bwt_view = self.bwt
         
         #build auxiliary structures

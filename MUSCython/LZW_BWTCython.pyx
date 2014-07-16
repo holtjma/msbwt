@@ -50,7 +50,7 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
     def getCompSize(LZW_BWT self):
         return self.bwt.shape[0]
     
-    def loadMsbwt(LZW_BWT self, char * dirName, logger):
+    def loadMsbwt(LZW_BWT self, char * dirName, bint useMemmap=True, logger=None):
         '''
         This functions loads a BWT file and constructs total counts, indexes start positions, and constructs an FM index
         on disk if it doesn't already exist
@@ -58,7 +58,10 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
         '''
         #open the file with our BWT in it
         self.dirName = dirName
-        self.bwt = np.memmap(self.dirName+'/comp_msbwt.dat', dtype='<u1', mode='r+')
+        if useMemmap:
+            self.bwt = np.memmap(self.dirName+'/comp_msbwt.dat', dtype='<u1', mode='r+')
+        else:
+            self.bwt = np.fromfile(self.dirName+'/comp_msbwt.dat', dtype='<u1')
         self.bwt_view = self.bwt
         self.offsetArray = np.load(self.dirName+'/comp_offsets.npy', 'r+')
         self.offsetArray_view = self.offsetArray

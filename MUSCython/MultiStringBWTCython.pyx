@@ -37,7 +37,7 @@ REVERSE_COMPLEMENTED_FLAG = 1 << 4#0x10
 FIRST_SEGMENT_FLAG = 1 << 6#0x40
 #SECOND_SEGMENT_FLAG = 1 << 7#0x80
     
-def loadBWT(bwtDir, logger=None):
+def loadBWT(bwtDir, useMemmap=True, logger=None):
     '''
     Generic load function, this is recommended for anyone wishing to use this code as it will automatically detect compression
     and assign the appropriate class preferring the decompressed version if both exist.
@@ -45,15 +45,15 @@ def loadBWT(bwtDir, logger=None):
     '''
     if os.path.exists(bwtDir+'/msbwt.npy'):
         msbwt = ByteBWT()
-        msbwt.loadMsbwt(bwtDir, logger)
+        msbwt.loadMsbwt(bwtDir, useMemmap, logger)
         return msbwt
     elif os.path.exists(bwtDir+'/comp_msbwt.npy'):
         msbwt = RLE_BWT()
-        msbwt.loadMsbwt(bwtDir, logger)
+        msbwt.loadMsbwt(bwtDir, useMemmap, logger)
         return msbwt
     elif os.path.exists(bwtDir+'/comp_msbwt.dat'):
         msbwt = LZW_BWT()
-        msbwt.loadMsbwt(bwtDir, logger)
+        msbwt.loadMsbwt(bwtDir, useMemmap, logger)
         return msbwt
     else:
         logger.error('Invalid BWT directory.')

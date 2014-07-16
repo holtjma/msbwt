@@ -29,14 +29,17 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
     def getCompSize(RLE_BWT self):
         return self.bwt.shape[0]
     
-    def loadMsbwt(RLE_BWT self, char * dirName, logger):
+    def loadMsbwt(RLE_BWT self, char * dirName, bint useMemmap=True, logger=None):
         '''
         This functions loads a BWT file and constructs total counts, indexes start positions, and constructs an FM index in memory
         @param dirName - the directory to load, inside should be '<DIR>/comp_msbwt.npy' or it will fail
         '''
         #open the file with our BWT in it
         self.dirName = dirName
-        self.bwt = np.load(self.dirName+'/comp_msbwt.npy', 'r+')
+        if useMemmap:
+            self.bwt = np.load(self.dirName+'/comp_msbwt.npy', 'r+')
+        else:
+            self.bwt = np.load(self.dirName+'/comp_msbwt.npy')
         self.bwt_view = self.bwt
         
         #build auxiliary structures
