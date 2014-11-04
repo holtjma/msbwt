@@ -5,12 +5,13 @@ handed correct file types
 @author: holtjma
 '''
 
-import os
 import argparse as ap
+import glob
+import os
 
 #I see no need for the versions to be different as of now
 DESC = "A multi-string BWT package for DNA and RNA."
-VERSION = '0.2.4'
+VERSION = '0.2.5'
 PKG_VERSION = VERSION
 
 validCharacters = set(['$', 'A', 'C', 'G', 'N', 'T'])
@@ -60,8 +61,12 @@ def newDirectory(dirName):
     if dirName[-1] == '/':
         dirName = dirName[0:-1]
     
-    #this will raise it's own exception
-    os.makedirs(dirName)
+    if os.path.exists(dirName):
+        if len(glob.glob(dirName+'/*')) != 0:
+            raise ap.ArgumentTypeError("Non-empty directory already exists: '%s'" % dirName)
+    else:
+        #this can raise it's own exception
+        os.makedirs(dirName)
     return dirName
 
 def existingDirectory(dirName):
@@ -87,6 +92,8 @@ def newOrExistingDirectory(dirName):
     
     if os.path.isdir(dirName):
         return dirName
+    elif os.path.exists(dirName):
+        ap.ArgumentTypeError("'%s' exists but is not a directory" % dirName)
     else:
         os.makedirs(dirName)
         return dirName

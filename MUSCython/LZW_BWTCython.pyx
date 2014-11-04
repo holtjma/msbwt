@@ -173,7 +173,7 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
                 
                 #go through each bin
                 for i in range(0, numSamples):
-                    tmpBin = self.decompressedBin(i)
+                    tmpBin = self.decompressBin(i)
                     tmpBin_view = tmpBin
                     
                     with nogil:
@@ -232,12 +232,19 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
         self.totalSize = np.sum(self.totalCounts)
     
     cpdef np.ndarray[np.uint8_t, ndim=1, mode='c'] decompressBin(LZW_BWT self, unsigned long binID):
+        cdef unsigned long knownLength = min(self.binSize*(binID+1), self.uncompLen)-self.binSize*binID
+        cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] ret = np.empty(dtype='<u1', shape=(knownLength, ))
+        cdef np.uint8_t [:] ret_view = ret
+        self.fillBin(ret_view, binID)
+        return ret
+    
+    cdef void fillBin(LZW_BWT self, np.uint8_t [:] binToFill, unsigned long binID) nogil:
         #extract inputs
         cdef np.uint8_t [:] compressed_view = self.bwt_view[self.offsetArray_view[binID]:self.offsetArray_view[binID+1]]
         
         cdef unsigned long knownLength = min(self.binSize*(binID+1), self.uncompLen)-self.binSize*binID
-        cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] ret = np.empty(dtype='<u1', shape=(knownLength, ))
-        cdef np.uint8_t [:] ret_view = ret
+        #cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] ret = np.empty(dtype='<u1', shape=(knownLength, ))
+        #cdef np.uint8_t [:] ret_view = ret
         
         # Build the dictionary.
         cdef unsigned long dict_size = self.vcLen
@@ -261,13 +268,13 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
         
         #set up the first value
         #ret_view[0] = (currByte & (0xFF >> (8-bitsPerSymbol)))
-        ret_view[0] = currByte & mask
+        binToFill[0] = currByte & mask
         #currByteUse -= bitsPerSymbol
         currByte = currByte >> bitsPerSymbol
         
         #mark how many values we found, init to 1 obviously
         cdef unsigned long foundVals = 1
-        cdef unsigned long prevK = ret_view[0]
+        cdef unsigned long prevK = binToFill[0]
         
         #we will set values in the next slot as if it were a special case
         self.symbolList_view[dict_size] = prevK
@@ -290,9 +297,9 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
             #iterate through filling in values reversed
             z = k
             while z >= self.vcLen:
-                ret_view[foundVals+self.offsetList_view[z]] = self.symbolList_view[z]
+                binToFill[foundVals+self.offsetList_view[z]] = self.symbolList_view[z]
                 z = self.lookupList_view[z]
-            ret_view[foundVals] = z
+            binToFill[foundVals] = z
             foundVals += self.offsetList_view[k]+1
             
             #now build the next entry based on what we found
@@ -317,9 +324,9 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
             prevK = k
         
         #return the numpy array
-        return ret
+        #return ret
     
-    cdef unsigned int getCharAtIndex(LZW_BWT self, unsigned long index):# nogil:
+    cpdef unsigned long getCharAtIndex(LZW_BWT self, unsigned long index):# nogil:
         '''
         Used for searching, this function masks the complexity behind retrieving a specific character at a specific index
         in our compressed BWT.
@@ -413,14 +420,13 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
         #return the numpy array
         return <unsigned long> self.symbolList_view[z]
         
-    cpdef unsigned long getOccurrenceOfCharAtIndex(LZW_BWT self, unsigned int sym, unsigned long index):# nogil:
+    cpdef unsigned long getOccurrenceOfCharAtIndex(LZW_BWT self, unsigned long sym, unsigned long index):# nogil:
         '''
         This functions gets the FM-index value of a character at the specified position
         @param sym - the character to find the occurrence level
         @param index - the index we want to find the occurrence level at
         @return - the number of occurrences of char before the specified index
         '''
-        cdef double st = time.time()
         if index >= self.totalSize:
             return self.endIndex_view[sym]
         
@@ -428,13 +434,8 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
         cdef unsigned long binPos = index - (binID << self.bitPower)
         cdef unsigned long ret = self.partialFM_view[binID][sym]
         
-        #make a view for the region we care about
-        #cdef np.uint8_t [:] compressed_view = self.bwt_view[self.offsetArray_view[binID]:self.offsetArray_view[binID+1]]
-        
         # Build the dictionary.
         cdef unsigned long dict_size = self.vcLen
-        #cdef unsigned long numSymbols = dict_size
-        
         cdef unsigned long x, z
         '''
         #now handled in the constructor
@@ -464,17 +465,11 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
         currByte = currByte >> bitsPerSymbol
         
         #we will set values in the next slot as if it were a special case
-        #self.lookupList_view[dict_size] = prevK
-        #self.countsList_view[dict_size] = 2
-        #self.symbolCount_view[dict_size] = 2*(prevK == sym)
         self.w0List_view[dict_size] = prevK
-        
-        #cdef np.uint8_t zEqSym
         
         while currIndex < binPos:
             #extract bytes until we have enough to make a k value
             while currByteUse < bitsPerSymbol:
-                #currByte |= ((<unsigned long>compressed_view[compressedIndex]) << currByteUse)
                 currByte |= ((<unsigned long>self.bwt_view[compressedIndex]) << currByteUse)
                 compressedIndex += 1
                 currByteUse += 8
@@ -486,7 +481,6 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
             
             #used to iterate through filling in values reversed, now we just use a lookup and it's about 10x faster
             z = self.w0List_view[k]
-            #zEqSym = (z == sym)
             
             #now build the next entry based on what we found
             self.lookupList_view[dict_size] = prevK
@@ -499,9 +493,6 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
             dict_size += 1
             
             #also build an entry for the special case of a double up aka, w = entry+[w[0]]
-            #self.lookupList_view[dict_size] = k
-            #self.countsList_view[dict_size] = self.countsList_view[k]+1
-            #self.symbolCount_view[dict_size] = self.symbolCount_view[k]+zEqSym
             self.w0List_view[dict_size] = z
             
             #check if we need to increase the number of bits per value, happens on powers of 2 obviously
@@ -515,19 +506,119 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
         
         #unfortunately can't do a fast lookup here
         z = prevK
-        #while currIndex > binPos:
         for x in range(currIndex, binPos, -1):
             z = self.lookupList_view[z]
-            #currIndex -= 1
         
         if z >= self.vcLen:
             ret += self.symbolCount_view[self.lookupList_view[z]]
         
         #clear this for future searches
         self.symbolCount_view[sym] = 0
-        self.totalTime += time.time()-st
         return ret
+    
+    def getFullFMAtIndex(LZW_BWT self, unsigned long index):# nogil:
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.empty(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] ret_view = ret
+        self.fillFmAtIndex(ret_view, index)
+        return ret
+        
+    cdef void fillFmAtIndex(LZW_BWT self, np.uint64_t [:] ret_view, unsigned long index):
+        '''
+        This functions fills in the FM-index value of all characters at the specified position
+        @param index - the index we want to find the occurrence level at
+        @return - fills in ret_view with the index
+        '''
+        cdef unsigned long x, z
+        if index >= self.totalSize:
+            for x in range(0, self.vcLen):
+                ret_view[x] = self.endIndex_view[x]
+            return
+        
+        cdef unsigned long binID = index >> self.bitPower
+        cdef unsigned long binPos = index - (binID << self.bitPower)
+        
+        for x in range(0, self.vcLen):
+            ret_view[x] = self.partialFM_view[binID][x]
+        
+        # Build the dictionary.
+        cdef unsigned long dict_size = self.vcLen
+        '''
+        #now handled in the constructor
+        for x in range(0, dict_size):
+            self.lookupList_view[x] = x
+            self.symbolList_view[x] = x
+            self.countsList_view[x] = 1
+            self.symbolCount_view[x] = 0
+            self.w0List_view[x] = x
+        '''
+        cdef unsigned long bitsPerSymbol = self.startingBits
+        cdef unsigned long mask = self.startingMask
+        
+        cdef unsigned long currByte = self.bwt_view[self.offsetArray_view[binID]]
+        cdef unsigned long compressedIndex = self.offsetArray_view[binID]+1
+        cdef unsigned long currByteUse = 8-bitsPerSymbol
+        
+        cdef unsigned long currIndex = 0
+        cdef unsigned long prevK = currByte & mask
+        
+        currByte = currByte >> bitsPerSymbol
+        
+        #we will set values in the next slot as if it were a special case
+        self.w0List_view[dict_size] = prevK
+        
+        while currIndex < binPos:
+            #extract bytes until we have enough to make a k value
+            while currByteUse < bitsPerSymbol:
+                currByte |= ((<unsigned long>self.bwt_view[compressedIndex]) << currByteUse)
+                compressedIndex += 1
+                currByteUse += 8
                 
+            #get the 'k' value and remove bits from our buffer
+            k = currByte & mask
+            currByteUse -= bitsPerSymbol
+            currByte = currByte >> bitsPerSymbol
+            
+            #used to iterate through filling in values reversed, now we just use a lookup and it's about 10x faster
+            z = prevK
+            while z >= self.vcLen:
+                ret_view[self.symbolList_view[z]] += 1
+                z = self.lookupList_view[z]
+            ret_view[self.symbolList_view[z]] += 1
+            
+            z = self.w0List_view[k]
+            
+            #now build the next entry based on what we found
+            self.symbolList_view[dict_size] = z
+            self.lookupList_view[dict_size] = prevK
+            self.countsList_view[dict_size] = self.countsList_view[prevK]+1
+            self.w0List_view[dict_size] = self.w0List_view[prevK]
+            
+            #update how many symbols we've seen and the size of the dictionary
+            currIndex += self.countsList_view[k]
+            dict_size += 1
+            
+            #also build an entry for the special case of a double up aka, w = entry+[w[0]]
+            self.w0List_view[dict_size] = z
+            
+            #check if we need to increase the number of bits per value, happens on powers of 2 obviously
+            if (dict_size >> bitsPerSymbol):
+                bitsPerSymbol += 1
+                mask = (mask << 1)+1
+            
+            #save which 'k' was this round
+            #ret += self.symbolCount_view[prevK]
+            prevK = k
+        
+        z = prevK
+        while z >= self.vcLen:
+            if currIndex < binPos:
+                ret_view[self.symbolList_view[z]] += 1
+            z = self.lookupList_view[z]
+            currIndex -= 1
+        
+        if currIndex < binPos:
+            ret_view[self.symbolList_view[z]] += 1
+          
     cpdef iterInit(LZW_BWT self):
         '''
         this function must be called to reset the iterator to the beginning, used for both normal and

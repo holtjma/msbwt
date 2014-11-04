@@ -5,8 +5,9 @@
 '''
 Created on Mar 19, 2014
 
-file implementing the basic merge algorithm presented in our paper, much faster than the 
-old python/numpy implementation
+Contains multiple BWT generation algorithms including a the column-wise approach of
+Bauer et al., 2011.  A lot of this is re-implementation of previous work to get to 
+the baseline of having MSBWTs to work with.
 
 @author: holtjma
 '''
@@ -20,478 +21,12 @@ import os
 import pickle
 import time
 
-#from MUSCython import MultiStringBWTCython as MultiStringBWT
 import MultiStringBWTCython as MultiStringBWT
 
 import numpy as np
 cimport numpy as np
-from cython.operator cimport preincrement as inc
+#from cython.operator cimport preincrement as inc
 from multiprocessing.pool import ThreadPool
-
-def mergeMsbwts(list inputDirs, char *outDir, unsigned int numProcs, logger):
-    if numProcs <= 1:
-        logger.info( 'Beginning single-threaded merge...')
-        mergeCythonImpl_st(inputDirs, outDir, logger)
-    else:
-        logger.info( 'Beginning multi-threaded merge...')
-        mergeCythonImpl_mt(inputDirs, outDir, numProcs, logger)
-
-def mergeCythonImpl_st(list inputDirs, char *outDir, logger):
-    #simple vars we will use throughout
-    cdef int numValidChars = 6
-    cdef unsigned int c, numInputs, b
-    cdef unsigned long i, j, l
-    numInputs = len(inputDirs)
-    
-    #tempBWT and bwt_view will be used in an initial pass as simple access vars, bwtAddress will hold pointers
-    #in an array we can pass to subroutines
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] tempBWT
-    cdef np.uint8_t [:] bwt_view
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtAddress = np.zeros(dtype='<u8', shape=(numInputs,))
-    
-    #prepare the total counts and bwtLen variable so we can fill it in the following loop
-    cdef np.ndarray[np.uint64_t, ndim=1] totalCounts = np.zeros(dtype='<u8', shape=(numValidChars,))
-    cdef np.uint64_t [:] totalCounts_view = totalCounts
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtLens = np.zeros(dtype='<u8', shape=(numInputs,))
-    
-    #this array is first indexed by input, then each row is as follows:
-    #fileSize, iterIndex, iterCount, iterCurrChar, iterCurrCount
-    cdef np.ndarray[np.uint8_t, ndim=1] iteratorType = np.zeros(dtype='<u1', shape=(numInputs, ))
-    cdef np.uint8_t [:] iteratorType_view = iteratorType
-    cdef np.ndarray[np.uint64_t, ndim=1] fileSizes = np.zeros(dtype='<u8', shape=(numInputs, ))
-    cdef np.uint64_t [:] fileSizes_view = fileSizes
-    
-    #these are for the original parsings
-    cdef np.uint8_t currentChar
-    cdef np.uint8_t prevChar
-    cdef unsigned long currentCount
-    cdef unsigned int letterBits = 3
-    cdef unsigned int numberBits = 8-letterBits
-    cdef unsigned long numPower = 2**numberBits
-    cdef unsigned int mask = 255 >> numberBits
-    cdef unsigned long powerMultiple
-    
-    #ref holder for python
-    bwts = [None]*numInputs
-    
-    #go through each input, grabbing lengths, pointers, and bincounts
-    for i in range(numInputs):
-        #load the file, also, we store it in bwts[i] to hold a pointer reference
-        #IMPORTANT: for view level speed we require write permissions, 
-        #BUT DO NOT WRITE ON THESE DATASETS
-        if os.path.exists(inputDirs[i]+'/msbwt.npy'):
-            bwts[i] = np.load(inputDirs[i]+'/msbwt.npy', 'r+')
-            iteratorType_view[i] = 0
-        else:
-            bwts[i] = np.load(inputDirs[i]+'/comp_msbwt.npy', 'r+')
-            iteratorType_view[i] = 1
-        
-        tempBWT = bwts[i]
-        
-        #TODO: create some custom numpy array consisting of the data needed to perform iterators, then use this
-        logger.info( 'Loading \''+inputDirs[i]+'\'')
-        
-        #transform into a view so we can use it in our addresses in the nogil
-        bwt_view = tempBWT
-        l = bwts[i].shape[0]
-        fileSizes_view[i] = bwts[i].shape[0]
-        
-        #these two are stored long term
-        bwtAddress[i] = <np.uint64_t>&bwt_view[0]
-        prevTC = np.sum(totalCounts)
-        
-        #bincount basically for all files
-        with nogil:
-            if iteratorType_view[i] == 0:
-                #uncompressed is easy (though likely slower)
-                for j in range(fileSizes_view[i]):
-                    inc(totalCounts_view[bwt_view[j]])
-            else:
-                #compressed it more or less copied from constructTotalCounts(...)
-                prevChar = 255
-                powerMultiple = 1
-                for j in range(0, fileSizes_view[i]):
-                    currentChar = bwt_view[j] & mask
-                    if currentChar == prevChar:
-                        powerMultiple *= numPower
-                    else:
-                        powerMultiple = 1
-                    prevChar = currentChar
-                    currentCount = (bwt_view[j] >> letterBits)*powerMultiple
-                    totalCounts_view[currentChar] += currentCount
-        
-        bwtLens[i] = np.sum(totalCounts)-prevTC
-        
-    
-    logger.info('Finished loading input.')
-    
-    #calculate the offsets for each letter into our merged BWT
-    cdef np.ndarray[np.uint64_t, ndim=1] offsets = np.cumsum(totalCounts)-totalCounts
-    cdef np.ndarray[np.uint64_t, ndim=1] offsetCopy
-    cdef np.ndarray[np.uint64_t, ndim=1] ends = np.cumsum(totalCounts)
-    
-    #initial interleave
-    #print totalCounts
-    #print offsets
-    #print ends
-    logger.info('Creating initial interleave of size '+str(ends[numValidChars-1])+'...')
-    cdef np.ndarray[np.uint8_t, ndim=1] inter0 = np.lib.format.open_memmap(outDir+'/inter0.npy', 'w+', '<u1', (ends[numValidChars-1],))
-    cdef np.uint8_t [:] inter0_view = inter0
-    cdef unsigned long start = bwtLens[0]
-    
-    #0s followed by 1s, followed by 2s, followed by ...
-    with nogil:
-        for b in range(1, numInputs):
-            inter0_view[start:start+bwtLens[b]] = b
-            start += bwtLens[b]
-            
-    logger.info('Allocating second interleave array...')
-    #second interleave can be all zeroes for now, we will just fill it in
-    cdef np.ndarray[np.uint8_t, ndim=1] inter1 = np.lib.format.open_memmap(outDir+'/inter1.npy', 'w+', '<u1', (ends[numValidChars-1],))
-    cdef np.uint8_t [:] inter1_view = inter1
-    
-    #markers for the iteration number and timings
-    cdef int iterID = 0
-    cdef float st, et
-    
-    #print bwtLens
-    #print inter0
-    
-    #iterate until convergence
-    logger.info('Beginning iterations...')
-    identical = False
-    #while not np.array_equal(inter0, inter1):
-    while not identical:
-        #reset offset copy, reset iterator states
-        offsetCopy = np.copy(offsets)
-        
-        stw = time.time()
-        st = time.clock()
-        if iterID % 2 == 0:
-            identical = mergeIter_st(inter0_view, inter1_view, bwtAddress, offsetCopy, ends[numValidChars-1], iteratorType_view, fileSizes_view)
-            #print inter1
-        else:
-            identical = mergeIter_st(inter1_view, inter0_view, bwtAddress, offsetCopy, ends[numValidChars-1], iteratorType_view, fileSizes_view)
-            #print inter0
-        et = time.clock()
-        etw = time.time()
-        iterID += 1
-        
-        logger.info( 'Finished iter '+str(iterID)+' in '+str(et-st)+' CPU, '+str(etw-stw)+' secs')
-        
-    #create the output file and 0-offsets into each input
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] outBWT = np.lib.format.open_memmap(outDir+'/msbwt.npy', 'w+', '<u1', (ends[numValidChars-1],))
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtOffsets = np.zeros(dtype='<u8', shape=(numInputs,))
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] iterCount = np.zeros(dtype='<u8', shape=(numInputs, ))
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] iterCurrCount = np.zeros(dtype='<u8', shape=(numInputs, ))
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] iterPower = np.zeros(dtype='<u8', shape=(numInputs, ))
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] iterCurrChar = np.zeros(dtype='<u1', shape=(numInputs, ))
-    
-    #build the views we need for nogil
-    cdef np.uint64_t [:] bwtOffsets_view = bwtOffsets
-    cdef np.uint64_t [:] bwtAddress_view = bwtAddress
-    cdef np.uint8_t [:] outBWT_view = outBWT
-    cdef np.uint64_t [:] iterCount_view = iterCount
-    cdef np.uint64_t [:] iterCurrCount_view = iterCurrCount
-    cdef np.uint64_t [:] iterPower_view = iterPower
-    cdef np.uint8_t [:] iterCurrChar_view = iterCurrChar
-    
-    with nogil:
-        #init iter values
-        for i in range(numInputs):
-            iterCurrChar_view[i] = 255
-    
-        #now iterate through the input interleave
-        for i in range(ends[numValidChars-1]):
-            #get the bit here and pull the appropriate symbol, c, increment the place we're looking
-            b = inter0_view[i]
-            
-            if iteratorType_view[b] == 0:
-                c = (<np.uint8_t *>bwtAddress_view[b])[bwtOffsets_view[b]]
-                inc(bwtOffsets_view[b])
-            else:
-                #fileSize, iterIndex, iterCount, iterCurrChar, iterCurrCount
-                if iterCount_view[b] < iterCurrCount_view[b]:
-                    c = iterCurrChar[b]
-                    inc(iterCount_view[b])
-                else:
-                    #we have more bytes to process
-                    c = (<np.uint8_t *>bwtAddress_view[b])[bwtOffsets_view[b]] & mask
-                    
-                    #increment our power if necessary
-                    if c == iterCurrChar_view[b]:
-                        inc(iterPower_view[b])
-                    else:
-                        iterCurrCount_view[b] = 0
-                        iterCount_view[b] = 0
-                        iterPower_view[b] = 0
-                        iterCurrChar_view[b] = c
-                        
-                    #pull out the number of counts here and reset our counting
-                    iterCurrCount_view[b] += ((<np.uint8_t *>bwtAddress_view[b])[bwtOffsets_view[b]] >> letterBits) * (numPower**iterPower_view[b])
-                    inc(iterCount_view[b])
-                    #ret = self.iterCurrChar
-                    inc(bwtOffsets_view[b])
-                
-            outBWT_view[i] = c
-    
-def mergeIter_st(np.uint8_t [:] inArray_view,
-                 np.uint8_t [:] outArray_view,
-                 np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtAddress not None,
-                 np.ndarray[np.uint64_t, ndim=1, mode='c'] offsets not None, 
-                 unsigned long end,
-                 np.uint8_t [:] iteratorType_view,
-                 np.uint64_t [:] fileSizes_view):
-    #iterator, symbol (as uint), bwt ID from interleave, number of input BWTs
-    cdef unsigned int sym, nextSym, bwtID, numInputs
-    cdef unsigned long i
-    numInputs = bwtAddress.shape[0]
-    
-    cdef unsigned int letterBits = 3
-    cdef unsigned int numberBits = 8-letterBits
-    cdef unsigned long numPower = 2**numberBits
-    cdef unsigned int mask = 255 >> numberBits
-    cdef unsigned long powerMultiple
-    
-    #these are iterator variables
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtOffsets = np.zeros(dtype='<u8', shape=(numInputs,))
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] iterCount = np.zeros(dtype='<u8', shape=(numInputs, ))
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] iterCurrCount = np.zeros(dtype='<u8', shape=(numInputs, ))
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] iterPower = np.zeros(dtype='<u8', shape=(numInputs, ))
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] iterCurrChar = np.zeros(dtype='<u1', shape=(numInputs, ))
-    
-    #build a bunch of C views
-    cdef np.uint64_t [:] offsets_view = offsets
-    cdef np.uint64_t [:] bwtAddress_view = bwtAddress
-    cdef np.uint64_t [:] bwtOffsets_view = bwtOffsets
-    cdef np.uint64_t [:] iterCount_view = iterCount
-    cdef np.uint64_t [:] iterCurrCount_view = iterCurrCount
-    cdef np.uint64_t [:] iterPower_view = iterPower
-    cdef np.uint8_t [:] iterCurrChar_view = iterCurrChar
-    
-    cdef bint identical = True
-    
-    with nogil:
-        #init iter values
-        for i in range(numInputs):
-            iterCurrChar_view[i] = 255
-        
-        #now iterate through the input interleave
-        for i in range(end):
-            #get the bit here and pull the appropriate symbol, c, increment the place we're looking
-            bwtID = inArray_view[i]
-            
-            if iteratorType_view[bwtID] == 0:
-                #uncompressed, easy lookup
-                sym = (<np.uint8_t *>bwtAddress_view[bwtID])[bwtOffsets_view[bwtID]]
-                inc(bwtOffsets_view[bwtID])
-            else:
-                #compressed, not so easy
-                if iterCount_view[bwtID] < iterCurrCount_view[bwtID]:
-                    sym = iterCurrChar[bwtID]
-                    inc(iterCount_view[bwtID])
-                else:
-                    #we have more bytes to process
-                    sym = (<np.uint8_t *>bwtAddress_view[bwtID])[bwtOffsets_view[bwtID]] & mask
-                    
-                    #increment our power if necessary
-                    if sym == iterCurrChar_view[bwtID]:
-                        inc(iterPower_view[bwtID])
-                    else:
-                        iterCount_view[bwtID] = 0
-                        iterCurrCount_view[bwtID] = 0
-                        iterPower_view[bwtID] = 0
-                        iterCurrChar_view[bwtID] = sym
-                        
-                    #pull out the number of counts here and reset our counting
-                    iterCurrCount_view[bwtID] += ((<np.uint8_t *>bwtAddress_view[bwtID])[bwtOffsets_view[bwtID]] >> letterBits) * (numPower**iterPower_view[bwtID])
-                    inc(iterCount_view[bwtID])
-                    inc(bwtOffsets_view[bwtID])
-                
-                
-            #this always happens regardless of input type (normal/compressed)
-            #set the output and increment the offset for the symbol
-            if identical and inArray_view[offsets_view[sym]] != bwtID:
-                identical = False
-                
-            outArray_view[offsets_view[sym]] = bwtID
-            inc(offsets_view[sym])
-    
-    return identical
-
-def mergeCythonImpl_mt(list inputDirs, char *outDir, unsigned int numProcs, logger):
-    #simple vars we will use throughout
-    cdef int numValidChars = 6
-    cdef unsigned long i, j, k, l
-    cdef unsigned int c, numInputs, b, begin
-    numInputs = len(inputDirs)
-    
-    #tempBWT and bwt_view will be used in an initial pass as simple access vars, bwtAddress will hold pointers
-    #in an array we can pass to subroutines
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] tempBWT
-    cdef np.uint8_t [:] bwt_view
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtAddress = np.zeros(dtype='<u8', shape=(numInputs,))
-    
-    #prepare the total counts and bwtLen variable so we can fill it in the following loop
-    cdef np.ndarray[np.uint64_t, ndim=1] totalCounts = np.zeros(dtype='<u8', shape=(numValidChars,))
-    cdef np.ndarray[np.uint64_t, ndim=2] totalCountsByInput = np.zeros(dtype='<u8', shape=(numInputs, numValidChars))
-    cdef np.ndarray[np.uint64_t, ndim=2] totalCountsByOnemer = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
-    
-    cdef np.uint64_t [:] totalCounts_view = totalCounts
-    cdef np.uint64_t [:, :] totalCountsByInput_view = totalCountsByInput
-    cdef np.uint64_t [:, :] totalCountsByOnemer_view = totalCountsByOnemer
-    
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtLens = np.zeros(dtype='<u8', shape=(numInputs,))
-    
-    #ref holder for python
-    bwts = [None]*numInputs
-    
-    #go through each input, grabbing lengths, pointers, and bincounts
-    for i in range(numInputs):
-        #load the file, also, we store it in bwts[i] to hold a pointer reference
-        #IMPORTANT: for view level speed we require write permissions, 
-        #BUT DO NOT WRITE ON THESE DATASETS
-        tempBWT = np.load(inputDirs[i]+'/msbwt.npy', 'r+')
-        bwts[i] = tempBWT
-        
-        logger.info( 'Loading \''+inputDirs[i]+'\'')
-        
-        #transform into a view so we can use it in our addresses in the nogil
-        bwt_view = tempBWT
-        l = tempBWT.shape[0]
-        
-        #these two are stored long term
-        bwtLens[i] = l
-        bwtAddress[i] = <np.uint64_t>&bwt_view[0]
-        
-        #bincount basically for all files
-        with nogil:
-            #first construct the total counts for this input
-            for j in range(l):
-                inc(totalCountsByInput_view[i][bwt_view[j]])
-            
-            #add it to the overall total counts
-            for j in range(numValidChars):
-                totalCounts_view[j] += totalCountsByInput_view[i][j]
-            
-            #go through again, calculating how many there are for each offset
-            begin = 0
-            for j in range(numValidChars):
-                for k in range(begin, begin+totalCountsByInput_view[i][j]):
-                    inc(totalCountsByOnemer_view[j][bwt_view[k]])
-                begin += totalCountsByInput_view[i][j]
-                
-    #calculate the offsets for each letter into our merged BWT
-    cdef np.ndarray[np.uint64_t, ndim=1] offsets = np.cumsum(totalCounts)-totalCounts
-    cdef np.ndarray[np.uint64_t, ndim=1] offsetCopy = None
-    cdef np.ndarray[np.uint64_t, ndim=1] ends = np.cumsum(totalCounts)
-    
-    #construct the offsets for each piece
-    cdef np.ndarray[np.uint64_t, ndim=2] totalOffsetsByOnemer = np.cumsum(totalCountsByOnemer, axis=0)-totalCountsByOnemer
-    totalOffsetsByOnemer += offsets
-    cdef np.ndarray[np.uint64_t, ndim=2] totalOffsetsByOnemer_copy = None
-    
-    #initial interleave
-    cdef np.ndarray[np.uint8_t, ndim=1] inter0 = np.lib.format.open_memmap(outDir+'/inter0.npy', 'w+', '<u1', (ends[numValidChars-1],))
-    cdef np.uint8_t [:] inter0_view = inter0
-    cdef unsigned long start = bwtLens[0]
-    
-    cdef np.ndarray[np.uint64_t, ndim=2] bwtOffsetsByOnemer = np.copy(np.transpose(np.cumsum(totalCountsByInput, axis=1) - totalCountsByInput))
-    cdef np.ndarray[np.uint64_t, ndim=2] bwtOffsetsByOnemer_copy = None
-    
-    #0s followed by 1s, followed by 2s, followed by ...
-    logger.info( 'Constructing initial interleave...')
-    with nogil:
-        begin = 0
-        for i in range(numValidChars):
-            for j in range(numInputs):
-                for k in range(begin, begin+totalCountsByInput_view[j][i]):
-                    inter0_view[k] = j
-                begin += totalCountsByInput_view[j][i]
-    
-    #second interleave can be all zeroes for now, we will just fill it in
-    cdef np.ndarray[np.uint8_t, ndim=1] inter1 = np.lib.format.open_memmap(outDir+'/inter1.npy', 'w+', '<u1', (ends[numValidChars-1],))
-    
-    #markers for the iteration number and timings
-    cdef int iterID = 0
-    cdef float st, et
-    
-    #iterate until convergence
-    logger.info( 'Beginning iterations...')
-    while not np.array_equal(inter0, inter1):
-        totalOffsetsByOnemer_copy = np.copy(totalOffsetsByOnemer)
-        bwtOffsetsByOnemer_copy = np.copy(bwtOffsetsByOnemer)
-        offsetCopy = np.copy(totalOffsetsByOnemer[0])
-        stw = time.time()
-        st = time.clock()
-        
-        tups = []
-        for i in range(numValidChars):
-            if iterID % 2 == 0:
-                tups.append((inter0, inter1, bwtAddress, totalOffsetsByOnemer_copy[i], bwtOffsetsByOnemer_copy[i], np.sum(bwtOffsetsByOnemer[i]), ends[i]))
-            else:
-                tups.append((inter1, inter0, bwtAddress, totalOffsetsByOnemer_copy[i], bwtOffsetsByOnemer_copy[i], np.sum(bwtOffsetsByOnemer[i]), ends[i]))
-        
-        tp = ThreadPool(numProcs)
-        tp.map(mergeIterBySymbol_mt, tups)
-        tp.terminate()
-        tp.join()
-        tp = None
-        et = time.clock()
-        etw = time.time()
-        iterID += 1
-        
-        logger.info('Finished iter '+str(iterID)+' in '+str(et-st)+' CPU, '+str(etw-stw)+' secs')
-        
-    #create the output file and 0-offsets into each input
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] outBWT = np.lib.format.open_memmap(outDir+'/msbwt.npy', 'w+', '<u1', (ends[numValidChars-1],))
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtOffsets = np.zeros(dtype='<u8', shape=(l,))
-    
-    #build the views we need for nogil
-    cdef np.uint64_t [:] bwtOffsets_view = bwtOffsets
-    cdef np.uint64_t [:] bwtAddress_view = bwtAddress
-    cdef np.uint8_t [:] outBWT_view = outBWT
-    
-    #helper var
-    with nogil:
-        #now iterate through the input interleave
-        for i in range(ends[numValidChars-1]):
-            #get the bit here and pull the appropriate symbol, c, increment the place we're looking
-            b = inter0_view[i]
-            c = (<np.uint8_t *>bwtAddress_view[b])[bwtOffsets_view[b]]
-            inc(bwtOffsets_view[b])
-            outBWT_view[i] = c
-            
-def mergeIterBySymbol_mt(tup):
-    '''
-              np.ndarray[np.uint8_t, ndim=1, mode='c'] inArray not None, 
-              np.ndarray[np.uint8_t, ndim=1, mode='c'] outArray not None, 
-              np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtAddress not None,
-              np.ndarray[np.uint64_t, ndim=1, mode='c'] offsets not None,
-              np.ndarray[np.uint64_t, ndim=1, mode='c'] bwtOffsets not None,
-              unsigned int start,
-              unsigned int end):
-    '''
-    
-    cdef unsigned long i
-    cdef unsigned int sym, bwtID#, numInputs
-    cdef np.uint8_t [:] inArray_view = tup[0]
-    cdef np.uint8_t [:] outArray_view = tup[1]
-    cdef np.uint64_t [:] bwtAddress_view = tup[2]
-    cdef np.uint64_t [:] offsets_view = tup[3]
-    cdef np.uint64_t [:] bwtOffsets_view = tup[4]
-    cdef unsigned long start = tup[5]
-    cdef unsigned long end = tup[6]
-    
-    with nogil:
-        for i in range(start, end):
-            bwtID = inArray_view[i]
-            sym = (<np.uint8_t *>bwtAddress_view[bwtID])[bwtOffsets_view[bwtID]]
-            inc(bwtOffsets_view[bwtID])
-            
-            #set the output and increment the offset for the symbol
-            outArray_view[offsets_view[sym]] = bwtID
-            inc(offsets_view[sym])
 
 def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     '''
@@ -540,7 +75,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     cdef np.uint64_t [:, :] initialInserts_view = initialInserts
     
     #some basic counting variables
-    cdef unsigned long i, c, columnID, c2
+    cdef unsigned long i, j, c, columnID, c2
     
     #this will still the initial counts of symbols in the final column of our strings
     cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] initialFmDeltas = np.zeros(dtype='<u8', shape=(numValidChars, ))
@@ -552,18 +87,27 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
             initialInserts_view[i][0] = i
             initialInserts_view[i][1] = finalSymbols_view[i]
             initialInserts_view[i][2] = i
-            inc(initialFmDeltas_view[finalSymbols_view[i]])
+            initialFmDeltas_view[finalSymbols_view[i]] += 1
     
     #fmStarts is basically an fm-index offset, fmdeltas tells us how much fmStarts should change each iterations
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmStarts = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
+    cdef np.uint64_t [:, :] fmStarts_view = fmStarts
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmDeltas = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
+    cdef np.uint64_t [:, :] fmDeltas_view = fmDeltas
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmEnds = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
-    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] nextFmDeltas
-    fmDeltas[0][:] = initialFmDeltas[:]
+    cdef np.uint64_t [:, :] fmEnds_view = fmEnds
+    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] nextFmDeltas = np.empty(dtype='<u8', shape=(numValidChars, numValidChars))
+    cdef np.uint64_t [:, :] nextFmDeltas_view = nextFmDeltas
+    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] retFmDeltas
+    cdef np.uint64_t [:, :] retFmDeltas_view
+    
+    #fmDeltas[0][:] = initialFmDeltas[:]
+    for i in range(0, numValidChars):
+        fmDeltas_view[0][i] = initialFmDeltas[i]
     
     #figure out the files we insert in each iteration
-    insertionFNDict = {}
-    nextInsertionFNDict = {}
+    cdef dict insertionFNDict = {}
+    cdef dict nextInsertionFNDict = {}
     for c in range(0, numValidChars):
         #create an initial empty region for each symbol
         np.lib.format.open_memmap(bwtDir+'/state.'+str(c)+'.0.npy', 'w+', '<u1', (0, ))
@@ -581,27 +125,55 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     logger.info('Finished init in '+str(et-st)+' seconds.')
     logger.info('Beginning iterations...')
     
+    cdef unsigned long cumsum
+    
     #2 - go back one column at a time, building new inserts
     for columnID in range(0, seqLen):
         st = time.time()
         stc = time.clock()
         
         #first take into accoun the new fmDeltas coming in from all insertions
-        fmStarts = fmStarts+(np.cumsum(fmDeltas, axis=0)-fmDeltas)
-        fmEnds = fmEnds+np.cumsum(fmDeltas, axis=0)
+        #fmStarts = fmStarts+(np.cumsum(fmDeltas, axis=0)-fmDeltas)
+        #fmEnds = fmEnds+np.cumsum(fmDeltas, axis=0)
+        for i in range(0, numValidChars):
+            cumsum = 0
+            for j in range(0, numValidChars-1):
+                cumsum += fmDeltas_view[j][i]
+                fmStarts_view[j+1][i] += cumsum
+                fmEnds_view[j][i] += cumsum
+                nextFmDeltas_view[j][i] = 0
+            cumsum += fmDeltas_view[numValidChars-1][i]
+            fmEnds_view[numValidChars-1][i] += cumsum
+            nextFmDeltas_view[numValidChars-1][i] = 0
         
         #clear out the next fmDeltas
-        nextFmDeltas = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
+        #nextFmDeltas = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
         
+        tups = []
         for c in range(0, numValidChars):
             currentSymbolFN = bwtDir+'/state.'+str(c)+'.'+str(columnID)+'.npy'
             nextSymbolFN = bwtDir+'/state.'+str(c)+'.'+str(columnID+1)+'.npy'
             nextSeqFN = seqFNPrefix+'.'+str((columnID+2) % seqLen)+'.npy'
             tup = (c, np.copy(fmStarts[c]), np.copy(fmDeltas[c]), np.copy(fmEnds[c]), insertionFNDict[c], currentSymbolFN, nextSymbolFN, bwtDir, columnID, nextSeqFN)
+            tups.append(tup)
+        '''
+        rets = []
+        for tup in tups:
             ret = iterateMsbwtCreate(tup)
-            
+            rets.append(ret)
+        '''
+        
+        myPool = multiprocessing.Pool(numProcs)
+        rets = myPool.imap(iterateMsbwtCreate, tups)
+        
+        for ret in rets:
             #update the fmDeltas
-            nextFmDeltas = nextFmDeltas + ret[0]
+            #nextFmDeltas = nextFmDeltas + ret[0]
+            retFmDeltas = ret[0]
+            retFmDeltas_view = retFmDeltas
+            for i in range(0, numValidChars):
+                for j in range(0, numValidChars):
+                    nextFmDeltas_view[i][j] += retFmDeltas_view[i][j]
             
             #update our insertions files
             for c2 in range(0, numValidChars):
@@ -610,6 +182,8 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
                     pass
                 else:
                     nextInsertionFNDict[c2].append(ret[1][c2])
+        
+        myPool.close()
         
         #remove the old insertions and old state files
         for c in insertionFNDict:
@@ -627,7 +201,11 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
                     logger.warning('Failed to remove\''+rmStateFN+'\' from file system.')
         
         #copy the fmDeltas and insertion filenames
-        fmDeltas[:] = nextFmDeltas[:]
+        #fmDeltas[:] = nextFmDeltas[:]
+        for i in range(0, numValidChars):
+            for j in range(0, numValidChars):
+                fmDeltas_view[i][j] = nextFmDeltas_view[i][j]
+        
         insertionFNDict = nextInsertionFNDict
         nextInsertionFNDict = {}
         for c in range(0, numValidChars):
@@ -639,7 +217,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     
     logger.info('Creating final output...')
     
-    #finally, join all the subcomponent
+    #finally, join all the subcomponents
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] tempBWT
     cdef np.uint8_t [:] tempBWT_view
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] finalBWT
@@ -668,9 +246,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
         with nogil:
             for i in range(0, tempLen):
                 finalBWT_view[finalInd] = tempBWT_view[i]
-                inc(finalInd)
-    
-    #print finalBWT
+                finalInd += 1
     
     #finally, clear the last state files
     tempBWT = None
@@ -691,7 +267,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     totalEndTime = time.time()
     logger.info('Finished all iterations in '+str(totalEndTime-totalStartTime)+' seconds.')
             
-def iterateMsbwtCreate(tup):
+def iterateMsbwtCreate(tuple tup):
     '''
     This function will perform the insertion iteration for a single symbol grouping
     '''
@@ -718,6 +294,7 @@ def iterateMsbwtCreate(tup):
     
     #the input partial BWT for suffixes starting with 'idChar'
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] currentBwt = np.load(currentSymbolFN, 'r+')
+    #cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] currentBwt = np.load(currentSymbolFN)
     cdef np.uint8_t [:] currentBwt_view = currentBwt
     
     #the output partial BWT for suffixes starting with 'idChar'
@@ -768,7 +345,7 @@ def iterateMsbwtCreate(tup):
         
         #allocate a numpy array for each new insert file
         for c in range(0, numValidChars):
-            if prevFmDelta[c] == 0:
+            if prevFmDelta_view[c] == 0:
                 #nothing to insert from c
                 outputInserts.append(None)
             else:
@@ -777,7 +354,7 @@ def iterateMsbwtCreate(tup):
                 retFNs[c] = newInsertFN
                 
                 #create the insert file, store pointers
-                newInsertArray = np.lib.format.open_memmap(newInsertFN, 'w+', '<u8', (prevFmDelta[c], 3))
+                newInsertArray = np.lib.format.open_memmap(newInsertFN, 'w+', '<u8', (prevFmDelta_view[c], 3))
                 newInsertArray_view = newInsertArray
                 outputInserts.append(newInsertArray)
                 outputInsertPointers_view[c] = <np.uint64_t> &(newInsertArray_view[0][0])
@@ -790,7 +367,8 @@ def iterateMsbwtCreate(tup):
         #for fn in insertionFNs:
         for fn in insertionFNs:
             #load the actual inserts
-            inserts = np.load(fn, 'r+')
+            #inserts = np.load(fn, 'r+')
+            inserts = np.load(fn)
             inserts_view = inserts
             insertLen = inserts.shape[0]
             
@@ -805,25 +383,25 @@ def iterateMsbwtCreate(tup):
                         symbol = currentBwt_view[currIndex]
                         nextBwt_view[j] = symbol
                         
-                        inc(fmIndex_view[symbol])
-                        inc(currIndex)
+                        fmIndex_view[symbol] += 1
+                        currIndex += 1
                         
                     #now we actually write the value from the insert
                     symbol = inserts_view[i][1]
                     nextBwt_view[insertIndex] = symbol
                     
                     nextSymbol = currSeqs_view[inserts_view[i][2]]
-                    inc(fmDeltas_view[symbol][nextSymbol])
+                    fmDeltas_view[symbol, nextSymbol] += 1
                     prevIndex = insertIndex+1
                     
                     #now we need to add the information for our next insertion
                     outputInsert_p = <np.uint64_t *> outputInsertPointers_view[symbol]
-                    ind = outputInsertIndices[symbol]
-                    outputInsertIndices[symbol] += 3
+                    ind = outputInsertIndices_view[symbol]
+                    outputInsertIndices_view[symbol] += 3
                     
                     #finally, store the values
                     outputInsert_p[ind] = fmIndex_view[symbol]
-                    inc(fmIndex_view[symbol])
+                    fmIndex_view[symbol] += 1
                     outputInsert_p[ind+1] = nextSymbol
                     outputInsert_p[ind+2] = inserts_view[i][2]
                     
@@ -833,16 +411,13 @@ def iterateMsbwtCreate(tup):
                 symbol = currentBwt_view[currIndex]
                 nextBwt_view[j] = symbol
                 
-                inc(fmIndex_view[symbol])
-                inc(currIndex)
+                fmIndex_view[symbol] += 1
+                currIndex += 1
                 
     ret = (np.copy(fmDeltas), retFNs)
     return ret
     
-##########################################################################################
-#Everything below here has not been cythonized yet
-##########################################################################################
-def compressBWT(inputFN, outputFN, numProcs, logger):
+def compressBWT(char * inputFN, char * outputFN, unsigned long numProcs, logger):
     '''
     Current encoding scheme uses 3 LSB for the letter and 5 MSB for a count, note that consecutive ones of the same character
     combine to create one large count.  So to represent 34A, you would have 00010|001 followed by 00001|001 which can be though of
@@ -853,22 +428,23 @@ def compressBWT(inputFN, outputFN, numProcs, logger):
     @param logger - logger from initLogger()
     '''
     #create bit spacings
-    letterBits = 3
-    numberBits = 8-letterBits
-    numPower = 2**numberBits
-    mask = 255 >> letterBits
+    cdef unsigned long letterBits = 3
+    cdef unsigned long numberBits = 8-letterBits
+    cdef unsigned long numPower = 2**numberBits
+    cdef np.uint8_t mask = 255 >> letterBits
     
     #load the thing to compress
     logger.info('Loading src file...')
-    bwt = np.load(inputFN, 'r')
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] bwt = np.load(inputFN, 'r+')
     logger.info('Original size:'+str(bwt.shape[0])+'B')
     numProcs = min(numProcs, bwt.shape[0])
     
     #first locate boundaries
-    tups = []
-    binSize = 1000000
-    numBins = max(numProcs, bwt.shape[0]/binSize)
+    cdef list tups = []
+    cdef unsigned long binSize = 2**20
+    cdef unsigned long numBins = max(numProcs, bwt.shape[0]/binSize)
     
+    cdef unsigned long i, startIndex, endIndex
     for i in range(0, numBins):
         startIndex = i*bwt.shape[0]/numBins
         endIndex = (i+1)*bwt.shape[0]/numBins
@@ -878,6 +454,7 @@ def compressBWT(inputFN, outputFN, numProcs, logger):
     logger.info('Compressing bwt...')
     
     #run our multi-processed builder
+    cdef list rets
     if numProcs > 1:
         myPool = multiprocessing.Pool(numProcs)
         rets = myPool.map(compressBWTPoolProcess, tups)
@@ -887,9 +464,9 @@ def compressBWT(inputFN, outputFN, numProcs, logger):
             rets.append(compressBWTPoolProcess(tup))
     
     #calculate how big it will be after combining the separate chunk
-    totalSize = 0
-    prevChar = -1
-    prevTotal = 0
+    cdef unsigned long totalSize = 0
+    cdef long prevChar = -1
+    cdef unsigned long prevTotal = 0
     for ret in rets:
         #start by just adding the raw size
         totalSize += ret[0]
@@ -909,16 +486,22 @@ def compressBWT(inputFN, outputFN, numProcs, logger):
         prevChar = ret[3]
     
     #make the real output by joining all of the partial compressions into a single file
-    finalBWT = np.lib.format.open_memmap(outputFN, 'w+', '<u1', (totalSize,))
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] finalBWT = np.lib.format.open_memmap(outputFN, 'w+', '<u1', (totalSize,))
+    cdef np.uint8_t [:] finalBWT_view = finalBWT
     logger.info('Calculated compressed size:'+str(totalSize)+'B')
     logger.info('Joining sub-compressions...')
     
     #iterate a second time, this time storing things
     prevChar = -1
     prevTotal = 0
-    offset = 0
+    cdef unsigned long offset = 0
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] copyArr
+    #cdef np.uint8_t [:] copyArr_view
+    
+    cdef unsigned long prevBytes, nextBytes, power
     for ret in rets:
-        copyArr = np.load(ret[5], 'r')
+        copyArr = np.load(ret[5], 'r+')
+        #copyArr_view = copyArr
         if prevChar == ret[1]:
             #calculate byte usage of combining
             prevBytes = int(math.floor(math.log(prevTotal, numPower)+1))
@@ -929,7 +512,7 @@ def compressBWT(inputFN, outputFN, numProcs, logger):
             offset -= prevBytes
             power = 0
             while prevTotal >= numPower**power:
-                finalBWT[offset] = (((prevTotal / (numPower**power)) & mask) << letterBits)+prevChar
+                finalBWT_view[offset] = (((prevTotal / (numPower**power)) & mask) << letterBits)+prevChar
                 power += 1
                 offset += 1
             
@@ -959,17 +542,17 @@ def compressBWT(inputFN, outputFN, numProcs, logger):
     #return this i guess
     return finalBWT
     
-def compressBWTPoolProcess(tup):
+def compressBWTPoolProcess(tuple tup):
     '''
     During compression, each available process will calculate a subportion of the BWT independently using this 
     function.  This process takes the chunk and rewrites it into a given filename using the technique described
     in the compressBWT(...) function header
     '''
     #pull the tuple info
-    inputFN = tup[0]
-    startIndex = tup[1]
-    endIndex = tup[2]
-    tempFN = tup[3]
+    cdef char * inputFN = tup[0]
+    cdef unsigned long startIndex = tup[1]
+    cdef unsigned long endIndex = tup[2]
+    cdef char * tempFN = tup[3]
     
     #this shouldn't happen
     if startIndex == endIndex:
@@ -977,52 +560,56 @@ def compressBWTPoolProcess(tup):
         return None
     
     #load the file
-    bwt = np.load(inputFN, 'r')
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] bwt = np.load(inputFN, 'r+')
+    cdef np.uint8_t [:] bwt_view = bwt
     
     #create bit spacings
-    letterBits = 3
-    numberBits = 8-letterBits
-    numPower = 2**numberBits
-    mask = 255 >> letterBits
+    cdef unsigned long letterBits = 3
+    cdef unsigned long numberBits = 8-letterBits
+    cdef unsigned long numPower = 2**numberBits
+    cdef np.uint8_t mask = 255 >> letterBits
     
     #search for the places they're different
-    whereSol = np.add(startIndex+1, np.where(bwt[startIndex:endIndex-1] != bwt[startIndex+1:endIndex])[0])
+    cdef np.ndarray[np.int64_t, ndim=1, mode='c'] whereSol = np.add(startIndex+1, np.where(bwt[startIndex:endIndex-1] != bwt[startIndex+1:endIndex])[0])
     
     #this is the difference between two adjacent ones
-    deltas = np.zeros(dtype='<u4', shape=(whereSol.shape[0]+1,))
+    cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] deltas = np.zeros(dtype='<u4', shape=(whereSol.shape[0]+1,))
+    cdef np.uint32_t [:] deltas_view = deltas
     if whereSol.shape[0] == 0:
-        deltas[0] = endIndex-startIndex
+        deltas_view[0] = endIndex-startIndex
     else:
-        deltas[0] = whereSol[0]-startIndex
+        deltas_view[0] = whereSol[0]-startIndex
         deltas[1:deltas.shape[0]-1] = np.subtract(whereSol[1:], whereSol[0:whereSol.shape[0]-1])
-        deltas[deltas.shape[0]-1] = endIndex - whereSol[whereSol.shape[0]-1]
+        deltas_view[deltas.shape[0]-1] = endIndex - whereSol[whereSol.shape[0]-1]
     
     #calculate the number of bytes we need to store this information
-    size = 0
-    byteCount = 0
-    lastCount = 1
+    cdef unsigned long size = 0
+    cdef unsigned long byteCount = 0
+    cdef unsigned long lastCount = 1
     while lastCount > 0:
         lastCount = np.where(deltas >= 2**(numberBits*byteCount))[0].shape[0]
         size += lastCount
         byteCount += 1
     
     #create the file
-    ret = np.lib.format.open_memmap(tempFN, 'w+', '<u1', (size,))
-    retIndex = 0
-    c = bwt[startIndex]
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] ret = np.lib.format.open_memmap(tempFN, 'w+', '<u1', (size,))
+    cdef np.uint8_t [:] ret_view = ret
+    cdef unsigned long retIndex = 0
+    cdef np.uint8_t c = bwt_view[startIndex]
     startChar = c
-    delta = deltas[0]
+    delta = deltas_view[0]
     while delta > 0:
-        ret[retIndex] = ((delta & mask) << letterBits)+c
+        ret_view[retIndex] = ((delta & mask) << letterBits)+c
         delta /= numPower
         retIndex += 1
     
     #fill in the values based on the bit functions
+    cdef unsigned long i
     for i in range(0, whereSol.shape[0]):
-        c = bwt[whereSol[i]]
-        delta = deltas[i+1]
+        c = bwt_view[whereSol[i]]
+        delta = deltas_view[i+1]
         while delta > 0:
-            ret[retIndex] = ((delta & mask) << letterBits)+c
+            ret_view[retIndex] = ((delta & mask) << letterBits)+c
             delta /= numPower
             retIndex += 1
     endChar = c
@@ -1030,6 +617,9 @@ def compressBWTPoolProcess(tup):
     #return a lot of information so we can easily combine the results
     return (size, startChar, deltas[0], endChar, deltas[deltas.shape[0]-1], tempFN)
     
+##########################################################################################
+#Everything below here has not been cythonized yet
+##########################################################################################
 def decompressBWT(inputDir, outputDir, numProcs, logger):
     '''
     This is called for taking a BWT and decompressing it back out to it's original form.  While unusual to do,
@@ -1040,14 +630,15 @@ def decompressBWT(inputDir, outputDir, numProcs, logger):
     @param logger - log all the things!
     '''
     #load it, force it to be a compressed bwt also
-    msbwt = MultiStringBWT.CompressedMSBWT()
-    msbwt.loadMsbwt(inputDir, logger)
+    #msbwt = MultiStringBWT.CompressedMSBWT()
+    #msbwt.loadMsbwt(inputDir, logger)
+    msbwt = MultiStringBWT.loadBWT(inputDir, logger)
     
     #make the output file
     outputFile = np.lib.format.open_memmap(outputDir+'/msbwt.npy', 'w+', '<u1', (msbwt.getTotalSize(),))
     del outputFile
     
-    worksize = 1000000
+    worksize = 2**20
     tups = [None]*(msbwt.getTotalSize()/worksize+1)
     x = 0
     
@@ -1078,8 +669,9 @@ def decompressBWTPoolProcess(tup):
         return True
     
     #load the thing we'll be extracting from
-    msbwt = MultiStringBWT.CompressedMSBWT()
-    msbwt.loadMsbwt(inputDir, None)
+    #msbwt = MultiStringBWT.CompressedMSBWT()
+    #msbwt.loadMsbwt(inputDir, None)
+    msbwt = MultiStringBWT.loadBWT(inputDir)
     
     #open our output
     outputBwt = np.load(outputDir+'/msbwt.npy', 'r+')
@@ -1167,7 +759,7 @@ def writeSeqsToFiles(np.ndarray[np.uint8_t, ndim=1, mode='c'] seqArray, seqFNPre
             for i in range(0, numSeqs):
                 for j in range(0, seqLen):
                     (<np.uint8_t *>seqOutArrayPointers_view[j])[i] = dArr_view[seqArray_view[k]]
-                    inc(k)
+                    k += 1
         
     else:
         #count how many terminal '$' exist, 36 = '$'

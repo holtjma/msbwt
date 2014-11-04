@@ -17,15 +17,21 @@ cdef class BasicBWT(object):
     findIndicesOfStr
     getSequenceDollarID
     recoverString
+    
+    Override functions:
     loadMsbwt
     constructTotalCounts
     constructFMIndex
     getCharAtIndex
-    getBWTRange
     getOccurrenceOfCharAtIndex
+    getBWTRange
     getFullFMAtIndex
+    iterInit
+    iterNext
+    iterNext_cython
     '''
     '''
+    #declared in .pxd now
     cdef np.ndarray numToChar
     cdef unsigned char [:] numToChar_view
     cdef np.ndarray charToNum
@@ -81,6 +87,10 @@ cdef class BasicBWT(object):
         #this is purely for querying and determines how big our cache will be to shorten query times
         #TODO: experiment with this number
         self.cacheDepth = 6
+        
+        #these are merely defaults, override if wanted but maintain the relationship of, binSize = 2**bitPower
+        self.bitPower = 11
+        self.binSize = 2**self.bitPower
     
     cdef void constructIndexing(BasicBWT self):
         '''
@@ -102,14 +112,25 @@ cdef class BasicBWT(object):
                 self.endIndex_view[i] = pos
     
     cpdef getTotalSize(BasicBWT self):
+        '''
+        @return - the total number of symbols in the BWT
+        '''
         return self.totalSize
     
-    cpdef getSymbolCount(BasicBWT self, unsigned int symbol):
+    cpdef unsigned long getSymbolCount(BasicBWT self, unsigned long symbol):
         '''
         @param symbol - this is an integer from [0, 6)
+        @return - the total count for the passed in symbol
         '''
-        ret = int(self.totalCounts_view[symbol])
-        return ret
+        #cdef unsigned long ret = self.totalCounts_view[symbol]
+        #return ret
+        return self.totalCounts_view[symbol]
+    
+    cpdef getBinBits(BasicBWT self):
+        '''
+        @return - the number of bits in a bin
+        '''
+        return self.bitPower
     
     cpdef countOccurrencesOfSeq(BasicBWT self, bytes seq, givenRange=None):
         '''
@@ -121,7 +142,7 @@ cdef class BasicBWT(object):
         cdef unsigned long l, h
         cdef long x
         cdef unsigned long s
-        cdef unsigned int c
+        cdef unsigned long c
         
         if givenRange == None:
             #initialize our search to the whole BWT
@@ -161,7 +182,7 @@ cdef class BasicBWT(object):
         cdef unsigned long l, h
         cdef unsigned long s
         cdef long x
-        cdef unsigned int c
+        cdef unsigned long c
         
         #initialize our search to the whole BWT
         if givenRange == None:
@@ -189,7 +210,8 @@ cdef class BasicBWT(object):
     cpdef findIndicesOfRegex(BasicBWT self, bytes seq, givenRange=None):
         '''
         This function will search for a string and find the location of that string OR the last index less than it. It also
-        will start its search within a given range instead of the whole structure
+        will start its search within a given range instead of the whole structure.  Note that have a small tail string can 
+        lead to fast exponential blowup of the solution space.
         @param seq - the sequence to search for with valid symbols [$, A, C, G, N, T, *, ?]
             $, A, C, G, N, T - exact match of specific symbol
             * - matches 0 or more of any non-$ symbols (may be different symbols)
@@ -203,7 +225,7 @@ cdef class BasicBWT(object):
         cdef unsigned long lc, hc
         cdef unsigned long s
         cdef long x
-        cdef unsigned int c
+        cdef unsigned long c
         
         #initialize our search to the whole BWT
         if givenRange == None:
@@ -289,14 +311,20 @@ cdef class BasicBWT(object):
         
         return finalRet
     
-    cdef unsigned int getCharAtIndex(BasicBWT self, unsigned long index):# nogil:
+    cpdef unsigned long getCharAtIndex(BasicBWT self, unsigned long index):# nogil:
         '''
         dummy function, shouldn't be called
         '''
-        cdef unsigned int ret = 0
+        cdef unsigned long ret = 0
         return ret
     
-    cpdef unsigned long getOccurrenceOfCharAtIndex(BasicBWT self, unsigned int sym, unsigned long index):# nogil:
+    cdef void fillBin(BasicBWT self, np.uint8_t [:] binToFill, unsigned long binID) nogil:
+        '''
+        dummy funciton, shouldn't be called
+        '''
+        return
+    
+    cpdef unsigned long getOccurrenceOfCharAtIndex(BasicBWT self, unsigned long sym, unsigned long index):# nogil:
         '''
         dummy function, shouldn't be called
         '''
@@ -334,7 +362,7 @@ cdef class BasicBWT(object):
         '''
         #figure out the first hop backwards
         cdef unsigned long currIndex = strIndex
-        cdef unsigned int prevChar
+        cdef unsigned long prevChar
         cdef unsigned long i
         
         prevChar = self.getCharAtIndex(currIndex)
@@ -363,7 +391,7 @@ cdef class BasicBWT(object):
         cdef list indices = []
         
         #figure out the first hop backwards
-        cdef unsigned int prevChar = self.getCharAtIndex(strIndex)
+        cdef unsigned long prevChar = self.getCharAtIndex(strIndex)
         cdef unsigned long currIndex = self.getOccurrenceOfCharAtIndex(prevChar, strIndex)
         
         #while we haven't looped back to the start
@@ -408,3 +436,9 @@ cdef class BasicBWT(object):
             return (ret, indices[::-1])
         else:
             return ret
+    
+    cdef void fillFmAtIndex(BasicBWT self, np.uint64_t [:] fill_view, unsigned long index):
+        '''
+        dummy function, override in all subclasses
+        '''
+        pass

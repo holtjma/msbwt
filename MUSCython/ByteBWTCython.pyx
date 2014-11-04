@@ -15,13 +15,16 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
     This class is a BWT capable of hosting multiple strings inside one structure.  Basically, this would allow you to
     search for a given string across several strings simultaneously.  Note: this class is for the non-compressed version,
     for general purposes use the function loadBWT(...) which automatically detects whether this class or CompressedMSBWT 
-    is correct
+    is correct.  This particular BWT uses one byte per symbol and is the most intuitive of the BWT structures due to it's
+    relative simplicity.  However, it's also the least compressed and not necessarily the fastest for searching.
     '''
     def loadMsbwt(ByteBWT self, char * dirName, bint useMemmap=True, logger=None):
         '''
         This functions loads a BWT file and constructs total counts, indexes start positions, and constructs an FM index
         on disk if it doesn't already exist
         @param dirName - the filename to load
+        @param useMemmap - if True (default), the BWT is kept on disk and paged in as necessary
+        @param logger - the logger to print output to (default: None)
         '''
         #open the file with our BWT in it
         self.dirName = dirName
@@ -40,6 +43,7 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
         '''
         This function constructs the total count for each valid character in the array or loads them if they already exist.
         These will always be stored in '<DIR>/totalCounts.p', a pickled file
+        @param logger - the logger to print output to
         '''
         cdef unsigned long i
         self.totalSize = self.bwt.shape[0]
@@ -60,17 +64,19 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
     
     def constructFMIndex(ByteBWT self, logger):
         '''
-        This function iterates through the BWT and counts the letters as it goes to create the FM index.  For example, the string 'ACC$' would have BWT
-        'C$CA'.  The FM index would iterate over this and count the occurence of the letter it found so you'd end up with this:
+        This function iterates through the BWT and counts the letters as it goes to create the sampled FM index.  
+        For example, the string 'ACC$' would have BWT 'C$CA'.  The FM index would iterate over this and count the 
+        occurrence and offset of the letter it found and then sub-sample it at some power of two:
         BWT    FM-index
-        C    0    0    0
-        $    0    0    1
-        C    1    0    1
-        A    1    0    2
-             1    1    2
+        C    0    1    2 <-sampled
+        $    0    1    3 
+        C    1    1    3 <-sampled
+        A    1    1    4
+             1    2    5 <-sampled
         This is necessary for finding the occurrence of a letter using the getOccurrenceOfCharAtIndex(...) function.
         In reality, this function creates a sampled FM-index so only one index every 2048 bases is filled in.
-        This file is always stored in '<DIR>/fmIndex.npy'
+        This file is always stored in '<DIR>/fmIndex.npy'.
+        @param logger - the logger to print output to
         '''
         #sampling method
         self.searchCache = {}
@@ -109,7 +115,7 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
                     for j in range(0, self.vcLen):
                         self.partialFM_view[i][j] = counts_view[j]
             
-    cdef unsigned int getCharAtIndex(ByteBWT self, unsigned long index):# nogil:
+    cpdef unsigned long getCharAtIndex(ByteBWT self, unsigned long index):# nogil:
         '''
         This function is only necessary for other functions which perform searches generically without knowing if the 
         underlying structure is compressed or not
@@ -125,8 +131,22 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
         @param end - the end of the range in normal python notation (bwt[end] is not part of the return)
         '''
         return self.bwt[start:end]
+    
+    cdef void fillBin(ByteBWT self, np.uint8_t [:] binToFill, unsigned long binID) nogil:
+        '''
+        This copies a slice of the BWT into an array the caller can manipulate, useful mostly for the compressed
+        versions of this data structure.
+        @param binToFill - the place we can copy the BWT into
+        @param binID - the bin we're copying
+        '''
+        cdef unsigned long x
+        cdef unsigned long startIndex = binID*self.binSize
+        cdef unsigned long endIndex = min((binID+1)*self.binSize, self.totalSize)
         
-    cpdef unsigned long getOccurrenceOfCharAtIndex(ByteBWT self, unsigned int sym, unsigned long index):# nogil:
+        for x in range(0, endIndex-startIndex):
+            binToFill[x] = self.bwt_view[startIndex+x]
+        
+    cpdef unsigned long getOccurrenceOfCharAtIndex(ByteBWT self, unsigned long sym, unsigned long index):# nogil:
         '''
         This functions gets the FM-index value of a character at the specified position
         @param sym - the character to find the occurrence level
@@ -158,7 +178,6 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
                  1 2 4 4 4
         @return - the above information in the form of an array that already incorporates the offset value into the counts
         '''
-        
         cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.empty(dtype='<u8', shape=(self.vcLen, ))
         cdef np.uint64_t [:] ret_view = ret
         cdef unsigned long binID = index >> self.bitPower
@@ -172,7 +191,23 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
             inc(ret_view[self.bwt_view[i]])
         
         return ret
+    
+    cdef void fillFmAtIndex(ByteBWT self, np.uint64_t [:] fill_view, unsigned long index):
+        '''
+        Same as getFmAtIndex, but with a pass in array to fill in
+        @param fill_view - the view of the fmIndex we are going to fill in
+        @param index - the index to extract the fm-index for
+        '''
+        cdef unsigned long binID = index >> self.bitPower
+        cdef unsigned long bwtInd = binID * self.binSize
+        cdef unsigned long i
         
+        for i in range(0, self.vcLen):
+            fill_view[i] = self.partialFM_view[binID][i]
+        
+        for i in range(bwtInd, index):
+            inc(fill_view[self.bwt_view[i]])
+    
     cdef np.uint8_t iterNext_cython(ByteBWT self) nogil:
         '''
         returns each character one at a time

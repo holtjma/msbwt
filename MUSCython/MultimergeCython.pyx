@@ -3,6 +3,7 @@
 #cython: wraparound=False
 
 import binascii
+import glob
 import gzip
 import math
 import multiprocessing
@@ -10,6 +11,7 @@ from multiprocessing.pool import ThreadPool
 import numpy as np
 cimport numpy as np
 import os
+import shutil
 from threading import RLock
 import time
 
@@ -22,7 +24,23 @@ def createMSBWTFromSeqs(list seqArray, char * mergedDir, unsigned long numProcs,
     This function takes a list of input strings and builds the multi-string BWT for it using the merging
     method. Given R reads containing N bases (counting '$' as a base) this algorithm takes O(N*LCP*lg(R))
     time to complete and uses O(N) extra bits of memory in it's peak (aka, final) iteration.  Note that
-    inputs and outputs are not counted in memory usage since they are read/written to disk.
+    inputs and outputs are not counted in memory usage since they are read/written to disk.  However, 
+    best performance is achieved when there is enough memory to keep all inputs in memory as well.
+    @param seqArray - the list of strings to be merged
+    @param mergedDir - the directory we plan on saving the final result
+    @param numProcs - the number of processors we're allowed to use
+    @param areUniform - indicates if the reads are uniform length, use False if unknown
+    @param logger - the logger to print all output
+    '''
+    #pre-process first
+    preprocessSeqs(seqArray, mergedDir, numProcs, areUniform, logger)
+    
+    #finally do the actual interleaving, hand it the output file
+    interleaveLevelMerge(mergedDir, numProcs, areUniform, logger)
+    
+def preprocessSeqs(list seqArray, char * mergedDir, unsigned long numProcs, bint areUniform, logger):
+    '''
+    This function preprocesses raw strings for BWT merge construction.
     @param seqArray - the list of strings to be merged
     @param mergedDir - the directory we plan on saving the final result
     @param numProcs - the number of processors we're allowed to use
@@ -40,16 +58,28 @@ def createMSBWTFromSeqs(list seqArray, char * mergedDir, unsigned long numProcs,
     #convert the sequences into BWTs in uint8 format and then save it
     formatSeqsForMerge(seqArray, seqFN, offsetFN, numProcs, areUniform, logger)
     
-    #finally do the actual interleaving, hand it the output file
-    #interleaveSeqs(mergedDir, areUniform, logger)
-    interleaveLevelMerge(mergedDir, numProcs, areUniform, logger)
-    
 def createMSBWTFromFasta(list fastaFNs, char * outputDir, unsigned long numProcs, bint areUniform, logger):
     '''
     This function takes a list of input fasta filenames and builds the multi-string BWT for it using the merging
     method. Given R reads containing N bases (counting '$' as a base) this algorithm takes O(N*LCP*lg(R))
     time to complete and uses O(N) extra bits of memory in it's peak (aka, final) iteration.  Note that
-    inputs and outputs are not counted in memory usage since they are read/written to disk.
+    inputs and outputs are not counted in memory usage since they are read/written to disk.  However, 
+    best performance is achieved when there is enough memory to keep all inputs in memory as well.
+    @param seqArray - the list of strings to be merged
+    @param mergedDir - the directory we plan on saving the final result
+    @param numProcs - the number of processors we're allowed to use
+    @param areUniform - indicates if the reads are uniform length, use False if unknown
+    @param logger - the logger to print all output
+    '''
+    #pre-process the fastas
+    preprocessFasta(fastaFNs, outputDir, numProcs, areUniform, logger)
+    
+    #finally do the actual interleaving, hand it the output file
+    interleaveLevelMerge(outputDir, numProcs, areUniform, logger)
+    
+def preprocessFasta(list fastaFNs, char * outputDir, unsigned long numProcs, bint areUniform, logger):
+    '''
+    This function pre-processes fasta files for BWT merging
     @param seqArray - the list of strings to be merged
     @param mergedDir - the directory we plan on saving the final result
     @param numProcs - the number of processors we're allowed to use
@@ -70,17 +100,29 @@ def createMSBWTFromFasta(list fastaFNs, char * outputDir, unsigned long numProcs
     
     #convert the sequences into BWTs in uint8 format and then save it
     formatSeqsForMerge(seqIter, seqFN, offsetFN, numProcs, areUniform, logger)
-    
-    #finally do the actual interleaving, hand it the output file
-    #interleaveSeqs(outputDir, areUniform, logger)
-    interleaveLevelMerge(outputDir, numProcs, areUniform, logger)
 
 def createMSBWTFromFastq(list fastqFNs, char * outputDir, unsigned long numProcs, bint areUniform, logger):
     '''
     This function takes a list of input fasta filenames and builds the multi-string BWT for it using the merging
     method. Given R reads containing N bases (counting '$' as a base) this algorithm takes O(N*LCP*lg(R))
     time to complete and uses O(N) extra bits of memory in it's peak (aka, final) iteration.  Note that
-    inputs and outputs are not counted in memory usage since they are read/written to disk.
+    inputs and outputs are not counted in memory usage since they are read/written to disk.  However, 
+    best performance is achieved when there is enough memory to keep all inputs in memory as well.
+    @param seqArray - the list of strings to be merged
+    @param mergedDir - the directory we plan on saving the final result
+    @param numProcs - the number of processors we're allowed to use
+    @param areUniform - indicates if the reads are uniform length, use False if unknown
+    @param logger - the logger to print all output
+    '''
+    #preprocess first
+    preprocessFastqs(fastqFNs, outputDir, numProcs, areUniform, logger)
+    
+    #finally do the actual interleaving, hand it the output file
+    interleaveLevelMerge(outputDir, numProcs, areUniform, logger)
+    
+def preprocessFastqs(list fastqFNs, char * outputDir, unsigned long numProcs, bint areUniform, logger):
+    '''
+    This function takes a list of Fastq filenames and pre-processes them for merging
     @param seqArray - the list of strings to be merged
     @param mergedDir - the directory we plan on saving the final result
     @param numProcs - the number of processors we're allowed to use
@@ -101,15 +143,13 @@ def createMSBWTFromFastq(list fastqFNs, char * outputDir, unsigned long numProcs
     
     #convert the sequences into BWTs in uint8 format and then save it
     formatSeqsForMerge(seqIter, seqFN, offsetFN, numProcs, areUniform, logger)
-    
-    #finally do the actual interleaving, hand it the output file
-    #interleaveSeqs(outputDir, areUniform, logger)
-    interleaveLevelMerge(outputDir, numProcs, areUniform, logger)
 
 def mergeTwoMSBWTs(char * inputMsbwtDir1, char * inputMsbwtDir2, char * mergedDir, unsigned long numProcs, logger):
     '''
-    @param inputMsbwtDir1 - the directory of the first MSBWT
-    @param inputMsbwtDir2 - the directory of the second MSBWT
+    This function takes two BWTs as input and merges them into a single BWT in O(N*LCP_avg) time where N is the 
+    total number of bases and LCP_avg is the average common prefix between adjacent entries in the merged result.
+    @param inputMsbwtDir1 - the directory of the first MSBWT, must be in ByteBWT format (not compressed)
+    @param inputMsbwtDir2 - the directory of the second MSBWT, must be in ByteBWT format (not compressed)
     @param mergedDir - the directory for output
     @param numProcs - number of processes we're allowed to use
     @param logger - use for logging outputs and progress
@@ -273,6 +313,14 @@ def mergeTwoMSBWTs(char * inputMsbwtDir1, char * inputMsbwtDir2, char * mergedDi
     return iterCount
 
 def mergeUsingInterleave(char * inputMsbwtDir1, char * inputMsbwtDir2, char * mergedDir, char * interleaveFN):
+    '''
+    This function will take an interleave file and merge the two input BWTs using that interleave.  Note that
+    it assumes the passed interleave is correct.
+    @param inputMsbwtDir1 - the first directory containing a BWT
+    @param inputMsbwtDir2 - the second directory containing a BWT
+    @param mergedDir - the output directory for the merged BWT
+    @param interleaveFN - the interleave to use for the merge
+    '''
     #get the input MSBWTs and bwtLens
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inputBwt1 = np.load(inputMsbwtDir1+'/msbwt.npy', 'r+')
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inputBwt2 = np.load(inputMsbwtDir2+'/msbwt.npy', 'r+')
@@ -407,6 +455,8 @@ def formatSeqsForMerge(seqIter, char * seqFN, char * offsetFN, unsigned long num
     if not areUniform:
         offsetFP.write(binascii.unhexlify('0'*offsetNumNibbles))
     
+    #print 'at the pool'
+    
     #pool out the BWT creation, note we technically use numProcs+1 processes because this one handles results
     pool = multiprocessing.Pool(numProcs)
     res = pool.imap(memoryBWT, seqIter, chunksize=40)
@@ -455,7 +505,8 @@ def formatSeqsForMerge(seqIter, char * seqFN, char * offsetFN, unsigned long num
 
 def memoryBWT(seq):
     '''
-    This function takes a single string as input and creates a BWT from it.
+    This function takes a single string as input and creates a BWT from it using a radix sort style implementation.
+    This has been tested with PacBio strings, but not strings of length greater than 50,000.
     @param seq - the sequence we want to turn into a BWT in memory
     @return - tuple containing
         (byte encoded BWT result (can be written straight to file),
@@ -556,13 +607,15 @@ def interleaveLevelMerge(char * mergedDir, unsigned long numProcs, bint areUnifo
     @param logger - logging logger used for output
     '''
     logger.info('Beginning MSBWT construction...')
+    logger.info('BETA')
     
     #hardcode this as we do everywhere else
     cdef unsigned long numValidChars = 6
     
     #load these from the input
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] seqs = np.memmap(mergedDir+'/seqs.npy', dtype='<u1')
-    cdef np.uint8_t [:] seqs_view = seqs
+    cdef unsigned long seqShape = seqs.shape[0]
+    backupFN = None
     
     cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] offsets = np.memmap(mergedDir+'/offsets.npy', dtype='<u8')
     cdef np.uint64_t [:] offsets_view = offsets
@@ -577,9 +630,32 @@ def interleaveLevelMerge(char * mergedDir, unsigned long numProcs, bint areUnifo
     #currMultiplier indicates how many strings are in each group, at the start this is 1 since all are separate
     cdef unsigned long currMultiplier = 1
     
-    #copy the input strings over to our final output, this is what we'll be manipulating
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] msbwt = np.lib.format.open_memmap(mergedDir+'/msbwt.npy', 'w+', '<u1', (seqs.shape[0], ))
-    msbwt[:] = seqs[:]
+    backups = glob.glob(mergedDir+'/backup.*.npy')
+    cdef unsigned long backupID = 0
+    cdef unsigned long tmpID
+    for bfn in backups:
+        splitters = bfn.split('.')
+        tmpID = int(splitters[len(splitters)-2])
+        if tmpID > backupID:
+            backupID = tmpID
+    
+    cdef unsigned long x = 0
+    
+    if backupID == 0:
+        #copy the input strings over to our final output, this is what we'll be manipulating
+        logger.info('Copying seqs.npy to msbwt.npy...')
+        np.save(mergedDir+'/msbwt.npy', seqs)
+        oldBackupFN = None
+    else:
+        bfn = mergedDir+'/backup.'+str(backupID)+'.npy'
+        currMultiplier = backupID
+        logger.info('Backup located, resuming...')
+        logger.info('Copying '+bfn+' to msbwt.npy...')
+        shutil.copyfile(bfn, mergedDir+'/msbwt.npy')
+        oldBackupFN = bfn
+        x = 10
+    seqs = None
+    #shutil.copyfile(mergedDir+'/seqs.npy', mergedDir+'/msbwt.npy')
     
     #only set to 2 or 256, eventually change allow 2, 4, 16, 256, 256^2
     cdef unsigned long splitDist
@@ -589,10 +665,10 @@ def interleaveLevelMerge(char * mergedDir, unsigned long numProcs, bint areUnifo
     cdef unsigned long prevProgress
     cdef unsigned long currProgress
     
-    cdef unsigned long x = 0
     while currMultiplier < numSeqs:
         #decide whether our level iterator is 2 or 256
-        if x < 2:
+        if x < 1:
+        #if x < 3:
             splitDist = 256
         else:
             splitDist = 2
@@ -602,17 +678,18 @@ def interleaveLevelMerge(char * mergedDir, unsigned long numProcs, bint areUnifo
         if areUniform:
             #seqlen and numSeqs are a function of the data input 
             seqLen = offsets_view[0]
-            numSeqs = seqs.shape[0]/seqLen
+            numSeqs = seqShape/seqLen
         else:
             numSeqs = offsets.shape[0]-1
         
-        numJobs = int(math.ceil(numSeqs/(currMultiplier*splitDist)))
-        if numJobs < 2*numProcs:
+        numJobs = max(int(math.ceil(numSeqs/(currMultiplier*splitDist))), 1)
+        if numJobs < 2*numProcs and splitDist == 2:
             activeProcs = 1
             numThreads = numProcs
             passedLogger = logger
             logProgress = False
-        elif x > 23:
+            prevProgress = 0
+        elif currMultiplier > 2**23 and splitDist == 2:
             #TODO: this is basically a hack right now to get this to switch to single thread when we expect the array to get big
             activeProcs = 1
             numThreads = numProcs
@@ -671,6 +748,26 @@ def interleaveLevelMerge(char * mergedDir, unsigned long numProcs, bint areUnifo
         #recalculate where we stand in terms of merging
         currMultiplier *= splitDist
         x += 1
+        
+        if currMultiplier < numSeqs:
+            oldBackupFN = backupFN
+            backupFN = mergedDir+'/backup.'+str(currMultiplier)+'.npy'
+            logger.info('Creating backup to '+backupFN+'...')
+            shutil.copyfile(mergedDir+'/msbwt.npy', backupFN)
+            logger.info('Backup creation finished.')
+        
+        if oldBackupFN != None and os.path.exists(oldBackupFN):
+            logger.info('Removing old backup...')
+            os.remove(oldBackupFN)
+            logger.info('Old backup removed.')
+        
+        '''
+        if currMultiplier < numSeqs:
+            backupFN = mergedDir+'/backup.'+str(currMultiplier)+'.npy'
+            logger.info('Creating backup to '+backupFN+'...')
+            shutil.copyfile(mergedDir+'/msbwt.npy', backupFN)
+            logger.info('Backup creation finished.')
+        '''
     
     logger.info('MSBWT construction finished.')
 
@@ -770,7 +867,9 @@ def buildViaMerge256(tup):
     
     if logger != None:
         logger.info('['+str(offsets_view[0])+'] Beginning sub-merge.')
-        
+    
+    #print '['+str(offsets_view[0])+'] Beginning sub-merge.'
+    
     #map the seqs, note we map msbwt.npy because that's where all changes happen
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] seqs = np.load(mergedDir+'/msbwt.npy', 'r+')
     cdef np.uint8_t [:] seqs_view = seqs
@@ -801,6 +900,7 @@ def buildViaMerge256(tup):
     else:
         #this needs one bytes per base since we have 256 inputs
         interleaveBytes = offsets_view[numInputs]-offsets_view[0]
+    cdef unsigned long totalNumSymbols = offsets_view[numInputs]-offsets_view[0]
     
     #hardcoded as 1 GB right now
     cdef unsigned long interThresh = 1*10**9
@@ -865,12 +965,17 @@ def buildViaMerge256(tup):
     cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] offsetsCopy = np.zeros(dtype='<u8', shape=(offsets.shape[0], ))
     cdef np.uint64_t [:] offsetsCopy_view = offsetsCopy
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] ranges
+    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fullCoverageRanges
+    cdef unsigned long fullRangeThreshold = 2**10
     cdef double st, el
     if numInputs == 2:
         #format is (position in bwt0, position in bwt1, total length)
         ranges = np.zeros(dtype='<u8', shape=(1, 3))
         ranges[0][2] = offsets[2]-offsets[0]
+        fullCoverageRanges = np.copy(ranges)
         
+    #print '['+str(offsets_view[0])+'] Begin iterations.'
+    
     while changesMade:
         #copy the fm info
         fmCurrent = np.copy(fmStarts)
@@ -890,6 +995,12 @@ def buildViaMerge256(tup):
                                               iterCount, numThreads)
                 changesMade = ret[0]
                 ranges = ret[1]
+                
+                if ranges.shape[0] < fullRangeThreshold and np.sum(ranges[:, 2]) == totalNumSymbols:
+                    fullCoverageRanges = np.copy(ranges)
+                else:
+                    ranges = np.copy(fullCoverageRanges)
+                
                 el = time.time()-st
                 #print '\t'.join([str(val) for val in (offsets_view[0], iterCount, ranges.shape[0], el, np.sum(ranges[:, 2]))])
                 if logger != None:
@@ -907,6 +1018,12 @@ def buildViaMerge256(tup):
                 el = time.time()-st
                 changesMade = ret[0]
                 ranges = ret[1]
+                
+                if ranges.shape[0] < fullRangeThreshold and np.sum(ranges[:, 2]) == totalNumSymbols:
+                    fullCoverageRanges = np.copy(ranges)
+                else:
+                    ranges = np.copy(fullCoverageRanges)
+                
                 #print '\t'.join([str(val) for val in (offsets_view[0], iterCount, ranges.shape[0], el, np.sum(ranges[:, 2]))])
                 if logger != None:
                     #logger.info('\t'.join([str(val) for val in (offsets_view[0], iterCount, ranges.shape[0], el)]))
@@ -915,10 +1032,12 @@ def buildViaMerge256(tup):
                 changesMade = singleIterationMerge256(&seqs_view[offsets_view[0]], offsetsCopy_view, &inter1_view[0], &inter0_view[0], fmCurrent_view, offsets[numInputs]-offsets[0])
         
         iterCount += 1
+        
+    #print '['+str(offsets_view[0])+'] End iterations.'
     
     #create access points to our result and a temporary result
-    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] msbwt = np.load(mergedDir+'/msbwt.npy', 'r+')
-    cdef np.uint8_t [:] msbwt_view = msbwt
+    #cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] msbwt = np.load(mergedDir+'/msbwt.npy', 'r+')
+    cdef np.uint8_t [:] msbwt_view = seqs
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] msbwtOut
     cdef np.uint8_t [:] msbwtOut_view
     
@@ -969,6 +1088,7 @@ def buildViaMerge256(tup):
         
     if logger != None:
         logger.info('['+str(offsets_view[0])+'] Finished sub-merge.')
+    #print '['+str(offsets_view[0])+'] Finished sub-merge.'
     
     #return the number of iterations it took us to converge
     return iterCount
@@ -1010,7 +1130,15 @@ cdef void initializeFMIndex(np.uint8_t * seqs_view, np.uint64_t * fmIndex_view, 
 cdef void getFmAtIndex(np.uint8_t * seqs_view, np.uint64_t [:, :] fmIndex_view, 
                         unsigned long pos, unsigned long binBits, unsigned long nvc,
                         np.uint64_t [:] ret_view) nogil:
-    
+    '''
+    Wrapper functions for calculating an FM-index position
+    @param seqs_view - a C array viewing the input sequence
+    @param fmIndex_view - a 2-D view of the sampled FM-index
+    @param pos - the position we care about
+    @param binBits -2^binBits = size of sampled bin
+    @param nvc - Number of Valid Chars (6)
+    @param ret_view - the thing we fill in with the index
+    '''
     cdef unsigned long startBin = pos >> binBits
     cdef unsigned long x
     for x in range(0, nvc):
@@ -1022,7 +1150,15 @@ cdef void getFmAtIndex(np.uint8_t * seqs_view, np.uint64_t [:, :] fmIndex_view,
 cdef void getFmAtIndex_p(np.uint8_t * seqs_view, np.uint64_t * fmIndex_view, 
                         unsigned long pos, unsigned long binBits, unsigned long nvc,
                         np.uint64_t [:] ret_view) nogil:
-    
+    '''
+    Wrapper functions for calculating an FM-index position, same as previous but fmIndex_view is a pointer now
+    @param seqs_view - a C array viewing the input sequence
+    @param fmIndex_view - a 2-D C array of the sampled FM-index
+    @param pos - the position we care about
+    @param binBits -2^binBits = size of sampled bin
+    @param nvc - Number of Valid Chars (6)
+    @param ret_view - the thing we fill in with the index
+    '''
     cdef unsigned long startBin = pos >> binBits
     cdef unsigned long x
     for x in range(0, nvc):
@@ -1118,8 +1254,8 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
                                   unsigned long iterCount, unsigned long numThreads):
     '''
     Performs a single pass over the data for a merge of at most 2 BWTs, allows for a bit array, instead of byte
-    @param seqs0_view - a C pointer to the start of the first string specific to this merge
-    @param seqs1_view - a C pointer to the start of the second string specific to this merge
+    @param seqs0_view - a C pointer to the start of the first string specific to this merge (this is a bwt)
+    @param seqs1_view - a C pointer to the start of the second string specific to this merge (this is a bwt)
     @param offsets_view - a C pointer to the array indicating how long each string is
     @param inputInter_view - a C pointer to the input interleave
     @param outputInter_view - a C pointer to where this function writes the output interleave
@@ -1449,9 +1585,9 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
     
     #here's where we'll do the collapse
     cdef unsigned long shrinkIndex = 0, currIndex = 1
-    cdef bint collapseEntries = (iterCount <= 20)
+    #cdef bint collapseEntries = (iterCount <= 20)
     #cdef bint collapseEntries = (exIndex >= 2**17)
-    #cdef bint collapseEntries = False
+    cdef bint collapseEntries = False
     if collapseEntries:
         for currIndex in xrange(1, exIndex):
             if (extendedEntries_view[shrinkIndex][0]+extendedEntries_view[shrinkIndex][1]+extendedEntries_view[shrinkIndex][2] ==
@@ -1505,6 +1641,15 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
 
 def rangeIterator(np.uint64_t [:] pointerArray, unsigned long binBits, unsigned long nvc, np.uint64_t [:, :] ranges_view, 
                   unsigned long rangeLen, unsigned long numThreads):
+    '''
+    an iterator that creates ranges for the multi-threading
+    @param pointerArray - these values get passed through to the threads
+    @param binBits - 2^binBits = size of sampled bin
+    @param nvc - Number of Valid Chars (6)
+    @param ranges_view - 2D view of the current ranges that we are splitting
+    @param rangeLen - total number of ranges to split up
+    @param numThreads - number of threads being used
+    '''
     cdef unsigned long x
     cdef unsigned long rangeDelta = rangeLen/(2*numThreads)+1
     cdef object boundaryLock = RLock()
@@ -1521,6 +1666,12 @@ def rangeIterator(np.uint64_t [:] pointerArray, unsigned long binBits, unsigned 
             yield (<unsigned long>&pointerArray[0], binBits, nvc, x, rangeLen, rangeLen, boundaryLock)
 
 def rangeSolve_thread(tuple tup):
+    '''
+    Solves a given list of ranges for a merge iteration by correcting the appropriate portions of the 
+    interleave vector.
+    @param tup - tuple of all passed in values
+    @return - (start of next entries, number of next entries, changesMade)
+    '''
     #the first value is an array filled with pointers we can use since this is threaded
     cdef np.uint64_t * pointerArray = <np.uint64_t*>(<unsigned long>tup[0])
     cdef np.uint8_t * seqs0_view
@@ -1815,6 +1966,10 @@ def rangeSolve_thread(tuple tup):
     
     #return
     return (neStart, neCounts, changesMade)
+    
+##################################
+#Bit manipulation helper functions
+##################################
     
 cdef inline void setBit_p(np.uint8_t * bitArray, unsigned long index) nogil:
     #set a bit in an array

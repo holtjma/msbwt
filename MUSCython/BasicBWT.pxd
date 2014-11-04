@@ -6,8 +6,8 @@ cdef class BasicBWT(object):
     cdef unsigned char [:] numToChar_view
     cdef np.ndarray charToNum
     cdef unsigned char [:] charToNum_view
-    cdef unsigned int vcLen
-    cdef unsigned int cacheDepth
+    cdef unsigned long vcLen
+    cdef unsigned long cacheDepth
     
     cdef char * dirName
     cdef np.ndarray bwt
@@ -37,14 +37,17 @@ cdef class BasicBWT(object):
     
     cdef void constructIndexing(BasicBWT self)
     cpdef getTotalSize(BasicBWT self)
-    cpdef getSymbolCount(BasicBWT self, unsigned int symbol)
+    cpdef unsigned long getSymbolCount(BasicBWT self, unsigned long symbol)
+    cpdef getBinBits(BasicBWT self)
     cpdef countOccurrencesOfSeq(BasicBWT self, bytes seq, givenRange=*)
     cpdef findIndicesOfStr(BasicBWT self, bytes seq, givenRange=*)
     cpdef findIndicesOfRegex(BasicBWT self, bytes seq, givenRange=*)
-    cdef unsigned int getCharAtIndex(BasicBWT self, unsigned long index)
-    cpdef unsigned long getOccurrenceOfCharAtIndex(BasicBWT self, unsigned int sym, unsigned long index)
+    cpdef unsigned long getCharAtIndex(BasicBWT self, unsigned long index)
+    cpdef unsigned long getOccurrenceOfCharAtIndex(BasicBWT self, unsigned long sym, unsigned long index)
     cpdef iterInit(BasicBWT self)
     cpdef iterNext(BasicBWT self)
     cdef np.uint8_t iterNext_cython(BasicBWT self) nogil
     cpdef getSequenceDollarID(BasicBWT self, unsigned long strIndex, bint returnOffset=*)
     cpdef recoverString(BasicBWT self, unsigned long strIndex, bint withIndex=*)
+    cdef void fillBin(BasicBWT self, np.uint8_t [:] binToFill, unsigned long binID) nogil
+    cdef void fillFmAtIndex(BasicBWT self, np.uint64_t [:] fill_view, unsigned long index)

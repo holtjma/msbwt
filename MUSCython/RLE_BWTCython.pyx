@@ -194,7 +194,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         #we'll use this later when we do lookups
         self.offsetSum = np.sum(self.partialFM[0])
         
-    cdef unsigned int getCharAtIndex(RLE_BWT self, unsigned long index):# nogil:
+    cpdef unsigned long getCharAtIndex(RLE_BWT self, unsigned long index):# nogil:
         '''
         Used for searching, this function masks the complexity behind retrieving a specific character at a specific index
         in our compressed BWT.
@@ -212,8 +212,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             trueIndex += self.partialFM_view[binID][i]
         trueIndex -= self.offsetSum
         
-        cdef unsigned int prevChar = self.bwt_view[bwtIndex] & self.mask
-        cdef unsigned int currentChar
+        cdef unsigned long prevChar = self.bwt_view[bwtIndex] & self.mask
+        cdef unsigned long currentChar
         cdef unsigned long prevCount = self.bwt_view[bwtIndex] >> self.letterBits
         cdef unsigned powerMultiple = 1
         
@@ -232,6 +232,72 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             prevChar = currentChar
         
         return prevChar
+    
+    cdef void fillBin(RLE_BWT self, np.uint8_t [:] binToFill, unsigned long binID) nogil:
+        '''
+        This copies a slice of the BWT into an array the caller can manipulate, useful mostly for the compressed
+        versions of this data structure.
+        @param binToFill - the place we can copy the BWT into
+        @param binID - the bin we're copying
+        '''
+        cdef unsigned long x
+        cdef unsigned long startIndex = binID*self.binSize
+        cdef unsigned long endIndex = min((binID+1)*self.binSize, self.totalSize)
+        
+        #get the bin we should start from
+        cdef unsigned long bwtIndex = self.refFM_view[binID]
+        
+        #these are the values that indicate how far in we really are
+        cdef unsigned long trueIndex = 0
+        cdef unsigned long i
+        for i in range(0, self.vcLen):
+            trueIndex += self.partialFM_view[binID][i]
+        trueIndex -= self.offsetSum
+        
+        cdef unsigned long prevChar = self.bwt_view[bwtIndex] & self.mask
+        cdef unsigned long currentChar
+        cdef unsigned long prevCount = self.bwt_view[bwtIndex] >> self.letterBits
+        cdef unsigned powerMultiple = 1
+        
+        #first, we may need to skip ahead some
+        while trueIndex + prevCount < startIndex:
+            trueIndex += prevCount
+            inc(bwtIndex)
+            
+            currentChar = self.bwt_view[bwtIndex] & self.mask
+            if currentChar == prevChar:
+                powerMultiple *= self.numPower
+                prevCount = (self.bwt_view[bwtIndex] >> self.letterBits) * powerMultiple
+            else:
+                powerMultiple = 1
+                prevCount = self.bwt_view[bwtIndex] >> self.letterBits
+            prevChar = currentChar
+        
+        #now we actually do the same loop only with some writes
+        cdef unsigned long realStart = 0
+        while trueIndex + prevCount < endIndex:
+            #first fill in any values from this bin
+            for x in range(realStart, trueIndex+prevCount-startIndex):
+                binToFill[x] = prevChar
+            realStart = trueIndex+prevCount-startIndex
+            
+            #now do normal upkeep stuff
+            trueIndex += prevCount
+            inc(bwtIndex)
+            
+            #pull out the char and update powers/counts
+            currentChar = self.bwt_view[bwtIndex] & self.mask
+            if currentChar == prevChar:
+                powerMultiple *= self.numPower
+                prevCount = (self.bwt_view[bwtIndex] >> self.letterBits) * powerMultiple
+            else:
+                powerMultiple = 1
+                prevCount = self.bwt_view[bwtIndex] >> self.letterBits
+            prevChar = currentChar
+        
+        #finally fill in the remaining stuff
+        for x in range(realStart, endIndex-startIndex):
+            binToFill[x] = prevChar
         
     def getBWTRange(RLE_BWT self, unsigned long start, unsigned long end):
         '''
@@ -313,7 +379,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         
         return ret
     
-    cpdef unsigned long getOccurrenceOfCharAtIndex(RLE_BWT self, unsigned int sym, unsigned long index):# nogil:
+    cpdef unsigned long getOccurrenceOfCharAtIndex(RLE_BWT self, unsigned long sym, unsigned long index):# nogil:
         '''
         This functions gets the FM-index value of a character at the specified position
         @param sym - the character to find the occurrence level
@@ -357,6 +423,12 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         return ret
     
     def getFullFMAtIndex(RLE_BWT self, np.uint64_t index):
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.empty(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] ret_view = ret
+        self.fillFmAtIndex(ret_view, index)
+        return ret
+        
+    cdef void fillFmAtIndex(RLE_BWT self, np.uint64_t [:] ret_view, unsigned long index):
         '''
         This function creates a complete FM-index for a specific position in the BWT.  Example using the above example:
         BWT    Full FM-index
@@ -373,19 +445,25 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned long bwtIndex = 0
         cdef unsigned long j
         
-        #cdef unsigned long ret = self.partialFM_view[binID][sym]
-        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.empty(dtype='<u8', shape=(self.vcLen, ))
-        cdef np.uint64_t [:] ret_view = ret
+        #cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.empty(dtype='<u8', shape=(self.vcLen, ))
+        #cdef np.uint64_t [:] ret_view = ret
         
         for j in range(0, self.vcLen):
             bwtIndex += self.partialFM_view[binID][j]
             ret_view[j] = self.partialFM_view[binID][j]
         bwtIndex -= self.offsetSum
         
+        '''
         cdef np.uint8_t prevChar = 255
         cdef np.uint8_t currentChar
         cdef unsigned long prevCount = 0
         cdef unsigned long powerMultiple = 1
+        '''
+        cdef np.uint8_t prevChar = self.bwt_view[compressedIndex] & self.mask
+        cdef np.uint8_t currentChar
+        cdef unsigned long prevCount = self.bwt_view[compressedIndex] >> self.letterBits
+        cdef unsigned long powerMultiple = self.numPower
+        compressedIndex += 1
         
         while bwtIndex + prevCount < index:
             currentChar = self.bwt_view[compressedIndex] & self.mask
@@ -399,12 +477,12 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                 prevCount = (self.bwt_view[compressedIndex] >> self.letterBits)
                 prevChar = currentChar
                 powerMultiple = self.numPower
-                
+            
             inc(compressedIndex)
         
         ret_view[prevChar] += index-bwtIndex
         
-        return ret
+        #return ret
     
     cdef np.uint8_t iterNext_cython(RLE_BWT self) nogil:
         '''

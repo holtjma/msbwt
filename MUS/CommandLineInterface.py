@@ -12,8 +12,10 @@ import sys
 import MSBWTGen
 import util
 
-from MUSCython import MultiStringBWTCython as MultiStringBWT
+from MUSCython import GenericMerge
+from MUSCython import MSBWTCompGenCython
 from MUSCython import MSBWTGenCython
+from MUSCython import MultiStringBWTCython as MultiStringBWT
 
 def initLogger():
     '''
@@ -47,18 +49,20 @@ def mainRun():
     sp = p.add_subparsers(dest='subparserID')
     p2 = sp.add_parser('cffq', help='create a MSBWT from FASTQ files (pp + cfpp)')
     p2.add_argument('-p', metavar='numProcesses', dest='numProcesses', type=int, default=1, help='number of processes to run (default: 1)')
-    p2.add_argument('-u', '--uniform', dest='areUniform', action='store_true', help='the input sequences have uniform length (faster)', default=False)
+    p2.add_argument('-u', '--uniform', dest='areUniform', action='store_true', help='the input sequences have uniform length', default=False)
+    p2.add_argument('-c', '--compressed', dest='buildCompressed', action='store_true', help='build the RLE BWT (faster, less disk I/O)', default=False)
     p2.add_argument('outBwtDir', type=util.newDirectory, help='the output MSBWT directory')
     p2.add_argument('inputFastqs', nargs='+', type=util.readableFastqFile, help='the input FASTQ files')
     
     p7 = sp.add_parser('pp', help='pre-process FASTQ files before BWT creation')
-    p7.add_argument('-u', '--uniform', dest='areUniform', action='store_true', help='the input sequences have uniform length (faster)', default=False)
+    p7.add_argument('-u', '--uniform', dest='areUniform', action='store_true', help='the input sequences have uniform length', default=False)
     p7.add_argument('outBwtDir', type=util.newDirectory, help='the output MSBWT directory')
     p7.add_argument('inputFastqs', nargs='+', type=util.readableFastqFile, help='the input FASTQ files')
     
     p3 = sp.add_parser('cfpp', help='create a MSBWT from pre-processed sequences and offsets')
     p3.add_argument('-p', metavar='numProcesses', dest='numProcesses', type=int, default=1, help='number of processes to run (default: 1)')
-    p3.add_argument('-u', '--uniform', dest='areUniform', action='store_true', help='the input sequences have uniform length (faster)', default=False)
+    p3.add_argument('-u', '--uniform', dest='areUniform', action='store_true', help='the input sequences have uniform length', default=False)
+    p3.add_argument('-c', '--compressed', dest='buildCompressed', action='store_true', help='build the RLE BWT (faster, less disk I/O)', default=False)
     p3.add_argument('bwtDir', type=util.existingDirectory, help='the MSBWT directory to process')
     
     p4 = sp.add_parser('merge', help='merge many MSBWTs into a single MSBWT')
@@ -77,16 +81,15 @@ def mainRun():
     p6.add_argument('outputFile', help='output file with counts per line')
     p6.add_argument('-r', '--rev-comp', dest='reverseComplement', action='store_true', help='also search for each kmer\'s reverse complement', default=False)
     
-    p8 = sp.add_parser('compress', help='compress a MSBWT to a smaller storage format')
+    p8 = sp.add_parser('compress', help='compress a MSBWT from byte/base to RLE')
     p8.add_argument('-p', metavar='numProcesses', dest='numProcesses', type=int, default=1, help='number of processes to run (default: 1)')
     p8.add_argument('srcDir', type=util.existingDirectory, help='the source directory for the BWT to compress')
-    p8.add_argument('dstDir', type=util.existingDirectory, help='the destination directory (if same, old is removed)')
+    p8.add_argument('dstDir', type=util.newDirectory, help='the destination directory')
     
-    #TODO:
-    p9 = sp.add_parser('decompress', help='decompress a MSBWT for queries/merging')
+    p9 = sp.add_parser('decompress', help='decompress a MSBWT from RLE to byte/base')
     p9.add_argument('-p', metavar='numProcesses', dest='numProcesses', type=int, default=1, help='number of processes to run (default: 1)')
     p9.add_argument('srcDir', type=util.existingDirectory, help='the source directory for the BWT to compress')
-    p9.add_argument('dstDir', type=util.newOrExistingDirectory, help='the destination directory (if same, old is removed)')
+    p9.add_argument('dstDir', type=util.newDirectory, help='the destination directory')
     
     args = p.parse_args()
     
@@ -94,9 +97,23 @@ def mainRun():
         logger.info('Inputs:\t'+str(args.inputFastqs))
         logger.info('Uniform:\t'+str(args.areUniform))
         logger.info('Output:\t'+args.outBwtDir)
+        logger.info('Output Compressed:\t'+str(args.buildCompressed))
         logger.info('Processes:\t'+str(args.numProcesses))
+        if args.numProcesses > 1:
+            logger.warning('Using multi-processing with slow disk accesses can lead to slower build times.')
         print
-        MultiStringBWT.createMSBWTFromFastq(args.inputFastqs, args.outBwtDir, args.numProcesses, args.areUniform, logger)
+        if args.areUniform:
+            #if they are uniform, use the method developed by Bauer et al., it's likely short Illumina seq
+            if args.buildCompressed:
+                MultiStringBWT.createMSBWTCompFromFastq(args.inputFastqs, args.outBwtDir, args.numProcesses, args.areUniform, logger)
+            else:
+                MultiStringBWT.createMSBWTFromFastq(args.inputFastqs, args.outBwtDir, args.numProcesses, args.areUniform, logger)
+        else:
+            #if they aren't uniform, use the merge method by Holt et al., it's likely longer PacBio seq
+            if args.buildCompressed:
+                logger.error('No compressed builder for non-uniform datasets, compress after creation.')
+            else:
+                Multimerge.createMSBWTFromFastq(args.inputFastqs, args.outBwtDir, args.numProcesses, args.areUniform, logger)
         
     elif args.subparserID == 'pp':
         logger.info('Inputs:\t'+str(args.inputFastqs))
@@ -106,32 +123,51 @@ def mainRun():
         seqFN = args.outBwtDir+'/seqs.npy'
         offsetFN = args.outBwtDir+'/offsets.npy'
         aboutFN = args.outBwtDir+'/about.npy'
-        MultiStringBWT.preprocessFastqs(args.inputFastqs, seqFN, offsetFN, aboutFN, args.areUniform, logger)
+        if args.areUniform:
+            #preprocess for Bauer et al. method
+            MultiStringBWT.preprocessFastqs(args.inputFastqs, seqFN, offsetFN, aboutFN, args.areUniform, logger)
+        else:
+            #preprocess for Holt et al. method
+            numProcs = 1
+            Multimerge.preprocessFastqs(args.inputFastqs, args.outBwtDir, numProcs, args.areUniform, logger)
         
     elif args.subparserID == 'cfpp':
-        logger.info('BWT:\t'+args.bwtDir)
+        logger.info('BWT dir:\t'+args.bwtDir)
         logger.info('Uniform:\t'+str(args.areUniform))
+        logger.info('Output Compressed:\t'+str(args.buildCompressed))
         logger.info('Processes:\t'+str(args.numProcesses))
+        if args.numProcesses > 1:
+            logger.warning('Using multi-processing with slow disk accesses can lead to slower build times.')
         print
         seqFN = args.bwtDir+'/seqs.npy'
         offsetFN = args.bwtDir+'/offsets.npy'
         bwtFN = args.bwtDir+'/msbwt.npy'
-        #MSBWTGen.createFromSeqs(seqFN, offsetFN, bwtFN, args.numProcesses, args.areUniform, logger)
+        
         if args.areUniform:
-            MSBWTGenCython.createMsbwtFromSeqs(args.bwtDir, args.numProcesses, logger)
+            #process it using the column-wise Bauer et al. method
+            if args.buildCompressed:
+                MSBWTCompGenCython.createMsbwtFromSeqs(args.bwtDir, args.numProcesses, logger)
+            else:
+                MSBWTGenCython.createMsbwtFromSeqs(args.bwtDir, args.numProcesses, logger)
         else:
-            MSBWTGenCython.createFromSeqs(seqFN, offsetFN, bwtFN, args.numProcesses, args.areUniform, logger)
+            #process it using the Holt et al. merge method
+            if args.buildCompressed:
+                logger.error('No compressed builder for non-uniform datasets, compress after creation.')
+            else:
+                Multimerge.interleaveLevelMerge(args.bwtDir, args.numProcesses, args.areUniform, logger)
         
     elif args.subparserID == 'compress':
-        logger.info('Src:'+args.srcDir)
-        logger.info('Dst:'+args.dstDir)
+        logger.info('Soure Directory:'+args.srcDir)
+        logger.info('Dest Directory:'+args.dstDir)
+        logger.info('Processes:'+args.numProcesses)
+        if args.srcDir == args.dstDir:
+            raise Exception('Source and destination directories cannot be the same directory.')
         print
         MSBWTGen.compressBWT(args.srcDir+'/msbwt.npy', args.dstDir+'/comp_msbwt.npy', args.numProcesses, logger)
-        #TODO: add this line or let them do it? but be careful for now that we don't accidentally break something
-        #os.remove(args.bwtDir+'/msbwt.npy')
+        
     elif args.subparserID == 'decompress':
-        logger.info('Src Directory: '+args.srcDir)
-        logger.info('Dst Directory: '+args.dstDir)
+        logger.info('Source Directory: '+args.srcDir)
+        logger.info('Dest Directory: '+args.dstDir)
         logger.info('Processes: '+str(args.numProcesses))
         print
         MSBWTGen.decompressBWT(args.srcDir, args.dstDir, args.numProcesses, logger)
@@ -141,10 +177,18 @@ def mainRun():
         logger.info('Inputs:\t'+str(args.inputBwtDirs))
         logger.info('Output:\t'+args.outBwtDir)
         logger.info('Processes:\t'+str(args.numProcesses))
-        logger.warning('Multi-processing is not supported at this time, but will be included in a future release.')
+        if args.numProcesses > 1:
+            logger.warning('Multi-processing is not supported at this time, but will be included in a future release.')
+            numProcs = 1
+            #logger.warning('Using multi-processing with slow disk accesses can lead to slower build times.')
         print
         #MSBWTGen.mergeNewMSBWT(args.outBwtDir, args.inputBwtDirs, args.numProcesses, logger)
-        MSBWTGenCython.mergeMsbwts(args.inputBwtDirs, args.outBwtDir, 1, logger)
+        if len(args.inputBwtDirs) > 2:
+            #this is a deprecated method, it may still work if you feel daring
+            #MSBWTGenCython.mergeMsbwts(args.inputBwtDirs, args.outBwtDir, 1, logger)
+            logger.error('Merging more than two MSBWTs at once is not currently supported.')
+        else:
+            GenericMerge.mergeTwoMSBWTs(args.inputBwtDirs[0], args.inputBwtDirs[1], args.outBwtDir, numProcs, logger)
         
     elif args.subparserID == 'query':
         #this is the easiest thing we can do, don't dump the standard info, just do it

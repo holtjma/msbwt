@@ -97,7 +97,7 @@ class PathNode(object):
                 newID = len(nodes)
                 newHistMers = set([])
                 nodes.append(PathNode(newID, kmer, self.msbwt, self.minDistToSeed+len(self.pileups), self.settingsDict))
-                edges.append(PathEdge(len(edges), self.nodeID, newID, pc+', '+str(revCounts)))
+                edges.append(PathEdge(len(edges), self.nodeID, newID, revCounts[pc], pc+', '+str(revCounts)))
                 self.termCondition = 'MERGE_'+str(newID)
                 foundKmers[kmer] = newID
                 
@@ -145,14 +145,14 @@ class PathNode(object):
                             if foundKmers.has_key(newKmer):
                                 otherNID = foundKmers[newKmer]
                                 nodes[otherNID].minDistToSeed = min(nodes[otherNID].minDistToSeed, self.minDistToSeed+len(self.pileups))
-                                edges.append(PathEdge(len(edges), self.nodeID, otherNID, c+': '+str(counts[c])))
+                                edges.append(PathEdge(len(edges), self.nodeID, otherNID, counts[c], c+': '+str(counts[c])))
                             
                             else:
                                 if self.drawDollarTerminals or c != '$':
                                     newID = len(nodes)
                                     newHistMers = set([])
                                     nodes.append(PathNode(newID, newKmer, self.msbwt, self.minDistToSeed+len(self.pileups), self.settingsDict))
-                                    edges.append(PathEdge(len(edges), self.nodeID, newID, c+': '+str(counts[c])))
+                                    edges.append(PathEdge(len(edges), self.nodeID, newID, counts[c], c+': '+str(counts[c])))
                                     foundKmers[newKmer] = newID
                                     
                                     if c != '$':
@@ -171,10 +171,10 @@ class PathNode(object):
                         otherNID = foundKmers[kmer]
                         nodes[otherNID].minDistToSeed = min(nodes[otherNID].minDistToSeed, self.minDistToSeed+len(self.pileups))
                         if counts[maxC] >= self.pathThreshold:
-                            edges.append(PathEdge(len(edges), self.nodeID, otherNID, pc+': '+str(counts[maxC])))
+                            edges.append(PathEdge(len(edges), self.nodeID, otherNID, counts[maxC], pc+': '+str(counts[maxC])))
                             self.termCondition = 'MERGE_'+str(otherNID)
                         else:
-                            edges.append(PathEdge(len(edges), self.nodeID, otherNID, pc+': '+str(counts[maxC]), 'dashed'))
+                            edges.append(PathEdge(len(edges), self.nodeID, otherNID, counts[maxC], pc+': '+str(counts[maxC]), 'dashed'))
                             self.termCondition = 'MERGE_'+str(otherNID)+', THRESHOLD'
                             
                         terminate = True
@@ -193,10 +193,11 @@ class PathNode(object):
         print 'UNHANDLED '
 
 class PathEdge(object):
-    def __init__(self, edgeID, fromNodeID, toNodeID, label, style='solid'):
+    def __init__(self, edgeID, fromNodeID, toNodeID, edgeWeight, label, style='solid'):
         self.edgeID = edgeID
         self.fromID = fromNodeID
         self.toID = toNodeID
+        self.edgeWeight = edgeWeight
         self.label = str(label)
         self.edgeStyle = style
 
@@ -231,6 +232,7 @@ class Assembler(object):
         isMerged = self.settingsDict.get('isMerged', False)
         trackPairs = self.settingsDict.get('trackPairs', False)
         trackReads = self.settingsDict.get('trackReads', False)
+        useMemmap = self.settingsDict.get('useMemmap', True)
         
         if len(seedKmer) != pathK:
             raise Exception('Seed k-mer incorrect length')
@@ -239,7 +241,7 @@ class Assembler(object):
         validChars = ['$', 'A', 'C', 'G', 'N', 'T']
         
         self.logger.info('Loading '+self.bwtDir+'...')
-        msbwt = MultiStringBWT.loadBWT(self.bwtDir, self.logger)
+        msbwt = MultiStringBWT.loadBWT(self.bwtDir, useMemmap, self.logger)
         if os.path.exists(self.bwtDir+'/origins.npy'):
             raise Exception("You haven\'t reimplemented the handling of origin files")
             origins = np.load(self.bwtDir+'/origins.npy', 'r')
@@ -330,7 +332,7 @@ class Assembler(object):
             retData.append((node.nodeID, node.execOrder, node.seq, node.pileups, node.termCondition, node.minDistToSeed,
                             node.inversionSet, node.readSet, node.pairedNodes, node.sourceCounts))
         for edge in self.edges:
-            retEdges.append((edge.fromID, edge.toID, edge.label, edge.edgeStyle))
+            retEdges.append((edge.fromID, edge.toID, edge.edgeWeight, edge.label, edge.edgeStyle))
         
         return (retData, retEdges)
         
