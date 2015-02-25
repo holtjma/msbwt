@@ -15,6 +15,7 @@ import util
 from MUSCython import GenericMerge
 from MUSCython import MSBWTCompGenCython
 from MUSCython import MSBWTGenCython
+from MUSCython import MultimergeCython as Multimerge
 from MUSCython import MultiStringBWTCython as MultiStringBWT
 
 def initLogger():
