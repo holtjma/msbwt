@@ -193,7 +193,7 @@ def mainRun():
         
     elif args.subparserID == 'query':
         #this is the easiest thing we can do, don't dump the standard info, just do it
-        msbwt = MultiStringBWT.loadBWT(args.inputBwtDir, logger)
+        msbwt = MultiStringBWT.loadBWT(args.inputBwtDir, logger=logger)
         
         #always print how many are found, users can parse it out if they want
         r = msbwt.findIndicesOfStr(args.kmer)
@@ -211,7 +211,7 @@ def mainRun():
         logger.info('Output:\t'+args.outputFile)
         logger.info('Rev-comp:\t'+str(args.reverseComplement))
         print
-        msbwt = MultiStringBWT.loadBWT(args.inputBwtDir, logger)
+        msbwt = MultiStringBWT.loadBWT(args.inputBwtDir, logger=logger)
         
         output = open(args.outputFile, 'w+')
         output.write('k-mer,counts')
