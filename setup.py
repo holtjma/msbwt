@@ -22,9 +22,11 @@ cmdClass = {}
 extModules = []
 
 if useCython:
-    extModules += [Extension('MUSCython.BasicBWT', ['MUSCython/BasicBWT.pyx'], include_dirs=['.']),
+    extModules += [Extension('MUSCython.AlignmentUtil', ['MUSCython/AlignmentUtil.pyx'], include_dirs=['.']),
+                   Extension('MUSCython.BasicBWT', ['MUSCython/BasicBWT.pyx'], include_dirs=['.']),
                    Extension('MUSCython.ByteBWTCython', ['MUSCython/ByteBWTCython.pyx'], include_dirs=['.']),
                    Extension('MUSCython.GenericMerge', ['MUSCython/GenericMerge.pyx'], include_dirs=['.']),
+                   Extension('MUSCython.LCPGen', ['MUSCython/LCPGen.pyx'], include_dirs=['.']),
                    Extension('MUSCython.LZW_BWTCython', ['MUSCython/LZW_BWTCython.pyx'], include_dirs=['.']),
                    Extension('MUSCython.MSBWTCompGenCython', ['MUSCython/MSBWTCompGenCython.pyx'], include_dirs=['.']),
                    Extension('MUSCython.MSBWTGenCython', ['MUSCython/MSBWTGenCython.pyx'], include_dirs=['.']),
@@ -38,9 +40,11 @@ if useCython:
         def run(self):
             # Make sure the compiled Cython files in the distribution are up-to-date
             from Cython.Build import cythonize
+            cythonize('MUSCython/AlignmentUtil.pyx', include_path=[np.get_include()])
             cythonize('MUSCython/BasicBWT.pyx', include_path=[np.get_include()])
             cythonize('MUSCython/ByteBWTCython.pyx', include_path=[np.get_include()])
             cythonize('MUSCython/GenericMerge.pyx', include_path=[np.get_include()])
+            cythonize('MUSCython/LCPGen.pyx', include_path=[np.get_include()])
             cythonize('MUSCython/LZW_BWTCython.pyx', include_path=[np.get_include()])
             cythonize('MUSCython/MSBWTCompGenCython.pyx', include_path=[np.get_include()])
             cythonize('MUSCython/MSBWTGenCython.pyx', include_path=[np.get_include()])
@@ -51,9 +55,11 @@ if useCython:
     cmdClass['sdist'] = sdist
     
 else:
-    extModules += [Extension('MUSCython.BasicBWT', ['MUSCython/BasicBWT.c'], include_dirs=['.']),
+    extModules += [Extension('MUSCython.AlignmentUtil', ['MUSCython/AlignmentUtil.c'], include_dirs=['.']),
+                   Extension('MUSCython.BasicBWT', ['MUSCython/BasicBWT.c'], include_dirs=['.']),
                    Extension('MUSCython.ByteBWTCython', ['MUSCython/ByteBWTCython.c'], include_dirs=['.']),
                    Extension('MUSCython.GenericMerge', ['MUSCython/GenericMerge.c'], include_dirs=['.']),
+                   Extension('MUSCython.LCPGen', ['MUSCython/LCPGen.c'], include_dirs=['.']),
                    Extension('MUSCython.LZW_BWTCython', ['MUSCython/LZW_BWTCython.c'], include_dirs=['.']),
                    Extension('MUSCython.MSBWTCompGenCython', ['MUSCython/MSBWTCompGenCython.c'], include_dirs=['.']),
                    Extension('MUSCython.MSBWTGenCython', ['MUSCython/MSBWTGenCython.c'], include_dirs=['.']),

@@ -17,10 +17,13 @@ For detailed usage, please type after installation:
 
 	msbwt -h
 
-Reference
-=========
+References
+==========
 
-Holt, J., McMillan, L. Merging of Multi-String BWTs with Applications. Under Review. Submitted March 2014.
+Holt, James, and Leonard McMillan. "Merging of multi-string BWTs with applications." Bioinformatics (2014): btu584.
+
+Holt, James, and Leonard McMillan. "Constructing burrows-wheeler transforms of large string collections via merging." 
+Proceedings of the 5th ACM Conference on Bioinformatics, Computational Biology, and Health Informatics. ACM, 2014.
 
 System Requirements
 ===================
@@ -55,7 +58,7 @@ installation.
 
 Alternatively, users can download the tarball of source from
 
-	http://code.google.com/p/msbwt/
+	https://github.com/holtjma/msbwt
 
 and then type:
 
