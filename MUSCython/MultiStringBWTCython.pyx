@@ -640,9 +640,9 @@ def reverseComplement(seq):
     '''
     Helper function for generating reverse-complements
     '''
-    revComp = ''
     complement = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N', '$':'$', '?':'?', '*':'*'}
-    for c in reversed(seq):
-        revComp += complement[c]
+    revComp = ''.join([complement[c] for c in reversed(seq)])
+    #for c in reversed(seq):
+    #    revComp += complement[c]
     return revComp
     

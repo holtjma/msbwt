@@ -799,43 +799,43 @@ struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_findIndicesOfRegex;
 struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_getSequenceDollarID;
 struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_recoverString;
 
-/* "BasicBWT.pxd":42
+/* "BasicBWT.pxd":46
  *     cpdef unsigned long getSymbolCount(BasicBWT self, unsigned long symbol)
- *     cpdef getBinBits(BasicBWT self)
- *     cpdef countOccurrencesOfSeq(BasicBWT self, bytes seq, givenRange=*)             # <<<<<<<<<<<<<<
- *     cpdef findIndicesOfStr(BasicBWT self, bytes seq, givenRange=*)
- *     cpdef findIndicesOfRegex(BasicBWT self, bytes seq, givenRange=*)
+ *     cpdef unsigned long getBinBits(BasicBWT self)
+ *     cpdef unsigned long countOccurrencesOfSeq(BasicBWT self, bytes seq, tuple givenRange=*)             # <<<<<<<<<<<<<<
+ *     cpdef tuple findIndicesOfStr(BasicBWT self, bytes seq, tuple givenRange=*)
+ *     cpdef list findIndicesOfRegex(BasicBWT self, bytes seq, tuple givenRange=*)
  */
 struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_countOccurrencesOfSeq {
   int __pyx_n;
   PyObject *givenRange;
 };
 
-/* "BasicBWT.pxd":43
- *     cpdef getBinBits(BasicBWT self)
- *     cpdef countOccurrencesOfSeq(BasicBWT self, bytes seq, givenRange=*)
- *     cpdef findIndicesOfStr(BasicBWT self, bytes seq, givenRange=*)             # <<<<<<<<<<<<<<
- *     cpdef findIndicesOfRegex(BasicBWT self, bytes seq, givenRange=*)
- *     cpdef unsigned long getCharAtIndex(BasicBWT self, unsigned long index)
+/* "BasicBWT.pxd":47
+ *     cpdef unsigned long getBinBits(BasicBWT self)
+ *     cpdef unsigned long countOccurrencesOfSeq(BasicBWT self, bytes seq, tuple givenRange=*)
+ *     cpdef tuple findIndicesOfStr(BasicBWT self, bytes seq, tuple givenRange=*)             # <<<<<<<<<<<<<<
+ *     cpdef list findIndicesOfRegex(BasicBWT self, bytes seq, tuple givenRange=*)
+ *     cpdef list findStrWithError(BasicBWT self, bytes seq, bytes bonusStr)
  */
 struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_findIndicesOfStr {
   int __pyx_n;
   PyObject *givenRange;
 };
 
-/* "BasicBWT.pxd":44
- *     cpdef countOccurrencesOfSeq(BasicBWT self, bytes seq, givenRange=*)
- *     cpdef findIndicesOfStr(BasicBWT self, bytes seq, givenRange=*)
- *     cpdef findIndicesOfRegex(BasicBWT self, bytes seq, givenRange=*)             # <<<<<<<<<<<<<<
- *     cpdef unsigned long getCharAtIndex(BasicBWT self, unsigned long index)
- *     cpdef unsigned long getOccurrenceOfCharAtIndex(BasicBWT self, unsigned long sym, unsigned long index)
+/* "BasicBWT.pxd":48
+ *     cpdef unsigned long countOccurrencesOfSeq(BasicBWT self, bytes seq, tuple givenRange=*)
+ *     cpdef tuple findIndicesOfStr(BasicBWT self, bytes seq, tuple givenRange=*)
+ *     cpdef list findIndicesOfRegex(BasicBWT self, bytes seq, tuple givenRange=*)             # <<<<<<<<<<<<<<
+ *     cpdef list findStrWithError(BasicBWT self, bytes seq, bytes bonusStr)
+ *     cpdef list findPatternWithError(BasicBWT self, bytes seq, bytes bonusStr)
  */
 struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_findIndicesOfRegex {
   int __pyx_n;
   PyObject *givenRange;
 };
 
-/* "BasicBWT.pxd":50
+/* "BasicBWT.pxd":57
  *     cpdef iterNext(BasicBWT self)
  *     cdef np.uint8_t iterNext_cython(BasicBWT self) nogil
  *     cpdef getSequenceDollarID(BasicBWT self, unsigned long strIndex, bint returnOffset=*)             # <<<<<<<<<<<<<<
@@ -847,7 +847,7 @@ struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_getSequenceDollarID {
   int returnOffset;
 };
 
-/* "BasicBWT.pxd":51
+/* "BasicBWT.pxd":58
  *     cdef np.uint8_t iterNext_cython(BasicBWT self) nogil
  *     cpdef getSequenceDollarID(BasicBWT self, unsigned long strIndex, bint returnOffset=*)
  *     cpdef recoverString(BasicBWT self, unsigned long strIndex, bint withIndex=*)             # <<<<<<<<<<<<<<
@@ -896,6 +896,9 @@ struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT {
   __pyx_t_5numpy_uint8_t iterCurrChar;
   __pyx_t_5numpy_uint8_t iterCurrCount;
   unsigned long fileSize;
+  int lcpsPresent;
+  PyArrayObject *lcps;
+  __Pyx_memviewslice lcps_view;
 };
 
 
@@ -1003,12 +1006,15 @@ struct __pyx_memoryviewslice_obj {
 
 struct __pyx_vtabstruct_9MUSCython_8BasicBWT_BasicBWT {
   void (*constructIndexing)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *);
-  PyObject *(*getTotalSize)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, int __pyx_skip_dispatch);
+  unsigned long (*getTotalSize)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, int __pyx_skip_dispatch);
   unsigned long (*getSymbolCount)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, unsigned long, int __pyx_skip_dispatch);
-  PyObject *(*getBinBits)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, int __pyx_skip_dispatch);
-  PyObject *(*countOccurrencesOfSeq)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, int __pyx_skip_dispatch, struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_countOccurrencesOfSeq *__pyx_optional_args);
+  unsigned long (*getBinBits)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, int __pyx_skip_dispatch);
+  unsigned long (*countOccurrencesOfSeq)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, int __pyx_skip_dispatch, struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_countOccurrencesOfSeq *__pyx_optional_args);
   PyObject *(*findIndicesOfStr)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, int __pyx_skip_dispatch, struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_findIndicesOfStr *__pyx_optional_args);
   PyObject *(*findIndicesOfRegex)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, int __pyx_skip_dispatch, struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_findIndicesOfRegex *__pyx_optional_args);
+  PyObject *(*findStrWithError)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, PyObject *, int __pyx_skip_dispatch);
+  PyObject *(*findPatternWithError)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, PyObject *, int __pyx_skip_dispatch);
+  PyObject *(*findReadsMatchingSeq)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
   unsigned long (*getCharAtIndex)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, unsigned long, int __pyx_skip_dispatch);
   unsigned long (*getOccurrenceOfCharAtIndex)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, unsigned long, unsigned long, int __pyx_skip_dispatch);
   PyObject *(*iterInit)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, int __pyx_skip_dispatch);
@@ -1018,6 +1024,11 @@ struct __pyx_vtabstruct_9MUSCython_8BasicBWT_BasicBWT {
   PyObject *(*recoverString)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, unsigned long, int __pyx_skip_dispatch, struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_recoverString *__pyx_optional_args);
   void (*fillBin)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, __Pyx_memviewslice, unsigned long);
   void (*fillFmAtIndex)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, __Pyx_memviewslice, unsigned long);
+  PyObject *(*countSeqMatches)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
+  PyObject *(*countStrandedSeqMatches)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
+  PyArrayObject *(*findKmerThreshold)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
+  PyArrayObject *(*findKmerThresholdStranded)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
+  PyArrayObject *(*findKTOtherStranded)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
 };
 static struct __pyx_vtabstruct_9MUSCython_8BasicBWT_BasicBWT *__pyx_vtabptr_9MUSCython_8BasicBWT_BasicBWT;
 
@@ -1285,6 +1296,22 @@ static double __Pyx__PyObject_AsDouble(PyObject* obj);
  PyFloat_AS_DOUBLE(obj) : __Pyx__PyObject_AsDouble(obj))
 #endif
 
+#if CYTHON_COMPILING_IN_CPYTHON
+static CYTHON_INLINE int __Pyx_ListComp_Append(PyObject* list, PyObject* x) {
+    PyListObject* L = (PyListObject*) list;
+    Py_ssize_t len = Py_SIZE(list);
+    if (likely(L->allocated > len)) {
+        Py_INCREF(x);
+        PyList_SET_ITEM(list, len, x);
+        Py_SIZE(list) = len+1;
+        return 0;
+    }
+    return PyList_Append(list, x);
+}
+#else
+#define __Pyx_ListComp_Append(L,x) PyList_Append(L,x)
+#endif
+
 #if PY_MAJOR_VERSION >= 3
 static PyObject *__Pyx_PyDict_GetItem(PyObject *d, PyObject* key) {
     PyObject *value;
@@ -1330,22 +1357,6 @@ static CYTHON_UNUSED int __pyx_memoryview_getbuffer(PyObject *__pyx_v_self, Py_b
 static PyObject *__pyx_memoryview_transpose(PyObject *__pyx_v_self); /*proto*/
 static PyObject *__pyx_memoryview__get__base(PyObject *__pyx_v_self); /*proto*/
 static PyObject *__pyx_memoryview_get_shape(PyObject *__pyx_v_self); /*proto*/
-#if CYTHON_COMPILING_IN_CPYTHON
-static CYTHON_INLINE int __Pyx_ListComp_Append(PyObject* list, PyObject* x) {
-    PyListObject* L = (PyListObject*) list;
-    Py_ssize_t len = Py_SIZE(list);
-    if (likely(L->allocated > len)) {
-        Py_INCREF(x);
-        PyList_SET_ITEM(list, len, x);
-        Py_SIZE(list) = len+1;
-        return 0;
-    }
-    return PyList_Append(list, x);
-}
-#else
-#define __Pyx_ListComp_Append(L,x) PyList_Append(L,x)
-#endif
-
 static PyObject *__pyx_memoryview_get_strides(PyObject *__pyx_v_self); /*proto*/
 static PyObject *__pyx_memoryview_get_suboffsets(PyObject *__pyx_v_self); /*proto*/
 static PyObject *__pyx_memoryview_get_ndim(PyObject *__pyx_v_self); /*proto*/
@@ -12898,16 +12909,16 @@ static PyObject *__pyx_pw_9MUSCython_20MultiStringBWTCython_32reverseComplement(
 }
 
 static PyObject *__pyx_pf_9MUSCython_20MultiStringBWTCython_31reverseComplement(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_seq) {
-  PyObject *__pyx_v_revComp = NULL;
   PyObject *__pyx_v_complement = NULL;
+  PyObject *__pyx_v_revComp = NULL;
   PyObject *__pyx_v_c = NULL;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   PyObject *__pyx_t_2 = NULL;
-  Py_ssize_t __pyx_t_3;
-  PyObject *(*__pyx_t_4)(PyObject *);
-  PyObject *__pyx_t_5 = NULL;
+  PyObject *__pyx_t_3 = NULL;
+  Py_ssize_t __pyx_t_4;
+  PyObject *(*__pyx_t_5)(PyObject *);
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -12916,117 +12927,95 @@ static PyObject *__pyx_pf_9MUSCython_20MultiStringBWTCython_31reverseComplement(
   /* "MUSCython/MultiStringBWTCython.pyx":643
  *     Helper function for generating reverse-complements
  *     '''
- *     revComp = ''             # <<<<<<<<<<<<<<
- *     complement = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N', '$':'$', '?':'?', '*':'*'}
- *     for c in reversed(seq):
- */
-  __Pyx_INCREF(__pyx_kp_s__3);
-  __pyx_v_revComp = __pyx_kp_s__3;
-
-  /* "MUSCython/MultiStringBWTCython.pyx":644
- *     '''
- *     revComp = ''
  *     complement = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N', '$':'$', '?':'?', '*':'*'}             # <<<<<<<<<<<<<<
- *     for c in reversed(seq):
- *         revComp += complement[c]
+ *     revComp = ''.join([complement[c] for c in reversed(seq)])
+ *     #for c in reversed(seq):
  */
-  __pyx_t_1 = PyDict_New(); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = PyDict_New(); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 643; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_A, __pyx_n_s_T) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_C, __pyx_n_s_G) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_G, __pyx_n_s_C) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_T, __pyx_n_s_A) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_N, __pyx_n_s_N) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  if (PyDict_SetItem(__pyx_t_1, __pyx_kp_s__18, __pyx_kp_s__18) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  if (PyDict_SetItem(__pyx_t_1, __pyx_kp_s__43, __pyx_kp_s__43) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  if (PyDict_SetItem(__pyx_t_1, __pyx_kp_s__44, __pyx_kp_s__44) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_A, __pyx_n_s_T) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 643; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_C, __pyx_n_s_G) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 643; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_G, __pyx_n_s_C) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 643; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_T, __pyx_n_s_A) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 643; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_N, __pyx_n_s_N) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 643; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_1, __pyx_kp_s__18, __pyx_kp_s__18) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 643; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_1, __pyx_kp_s__43, __pyx_kp_s__43) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 643; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_1, __pyx_kp_s__44, __pyx_kp_s__44) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 643; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_complement = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "MUSCython/MultiStringBWTCython.pyx":645
- *     revComp = ''
+  /* "MUSCython/MultiStringBWTCython.pyx":644
+ *     '''
  *     complement = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N', '$':'$', '?':'?', '*':'*'}
- *     for c in reversed(seq):             # <<<<<<<<<<<<<<
- *         revComp += complement[c]
- *     return revComp
+ *     revComp = ''.join([complement[c] for c in reversed(seq)])             # <<<<<<<<<<<<<<
+ *     #for c in reversed(seq):
+ *     #    revComp += complement[c]
  */
-  __pyx_t_1 = PyTuple_New(1); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 645; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_1);
-  __Pyx_INCREF(__pyx_v_seq);
-  PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_v_seq);
-  __Pyx_GIVEREF(__pyx_v_seq);
-  __pyx_t_2 = __Pyx_PyObject_Call(__pyx_builtin_reversed, __pyx_t_1, NULL); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 645; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = PyTuple_New(1); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_2);
-  __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  if (likely(PyList_CheckExact(__pyx_t_2)) || PyTuple_CheckExact(__pyx_t_2)) {
-    __pyx_t_1 = __pyx_t_2; __Pyx_INCREF(__pyx_t_1); __pyx_t_3 = 0;
-    __pyx_t_4 = NULL;
-  } else {
-    __pyx_t_3 = -1; __pyx_t_1 = PyObject_GetIter(__pyx_t_2); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 645; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-    __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_4 = Py_TYPE(__pyx_t_1)->tp_iternext; if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 645; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  }
+  __Pyx_INCREF(__pyx_v_seq);
+  PyTuple_SET_ITEM(__pyx_t_2, 0, __pyx_v_seq);
+  __Pyx_GIVEREF(__pyx_v_seq);
+  __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_reversed, __pyx_t_2, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  if (likely(PyList_CheckExact(__pyx_t_3)) || PyTuple_CheckExact(__pyx_t_3)) {
+    __pyx_t_2 = __pyx_t_3; __Pyx_INCREF(__pyx_t_2); __pyx_t_4 = 0;
+    __pyx_t_5 = NULL;
+  } else {
+    __pyx_t_4 = -1; __pyx_t_2 = PyObject_GetIter(__pyx_t_3); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __Pyx_GOTREF(__pyx_t_2);
+    __pyx_t_5 = Py_TYPE(__pyx_t_2)->tp_iternext; if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  }
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   for (;;) {
-    if (likely(!__pyx_t_4)) {
-      if (likely(PyList_CheckExact(__pyx_t_1))) {
-        if (__pyx_t_3 >= PyList_GET_SIZE(__pyx_t_1)) break;
+    if (likely(!__pyx_t_5)) {
+      if (likely(PyList_CheckExact(__pyx_t_2))) {
+        if (__pyx_t_4 >= PyList_GET_SIZE(__pyx_t_2)) break;
         #if CYTHON_COMPILING_IN_CPYTHON
-        __pyx_t_2 = PyList_GET_ITEM(__pyx_t_1, __pyx_t_3); __Pyx_INCREF(__pyx_t_2); __pyx_t_3++; if (unlikely(0 < 0)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 645; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __pyx_t_3 = PyList_GET_ITEM(__pyx_t_2, __pyx_t_4); __Pyx_INCREF(__pyx_t_3); __pyx_t_4++; if (unlikely(0 < 0)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
         #else
-        __pyx_t_2 = PySequence_ITEM(__pyx_t_1, __pyx_t_3); __pyx_t_3++; if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 645; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __pyx_t_3 = PySequence_ITEM(__pyx_t_2, __pyx_t_4); __pyx_t_4++; if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
         #endif
       } else {
-        if (__pyx_t_3 >= PyTuple_GET_SIZE(__pyx_t_1)) break;
+        if (__pyx_t_4 >= PyTuple_GET_SIZE(__pyx_t_2)) break;
         #if CYTHON_COMPILING_IN_CPYTHON
-        __pyx_t_2 = PyTuple_GET_ITEM(__pyx_t_1, __pyx_t_3); __Pyx_INCREF(__pyx_t_2); __pyx_t_3++; if (unlikely(0 < 0)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 645; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __pyx_t_3 = PyTuple_GET_ITEM(__pyx_t_2, __pyx_t_4); __Pyx_INCREF(__pyx_t_3); __pyx_t_4++; if (unlikely(0 < 0)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
         #else
-        __pyx_t_2 = PySequence_ITEM(__pyx_t_1, __pyx_t_3); __pyx_t_3++; if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 645; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __pyx_t_3 = PySequence_ITEM(__pyx_t_2, __pyx_t_4); __pyx_t_4++; if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
         #endif
       }
     } else {
-      __pyx_t_2 = __pyx_t_4(__pyx_t_1);
-      if (unlikely(!__pyx_t_2)) {
+      __pyx_t_3 = __pyx_t_5(__pyx_t_2);
+      if (unlikely(!__pyx_t_3)) {
         PyObject* exc_type = PyErr_Occurred();
         if (exc_type) {
           if (likely(exc_type == PyExc_StopIteration || PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) PyErr_Clear();
-          else {__pyx_filename = __pyx_f[0]; __pyx_lineno = 645; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+          else {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
         }
         break;
       }
-      __Pyx_GOTREF(__pyx_t_2);
+      __Pyx_GOTREF(__pyx_t_3);
     }
-    __Pyx_XDECREF_SET(__pyx_v_c, __pyx_t_2);
-    __pyx_t_2 = 0;
-
-    /* "MUSCython/MultiStringBWTCython.pyx":646
- *     complement = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N', '$':'$', '?':'?', '*':'*'}
- *     for c in reversed(seq):
- *         revComp += complement[c]             # <<<<<<<<<<<<<<
- *     return revComp
- * 
- */
-    __pyx_t_2 = __Pyx_PyDict_GetItem(__pyx_v_complement, __pyx_v_c); if (unlikely(__pyx_t_2 == NULL)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 646; __pyx_clineno = __LINE__; goto __pyx_L1_error;};
-    __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_5 = PyNumber_InPlaceAdd(__pyx_v_revComp, __pyx_t_2); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 646; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-    __Pyx_GOTREF(__pyx_t_5);
-    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __Pyx_DECREF_SET(__pyx_v_revComp, __pyx_t_5);
-    __pyx_t_5 = 0;
-
-    /* "MUSCython/MultiStringBWTCython.pyx":645
- *     revComp = ''
- *     complement = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N', '$':'$', '?':'?', '*':'*'}
- *     for c in reversed(seq):             # <<<<<<<<<<<<<<
- *         revComp += complement[c]
- *     return revComp
- */
+    __Pyx_XDECREF_SET(__pyx_v_c, __pyx_t_3);
+    __pyx_t_3 = 0;
+    __pyx_t_3 = __Pyx_PyDict_GetItem(__pyx_v_complement, __pyx_v_c); if (unlikely(__pyx_t_3 == NULL)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;};
+    __Pyx_GOTREF(__pyx_t_3);
+    if (unlikely(__Pyx_ListComp_Append(__pyx_t_1, (PyObject*)__pyx_t_3))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   }
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __pyx_t_2 = __Pyx_PyString_Join(__pyx_kp_s__3, __pyx_t_1); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+  __pyx_v_revComp = ((PyObject*)__pyx_t_2);
+  __pyx_t_2 = 0;
 
   /* "MUSCython/MultiStringBWTCython.pyx":647
- *     for c in reversed(seq):
- *         revComp += complement[c]
+ *     #for c in reversed(seq):
+ *     #    revComp += complement[c]
  *     return revComp             # <<<<<<<<<<<<<<
  * 
  */
@@ -13047,12 +13036,12 @@ static PyObject *__pyx_pf_9MUSCython_20MultiStringBWTCython_31reverseComplement(
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
-  __Pyx_XDECREF(__pyx_t_5);
+  __Pyx_XDECREF(__pyx_t_3);
   __Pyx_AddTraceback("MUSCython.MultiStringBWTCython.reverseComplement", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
-  __Pyx_XDECREF(__pyx_v_revComp);
   __Pyx_XDECREF(__pyx_v_complement);
+  __Pyx_XDECREF(__pyx_v_revComp);
   __Pyx_XDECREF(__pyx_v_c);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
@@ -26762,7 +26751,7 @@ static int __Pyx_InitCachedBuiltins(void) {
   __pyx_builtin_enumerate = __Pyx_GetBuiltinName(__pyx_n_s_enumerate); if (!__pyx_builtin_enumerate) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 235; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_open = __Pyx_GetBuiltinName(__pyx_n_s_open); if (!__pyx_builtin_open) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 241; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_ValueError = __Pyx_GetBuiltinName(__pyx_n_s_ValueError); if (!__pyx_builtin_ValueError) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 255; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_builtin_reversed = __Pyx_GetBuiltinName(__pyx_n_s_reversed); if (!__pyx_builtin_reversed) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 645; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_builtin_reversed = __Pyx_GetBuiltinName(__pyx_n_s_reversed); if (!__pyx_builtin_reversed) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 644; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 228; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_RuntimeError = __Pyx_GetBuiltinName(__pyx_n_s_RuntimeError); if (!__pyx_builtin_RuntimeError) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 799; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_MemoryError = __Pyx_GetBuiltinName(__pyx_n_s_MemoryError); if (!__pyx_builtin_MemoryError) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 142; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -27530,7 +27519,7 @@ static int __Pyx_InitCachedConstants(void) {
  *     '''
  *     Helper function for generating reverse-complements
  */
-  __pyx_tuple__92 = PyTuple_Pack(4, __pyx_n_s_seq, __pyx_n_s_revComp, __pyx_n_s_complement, __pyx_n_s_c); if (unlikely(!__pyx_tuple__92)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 639; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_tuple__92 = PyTuple_Pack(4, __pyx_n_s_seq, __pyx_n_s_complement, __pyx_n_s_revComp, __pyx_n_s_c); if (unlikely(!__pyx_tuple__92)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 639; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_tuple__92);
   __Pyx_GIVEREF(__pyx_tuple__92);
   __pyx_codeobj__93 = (PyObject*)__Pyx_PyCode_New(1, 0, 4, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__92, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_Users_Matt_Documents_workspace, __pyx_n_s_reverseComplement, 639, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__93)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 639; __pyx_clineno = __LINE__; goto __pyx_L1_error;}

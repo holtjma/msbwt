@@ -35,13 +35,20 @@ cdef class BasicBWT(object):
     cdef np.uint8_t iterCurrCount
     cdef unsigned long fileSize
     
+    cdef bint lcpsPresent
+    cdef np.ndarray lcps
+    cdef np.uint8_t [:] lcps_view
+    
     cdef void constructIndexing(BasicBWT self)
-    cpdef getTotalSize(BasicBWT self)
+    cpdef unsigned long getTotalSize(BasicBWT self)
     cpdef unsigned long getSymbolCount(BasicBWT self, unsigned long symbol)
-    cpdef getBinBits(BasicBWT self)
-    cpdef countOccurrencesOfSeq(BasicBWT self, bytes seq, givenRange=*)
-    cpdef findIndicesOfStr(BasicBWT self, bytes seq, givenRange=*)
-    cpdef findIndicesOfRegex(BasicBWT self, bytes seq, givenRange=*)
+    cpdef unsigned long getBinBits(BasicBWT self)
+    cpdef unsigned long countOccurrencesOfSeq(BasicBWT self, bytes seq, tuple givenRange=*)
+    cpdef tuple findIndicesOfStr(BasicBWT self, bytes seq, tuple givenRange=*)
+    cpdef list findIndicesOfRegex(BasicBWT self, bytes seq, tuple givenRange=*)
+    cpdef list findStrWithError(BasicBWT self, bytes seq, bytes bonusStr)
+    cpdef list findPatternWithError(BasicBWT self, bytes seq, bytes bonusStr)
+    cpdef set findReadsMatchingSeq(BasicBWT self, bytes seq, unsigned long strLen)
     cpdef unsigned long getCharAtIndex(BasicBWT self, unsigned long index)
     cpdef unsigned long getOccurrenceOfCharAtIndex(BasicBWT self, unsigned long sym, unsigned long index)
     cpdef iterInit(BasicBWT self)
@@ -51,3 +58,8 @@ cdef class BasicBWT(object):
     cpdef recoverString(BasicBWT self, unsigned long strIndex, bint withIndex=*)
     cdef void fillBin(BasicBWT self, np.uint8_t [:] binToFill, unsigned long binID) nogil
     cdef void fillFmAtIndex(BasicBWT self, np.uint64_t [:] fill_view, unsigned long index)
+    cpdef tuple countSeqMatches(BasicBWT self, bytes seq, unsigned long kmerSize)
+    cpdef tuple countStrandedSeqMatches(BasicBWT self, bytes seq, unsigned long kmerSize)
+    cpdef np.ndarray findKmerThreshold(BasicBWT self, bytes seq, unsigned long threshold)
+    cpdef np.ndarray findKmerThresholdStranded(BasicBWT self, bytes seq, unsigned long threshold)
+    cpdef np.ndarray findKTOtherStranded(BasicBWT self, bytes seq, unsigned long threshold)

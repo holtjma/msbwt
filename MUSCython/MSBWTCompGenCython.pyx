@@ -260,7 +260,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
             finalSymbolPos += 1
         
         #calculate if we added more bytes here
-        extendBytes = max(1, math.ceil(math.log(finalSymbolCount+modifier, 32.0))) - max(1, math.ceil(math.log(finalSymbolCount, 32.0)))
+        extendBytes = max(1, math.floor(math.log(finalSymbolCount+modifier, 32.0))+1) - max(1, math.floor(math.log(finalSymbolCount, 32.0))+1)
         
         #add in the extended bytes followed by the total size subtracting the bytes used for the shared symbols
         totalLength += extendBytes + (tempBWT.shape[0] - finalSymbolPos)
@@ -481,7 +481,7 @@ def iterateMsbwtCreate(tuple tup):
         #go through each file, one at a time
         for fn in insertionFNs:
             #load the actual inserts
-            inserts = np.load(fn)
+            inserts = np.load(fn, 'r+')
             inserts_view = inserts
             insertLen = inserts.shape[0]
             

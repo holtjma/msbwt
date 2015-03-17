@@ -7,7 +7,11 @@ import numpy as np
 cimport numpy as np
 import os
 
+from libc.stdio cimport FILE, fopen, fwrite, fclose
+
 cimport BasicBWT
+import MSBWTGenCython as MSBWTGen
+import AlignmentUtil
 from cython.operator cimport preincrement as inc
 
 cdef class RLE_BWT(BasicBWT.BasicBWT):
@@ -26,6 +30,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
     cdef np.uint64_t [:] refFM_view
     cdef unsigned long offsetSum
     
+    cdef bint useMemmapRLE
+    
     def getCompSize(RLE_BWT self):
         return self.bwt.shape[0]
     
@@ -36,6 +42,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         '''
         #open the file with our BWT in it
         self.dirName = dirName
+        self.useMemmapRLE = useMemmap
         if useMemmap:
             self.bwt = np.load(self.dirName+'/comp_msbwt.npy', 'r+')
         else:
@@ -46,7 +53,14 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         self.constructTotalCounts(logger)
         self.constructIndexing()
         self.constructFMIndex(logger)
-    
+        
+        if os.path.exists(self.dirName+'/lcps.npy'):
+            self.lcpsPresent = True
+            self.lcps = np.load(self.dirName+'/lcps.npy', 'r+')
+            self.lcps_view = self.lcps
+        else:
+            self.lcpsPresent = False
+        
     def constructTotalCounts(RLE_BWT self, logger):
         '''
         This function constructs the total count for each valid character in the array and stores it under '<DIR>/totalCounts.p'
@@ -64,7 +78,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         self.numPower = 2**self.numberBits
         self.mask = 255 >> self.numberBits
         
-        abtFN = self.dirName+'/totalCounts.npy'
+        cdef str abtFN = self.dirName+'/totalCounts.npy'
         if os.path.exists(abtFN):
             self.totalCounts = np.load(abtFN, 'r+')
             self.totalCounts_view = self.totalCounts
@@ -127,8 +141,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] countsSoFar
         cdef np.uint64_t [:] countsSoFar_view
         
-        fmIndexFN = self.dirName+'/comp_fmIndex.npy'
-        fmRefFN = self.dirName+'/comp_refIndex.npy'
+        cdef str fmIndexFN = self.dirName+'/comp_fmIndex.npy'
+        cdef str fmRefFN = self.dirName+'/comp_refIndex.npy'
         
         if os.path.exists(fmIndexFN) and os.path.exists(fmRefFN):
             #both exist, just memmap them
@@ -215,11 +229,11 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned long prevChar = self.bwt_view[bwtIndex] & self.mask
         cdef unsigned long currentChar
         cdef unsigned long prevCount = self.bwt_view[bwtIndex] >> self.letterBits
-        cdef unsigned powerMultiple = 1
+        cdef unsigned long powerMultiple = 1
         
         while trueIndex + prevCount <= index:
             trueIndex += prevCount
-            inc(bwtIndex)
+            bwtIndex += 1
             
             currentChar = self.bwt_view[bwtIndex] & self.mask
             if currentChar == prevChar:
@@ -262,7 +276,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         #first, we may need to skip ahead some
         while trueIndex + prevCount < startIndex:
             trueIndex += prevCount
-            inc(bwtIndex)
+            #inc(bwtIndex)
+            bwtIndex += 1
             
             currentChar = self.bwt_view[bwtIndex] & self.mask
             if currentChar == prevChar:
@@ -283,7 +298,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             
             #now do normal upkeep stuff
             trueIndex += prevCount
-            inc(bwtIndex)
+            #inc(bwtIndex)
+            bwtIndex += 1
             
             #pull out the char and update powers/counts
             currentChar = self.bwt_view[bwtIndex] & self.mask
@@ -415,7 +431,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                 prevChar = currentChar
                 powerMultiple = self.numPower
                 
-            inc(compressedIndex)
+            compressedIndex += 1
         
         if prevChar == sym:
             ret += index-bwtIndex
@@ -445,20 +461,11 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned long bwtIndex = 0
         cdef unsigned long j
         
-        #cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.empty(dtype='<u8', shape=(self.vcLen, ))
-        #cdef np.uint64_t [:] ret_view = ret
-        
         for j in range(0, self.vcLen):
             bwtIndex += self.partialFM_view[binID][j]
             ret_view[j] = self.partialFM_view[binID][j]
         bwtIndex -= self.offsetSum
         
-        '''
-        cdef np.uint8_t prevChar = 255
-        cdef np.uint8_t currentChar
-        cdef unsigned long prevCount = 0
-        cdef unsigned long powerMultiple = 1
-        '''
         cdef np.uint8_t prevChar = self.bwt_view[compressedIndex] & self.mask
         cdef np.uint8_t currentChar
         cdef unsigned long prevCount = self.bwt_view[compressedIndex] >> self.letterBits
@@ -478,8 +485,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                 prevChar = currentChar
                 powerMultiple = self.numPower
             
-            inc(compressedIndex)
-        
+            compressedIndex += 1
+            
         ret_view[prevChar] += index-bwtIndex
         
         #return ret
@@ -520,3 +527,234 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             ret = 255
         
         return ret
+    
+    def removeStrings(RLE_BWT self, set delSet, bint reloadBWT=True, logger=None):
+        '''
+        This function removes a set of readIDs from the BWT along with all their associated bases
+        IMPORTANT: THE BWT MUST BE RELOADED AFTER CALLING THIS FUNCTION BECAUSE INDICES NEED TO BE REBUILT
+        @param delSet - a set of readIDs to delete based on their position in the BWT
+        @param reloadBWT - if true (default), it will reload the BWT in place
+        @return None
+        '''
+        if len(delSet) == 0:
+            return
+        
+        #make sure we are actually modifying the file
+        if not self.useMemmapRLE:
+            self.bwt = np.load(self.dirName+'/comp_msbwt.npy', 'r+')
+            self.bwt_view = self.bwt
+        
+        #first, go through each id in the set and pull out the indices of all associated bases to add to a master deletion list
+        #make sure that each index is a readID as well prior to adding it
+        cdef unsigned long readID
+        
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] tempIndexArray = np.zeros(dtype='<u8', shape=(1, ))
+        cdef np.uint64_t [:] tempIndexArray_view = tempIndexArray
+        
+        cdef str deletionFN = self.dirName+'/deletion_indices.dat'
+        cdef FILE * fp = fopen(deletionFN, 'w+')
+        
+        cdef unsigned long x, copyIndex
+        cdef np.uint8_t indexByte
+        
+        if logger != None:
+            logger.info('Identifying indices for deletion...')
+        
+        cdef unsigned long prevSym, currIndex
+        
+        for readID in delSet:
+            #verify this is a valid read ID
+            if readID >= self.totalCounts_view[0]:
+                raise Exception(str(readID)+' is too large to be a string ID in BWT with '+str(self.totalCounts_view[0])+' strings.')
+            
+            #now pull out all the associated indices
+            #figure out the first hop backwards
+            prevSym = self.getCharAtIndex(readID)
+            currIndex = self.getOccurrenceOfCharAtIndex(prevSym, readID)
+            
+            #while we haven't looped back to the start
+            while currIndex != readID:
+                #write the index
+                #fwrite(&currIndex, 8, 1, fp)
+                copyIndex = currIndex
+                for x in range(0, 8):
+                    indexByte = copyIndex & 0xFF
+                    fwrite(&indexByte, 1, 1, fp)
+                    copyIndex = copyIndex >> 8
+                
+                #figure out where to go from here
+                prevSym = self.getCharAtIndex(currIndex)
+                currIndex = self.getOccurrenceOfCharAtIndex(prevSym, currIndex)
+            
+            #write the read ID, which was the first index we found
+            fwrite(&readID, 8, 1, fp)
+            
+        fclose(fp)
+        
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] delIndices = np.memmap(deletionFN, dtype='<u8')
+        
+        if logger != None:
+            logger.info('Sorting indices for deletion...')
+            
+        delIndices.sort()
+        #second, sort the list and then go through in order modifying our file for our compressed BWT
+        #deletionIndices.sort()
+        #cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] delIndices = np.array(deletionIndices, dtype='<u8')
+        cdef np.uint64_t [:] delIndices_view = delIndices
+        cdef unsigned long currDel = 0
+        cdef unsigned long totalDels = delIndices.shape[0]
+        
+        #go through each entry in the BWT
+        cdef unsigned long numBytes = self.bwt.shape[0]
+        
+        #currentChar is the symbol we just read, prevChar is in the byte right before it
+        cdef np.uint8_t currentChar
+        cdef np.uint8_t prevChar = 255
+        
+        #the position we are currently writing
+        cdef unsigned long writeByte = 0
+        
+        #the last run symbol and the last run count
+        cdef np.uint8_t lastRunSym = 255
+        cdef unsigned long lastRunCount = 0
+        
+        #these values are related to the current run we're looking at
+        cdef unsigned long currentCount = 0
+        cdef unsigned long powerMultiple = 1
+        cdef unsigned long totalCounted = 0
+        cdef np.uint8_t NUM_MASK = (0xFF >> self.letterBits)#0x1F
+        
+        if logger != None:
+            logger.info('Deleting indices...')
+        
+        #i = the read byte index for this part of the code
+        cdef unsigned long i, j
+        
+        #go through each byte in the BWT
+        for i in range(0, numBytes):
+            #figure out which character is in this run
+            currentChar = self.bwt_view[i] & self.mask
+            
+            #compare the currentChar to the prevChar, tells us if a run is going on
+            if currentChar == prevChar:
+                #this is a continuation, so increment the power
+                powerMultiple *= self.numPower
+            else:
+                #increase the number of counted symbols
+                totalCounted += currentCount
+                
+                #while we still have deletions and those deletions are in this range, reduce the count and delete the string
+                while currDel < totalDels and delIndices_view[currDel] < totalCounted:
+                    currentCount -= 1
+                    currDel += 1
+                
+                if currentCount > 0:
+                    if prevChar == lastRunSym:
+                        #we are basically extending a previously discovered run, so just add the counts on in
+                        lastRunCount += currentCount
+                    else:
+                        #symbols are different, time to write out our previous run
+                        while lastRunCount > 0:
+                            self.bwt_view[writeByte] = ((lastRunCount & NUM_MASK) << self.letterBits) | lastRunSym
+                            lastRunCount = lastRunCount >> self.numberBits
+                            writeByte += 1
+                        
+                        #now store the next run
+                        lastRunSym = prevChar
+                        lastRunCount = currentCount
+                else:
+                    #no reason to change anything I think
+                    pass
+                
+                #reset our read count stuff
+                powerMultiple = 1
+                currentCount = 0
+                prevChar = currentChar
+            
+            #add the count based on the current multiple
+            currentCount += (self.bwt_view[i] >> self.letterBits)*powerMultiple
+        
+        #do this one last time in case there's a late deletion
+        totalCounted += currentCount
+        while currDel < totalDels and delIndices_view[currDel] < totalCounted:
+            currentCount -= 1
+            currDel += 1
+        
+        #first, check if there's something in the run that *may* need to be sucked into a previous run
+        if currentCount > 0:
+            if prevChar == lastRunSym:
+                #we are basically extending a previously discovered run, so just add the counts on in
+                lastRunCount += currentCount
+            else:
+                #symbols are different, time to write out our previous run
+                while lastRunCount > 0:
+                    self.bwt_view[writeByte] = ((lastRunCount & NUM_MASK) << self.letterBits) | lastRunSym
+                    lastRunCount = lastRunCount >> self.numberBits
+                    writeByte += 1
+                
+                #now store the next run
+                lastRunSym = prevChar
+                lastRunCount = currentCount
+        
+        #now write out the final run which we know is there
+        while lastRunCount > 0:
+            self.bwt_view[writeByte] = ((lastRunCount & NUM_MASK) << self.letterBits) | lastRunSym
+            lastRunCount = lastRunCount >> self.numberBits
+            writeByte += 1
+        
+        #finally, clear out everything from the current write byte to the maximum array size
+        for j in range(writeByte, numBytes):
+            self.bwt_view[j] = 0x00
+        
+        #TODO: is there a way to clip the actual file so we don't have to clear?
+        cdef unsigned long writeLcp
+        cdef unsigned long readLcp
+        if self.lcpsPresent:
+            #initialize
+            writeLcp = 0
+            readLcp = 0
+            currDel = 0
+            
+            #skip over deletions in the beginning
+            while currDel < totalDels and delIndices_view[currDel] == readLcp:
+                currDel += 1
+                readLcp += 1
+            
+            #writeLcp will always be one past what we just wrote, readLcp is the same
+            self.lcps_view[writeLcp] = self.lcps_view[readLcp]
+            writeLcp += 1
+            readLcp += 1
+            
+            #while we have more deletions
+            while currDel < totalDels:
+                #iterate straight to the next deletion
+                for x in range(readLcp, delIndices_view[currDel]):
+                    self.lcps_view[writeLcp] = self.lcps_view[readLcp]
+                    writeLcp += 1
+                    readLcp += 1
+                
+                #if we are deleting index 'x', then our write goes in index 'x-1' AND
+                #is the minimum that 'x-1' shares with 'x' and 'x' shares with 'x+1'
+                self.lcps_view[writeLcp-1] = min(self.lcps_view[writeLcp-1], self.lcps_view[readLcp])
+                readLcp += 1
+                currDel += 1
+                
+            #now clear out all that remains
+            for x in range(writeLcp, self.lcps.shape[0]):
+                self.lcps_view[x] = 0x00
+            
+        #clear Auxiliary data
+        MSBWTGen.clearAuxiliaryData(self.dirName)
+        try:
+            os.remove(deletionFN)
+        except:
+            print 'Failed to remove '+deletionFN+' from the file system, manual removal necessary.'
+        
+        #reload if specified (by default, we will reload)
+        if reloadBWT:
+            #reload the bwt from the same directory, use whatever method was prescribed before
+            self.loadMsbwt(self.dirName, self.useMemmapRLE, None)
+        else:
+            #USER IS RESPONSIBLE FOR RELOADING THE BWT
+            pass
+        

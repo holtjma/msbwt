@@ -143,8 +143,35 @@ def mergeTwoMSBWTs(char * inputMsbwtDir1, char * inputMsbwtDir2, char * mergedDi
             #check if this fully covers the whole bwt, if so it's a better breakdown of our ranges and still below the set limits
             fullCoverageRanges = np.copy(ranges)
     
+    if interleaveBytes <= interThresh:
+        np.save(interleaveFN0, inter0)
+    
+    interleaveTwoBwts(inputMsbwtDir1, inputMsbwtDir2, mergedDir, logger)
+    
+    if interleaveBytes > interThresh:
+        os.remove(interleaveFN1)
+        
+    return iterCount
+    
+def interleaveTwoBwts(char * inputMsbwtDir1, char * inputMsbwtDir2, char * mergedDir, logger):
+    #map the seqs, note we map msbwt.npy because that's where all changes happen
+    cdef BasicBWT.BasicBWT loadedBwt0 = MSBWT.loadBWT(inputMsbwtDir1, useMemmap=True, logger=logger)
+    cdef BasicBWT.BasicBWT loadedBwt1 = MSBWT.loadBWT(inputMsbwtDir2, useMemmap=True, logger=logger)
+    
+    cdef unsigned long bwtLen1 = loadedBwt0.getTotalSize()
+    cdef unsigned long bwtLen2 = loadedBwt1.getTotalSize()
+    
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] msbwt = np.lib.format.open_memmap(mergedDir+'/msbwt.npy', 'w+', '<u1', (bwtLen1+bwtLen2,))
     cdef np.uint8_t [:] msbwt_view = msbwt
+    
+    #hardcoded as 1 GB right now
+    interleaveFN0 = mergedDir+'/inter0.npy'
+    cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] inter0 = np.load(interleaveFN0, 'r+')
+    cdef np.uint8_t [:] inter0_view = inter0
+    cdef np.uint8_t * inter0_p
+    
+    #with two, we will initialize both arrays
+    inter0_p = &inter0_view[0]
     
     cdef unsigned long readID
     cdef unsigned long pos1 = 0
@@ -169,6 +196,7 @@ def mergeTwoMSBWTs(char * inputMsbwtDir1, char * inputMsbwtDir2, char * mergedDi
         loadedBwt0.fillBin(currentBin0_view, currentBinID0)
         loadedBwt1.fillBin(currentBin1_view, currentBinID1)
     
+    cdef unsigned long x
     for x in range(0, bwtLen1+bwtLen2):
         #get the read, the symbol, and increment the position in that read
         if getBit_p(inter0_p, x):
@@ -185,16 +213,7 @@ def mergeTwoMSBWTs(char * inputMsbwtDir1, char * inputMsbwtDir2, char * mergedDi
                 currentBinID0 += 1
                 loadedBwt0.fillBin(currentBin0_view, currentBinID0)
                 currentBinUse0 = 0
-            
-    #remove this temp files also
-    if interleaveBytes > interThresh:
-        os.remove(interleaveFN1)
-    else:
-        np.save(interleaveFN0, inter0)
-    
-    #return the number of iterations it took us to converge
-    return iterCount
-
+                
 cdef tuple targetedIterationMerge2(BasicBWT.BasicBWT bwt0, BasicBWT.BasicBWT bwt1, 
                                   np.uint8_t * inputInter_view, np.uint8_t * outputInter_view, 
                                   unsigned long bwtLen,

@@ -7,6 +7,8 @@ cimport numpy as np
 
 from cython.operator cimport preincrement as inc
 
+import MultiStringBWTCython as MultiStringBWT
+
 cdef class BasicBWT(object):
     '''
     This class is the root class for ANY msbwt created by this code regardless of it being compressed or no.
@@ -111,7 +113,7 @@ cdef class BasicBWT(object):
                 pos += self.totalCounts_view[i]
                 self.endIndex_view[i] = pos
     
-    cpdef getTotalSize(BasicBWT self):
+    cpdef unsigned long getTotalSize(BasicBWT self):
         '''
         @return - the total number of symbols in the BWT
         '''
@@ -126,13 +128,13 @@ cdef class BasicBWT(object):
         #return ret
         return self.totalCounts_view[symbol]
     
-    cpdef getBinBits(BasicBWT self):
+    cpdef unsigned long getBinBits(BasicBWT self):
         '''
         @return - the number of bits in a bin
         '''
         return self.bitPower
     
-    cpdef countOccurrencesOfSeq(BasicBWT self, bytes seq, givenRange=None):
+    cpdef unsigned long countOccurrencesOfSeq(BasicBWT self, bytes seq, tuple givenRange=None):
         '''
         This function counts the number of occurrences of the given sequence
         @param seq - the sequence to search for
@@ -171,7 +173,7 @@ cdef class BasicBWT(object):
         #return the difference
         return h - l
     
-    cpdef findIndicesOfStr(BasicBWT self, bytes seq, givenRange=None):
+    cpdef tuple findIndicesOfStr(BasicBWT self, bytes seq, tuple givenRange=None):
         '''
         This function will search for a string and find the location of that string OR the last index less than it. It also
         will start its search within a given range instead of the whole structure
@@ -207,7 +209,7 @@ cdef class BasicBWT(object):
         #return the difference
         return (l, h)
     
-    cpdef findIndicesOfRegex(BasicBWT self, bytes seq, givenRange=None):
+    cpdef list findIndicesOfRegex(BasicBWT self, bytes seq, tuple givenRange=None):
         '''
         This function will search for a string and find the location of that string OR the last index less than it. It also
         will start its search within a given range instead of the whole structure.  Note that have a small tail string can 
@@ -311,6 +313,220 @@ cdef class BasicBWT(object):
         
         return finalRet
     
+    cpdef list findStrWithError(BasicBWT self, bytes seq, bytes bonusStr):
+        '''
+        This function will search the BWT for strings which match the given sequence allowing for one error.
+        In this function, "seq" must be close to the length of the read or else the ends of the reads will be counted
+        as long insertions leading to no matches in the data.
+        @param seq - the sequence to search for with valid symbols [A, C, G, N, T], NOTE: we assume the string is implicity
+                     flanked by '$' so do NOT pass the '$' in the string or no result will return
+        @param bonusStr - in the case of a deletion in the search, this is an extra character that must match at the front
+                          of seq, aka it must match (bonusStr+seq) with one symbol deleted
+        @return - a python list of ranges representing the start and end of the sequence in the bwt, these ranges will be
+                  in the '$' indices, so they will correspond to a specific read
+                  NOTE: these results may overlap, user expected to check for overlaps if important
+        '''
+        cdef list ret = []
+        
+        cdef unsigned long l, h
+        cdef unsigned long lc, hc
+        cdef unsigned long s
+        cdef long x, y
+        cdef unsigned long c, altC
+        
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] lowArray_view = lowArray
+        cdef np.uint64_t [:] highArray_view = highArray
+        
+        #initialize our search to the whole '$' range of the BWT since we want reads
+        l = 0
+        h = self.totalCounts_view[0]
+        s = len(seq)
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        cdef unsigned char * bonusStr_view = bonusStr
+        
+        #start with the last symbol and work downwards as long as we have a range length > 0
+        x = s-1
+        while x >= 0 and l < h:
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[x]]
+            self.fillFmAtIndex(lowArray_view, l)
+            self.fillFmAtIndex(highArray_view, h)
+            
+            for altC in xrange(1, self.vcLen):
+                if altC != c:
+                    lc = lowArray_view[altC]
+                    hc = highArray_view[altC]
+            
+                    #this is the SNP version, start one symbol past and work down forcing exact matching now
+                    y = x-1
+                    while y >= 0 and lc < hc:
+                        lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], lc)
+                        hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], hc)
+                        y -= 1
+                    
+                    lc = self.getOccurrenceOfCharAtIndex(0, lc)
+                    hc = self.getOccurrenceOfCharAtIndex(0, hc)
+                    if hc > lc:
+                        ret.append((lc, hc))
+                    
+                    #this one is the insertion version, need to do fewer symbols, but starting at x now
+                    lc = lowArray_view[altC]
+                    hc = highArray_view[altC]
+                    y = x
+                    while y >= 1 and lc < hc:
+                        lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], lc)
+                        hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], hc)
+                        y -= 1
+                    
+                    lc = self.getOccurrenceOfCharAtIndex(0, lc)
+                    hc = self.getOccurrenceOfCharAtIndex(0, hc)
+                    if hc > lc:
+                        ret.append((lc, hc))
+        
+            #deletion is similar to SNP version but we start with the current range
+            lc = l
+            hc = h
+            y = x-1
+            while y >= 0 and lc < hc:
+                lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], lc)
+                hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], hc)
+                y -= 1
+            
+            #go one further symbol using bonusStr
+            lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[bonusStr_view[0]], lc)
+            hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[bonusStr_view[0]], hc)
+            lc = self.getOccurrenceOfCharAtIndex(0, lc)
+            hc = self.getOccurrenceOfCharAtIndex(0, hc)
+            if hc > lc:
+                ret.append((lc, hc))
+            
+            #now we can update to our exact matching sequence
+            #second handle the exact matches
+            l = lowArray_view[c]
+            h = highArray_view[c]
+            x -= 1
+        
+        #finally add all strings that exactly terminate here
+        lc = self.getOccurrenceOfCharAtIndex(0, l)
+        hc = self.getOccurrenceOfCharAtIndex(0, h)
+        if hc > lc:
+            ret.append((lc, hc))
+        
+        return ret
+    
+    cpdef list findPatternWithError(BasicBWT self, bytes seq, bytes bonusStr):
+        '''
+        This function will search the BWT for strings which match the given sequence allowing for one error.
+        In this function, "seq" must be close to the length of the read or else the ends of the reads will be counted
+        as long insertions leading to no matches in the data.
+        @param seq - the sequence to search for with valid symbols [A, C, G, N, T]
+        @param bonusStr - in the case of a deletion in the search, this is an extra character that must match at the front
+                          of seq, aka it must match (bonusStr+seq) with one symbol deleted
+        @return - a python list of ranges representing the start and end of the sequence in the bwt, these ranges will be
+                  in the '$' indices, so they will correspond to a specific read
+                  NOTE: these results may overlap, user expected to check for overlaps if important
+        '''
+        cdef list ret = []
+        
+        cdef unsigned long l, h
+        cdef unsigned long lc, hc
+        cdef unsigned long s
+        cdef long x, y
+        cdef unsigned long c, altC
+        
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] lowArray_view = lowArray
+        cdef np.uint64_t [:] highArray_view = highArray
+        
+        #initialize our search to the whole '$' range of the BWT since we want reads
+        l = 0
+        h = self.totalSize
+        s = len(seq)
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        cdef unsigned char * bonusStr_view = bonusStr
+        
+        #start with the last symbol and work downwards as long as we have a range length > 0
+        x = s-1
+        while x >= 0 and l < h:
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[x]]
+            self.fillFmAtIndex(lowArray_view, l)
+            self.fillFmAtIndex(highArray_view, h)
+            
+            for altC in xrange(1, self.vcLen):
+                if altC != c:
+                    lc = lowArray_view[altC]
+                    hc = highArray_view[altC]
+            
+                    #this is the SNP version, start one symbol past and work down forcing exact matching now
+                    y = x-1
+                    while y >= 0 and lc < hc:
+                        lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], lc)
+                        hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], hc)
+                        y -= 1
+                    
+                    if hc > lc:
+                        ret.append((lc, hc))
+                    
+                    #this one is the insertion version, need to do fewer symbols, but starting at x now
+                    lc = lowArray_view[altC]
+                    hc = highArray_view[altC]
+                    y = x
+                    while y >= 1 and lc < hc:
+                        lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], lc)
+                        hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], hc)
+                        y -= 1
+                    
+                    if hc > lc:
+                        ret.append((lc, hc))
+        
+            #deletion is similar to SNP version but we start with the current range
+            lc = l
+            hc = h
+            y = x-1
+            while y >= 0 and lc < hc:
+                lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], lc)
+                hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], hc)
+                y -= 1
+            
+            #go one further symbol using bonusStr
+            lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[bonusStr_view[0]], lc)
+            hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[bonusStr_view[0]], hc)
+            if hc > lc:
+                ret.append((lc, hc))
+            
+            #now we can update to our exact matching sequence
+            #second handle the exact matches
+            l = lowArray_view[c]
+            h = highArray_view[c]
+            x -= 1
+        
+        #finally add all strings that exactly terminate here
+        if h > l:
+            ret.append((l, h))
+        
+        return ret
+    
+    cpdef set findReadsMatchingSeq(BasicBWT self, bytes seq, unsigned long strLen):
+        '''
+        REQUIRES LCP 
+        This function takes a sequence and finds all strings of length "stringLen" which exactly match the sequence
+        @param seq - the sequence we want to match, assumed to be buffered on both ends with 'N' symbols
+        @param strLen - the length of the strings we are trying to extract
+        @return - a list of dollar IDs corresponding to strings that exactly match the seq somewhere
+        '''
+        #TODO: this is temporarily all in RLE_BWT for testing purposes; if a release is done
+        #it needs to be moved, to here and made generic for all BWTs (if not already generic)
+        #if it can't be generalized, then specific impls/errors need to be written for subclasses
+        return set([])
+        
     cpdef unsigned long getCharAtIndex(BasicBWT self, unsigned long index):# nogil:
         '''
         dummy function, shouldn't be called
@@ -374,7 +590,7 @@ cdef class BasicBWT(object):
             #figure out where to go from here
             prevChar = self.getCharAtIndex(currIndex)
             currIndex = self.getOccurrenceOfCharAtIndex(prevChar, currIndex)
-            inc(i)
+            i += 1
         
         if returnOffset:
             return (currIndex, i)
@@ -389,6 +605,7 @@ cdef class BasicBWT(object):
         '''
         cdef list retNums = []
         cdef list indices = []
+        cdef unsigned long i
         
         #figure out the first hop backwards
         cdef unsigned long prevChar = self.getCharAtIndex(strIndex)
@@ -405,8 +622,8 @@ cdef class BasicBWT(object):
             prevChar = self.getCharAtIndex(currIndex)
             currIndex = self.getOccurrenceOfCharAtIndex(prevChar, currIndex)
         
-        for i in xrange(0, self.vcLen):
-            if strIndex < self.endIndex[i]:
+        for i in range(0, self.vcLen):
+            if strIndex < self.endIndex_view[i]:
                 retNums.append(i)
                 break
                 
@@ -442,3 +659,352 @@ cdef class BasicBWT(object):
         dummy function, override in all subclasses
         '''
         pass
+    
+    cpdef tuple countSeqMatches(BasicBWT self, bytes seq, unsigned long kmerSize):
+        '''
+        This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
+        "kmerSize" in that sequence and return it in an array.
+        @param seq - the seq to scan
+        @param kmerSize - the size of the k-mer to count
+        @param isStranded - if True, it ONLY counts the forward strand (aka, exactly matches "seq")
+                            if False, it counts forward strand and reverse-complement strand and adds them together
+        @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
+        '''
+        cdef long numCounts = len(seq)-kmerSize+1
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret
+        cdef np.ndarray[np.int64_t, ndim=1, mode='c'] otherChoices
+        (ret, otherChoices) = self.countStrandedSeqMatches(seq, kmerSize)
+        
+        cdef np.uint64_t [:] ret_view = ret
+        cdef np.int64_t [:] otherChoices_view = otherChoices
+        
+        cdef long x
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] retRevComp
+        cdef np.ndarray[np.int64_t, ndim=1, mode='c'] otherChoicesRevComp
+        (retRevComp, otherChoicesRevComp) = self.countStrandedSeqMatches(MultiStringBWT.reverseComplement(seq), kmerSize)
+        
+        cdef np.uint64_t [:] retRevComp_view = retRevComp
+        cdef otherChoicesRevComp_view = otherChoicesRevComp
+        
+        for x in range(0, numCounts):
+            ret_view[x] += retRevComp_view[numCounts-x-1]
+            otherChoices_view[x] += otherChoicesRevComp_view[numCounts-x-1]
+            
+        return (ret, otherChoices)
+        
+    cpdef tuple countStrandedSeqMatches(BasicBWT self, bytes seq, unsigned long kmerSize):
+        '''
+        This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
+        "kmerSize" in that sequence and return it in an array.
+        @param seq - the seq to scan
+        @param kmerSize - the size of the k-mer to count
+        @param isStranded - if True, it ONLY counts the forward strand (aka, exactly matches "seq")
+                            if False, it counts forward strand and reverse-complement strand and adds them together
+        @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
+        '''
+        #get a view of the input
+        cdef unsigned char * seq_view = seq
+        cdef unsigned long s = len(seq)
+        
+        #array size stuff
+        cdef long numCounts = s-kmerSize+1
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.zeros(dtype='<u8', shape=(max(0, numCounts), ))
+        cdef np.uint64_t [:] ret_view = ret
+        
+        #array for OTHER symbols that aren't '$' or the matching symbol
+        cdef np.ndarray[np.int64_t, ndim=1, mode='c'] otherChoices = np.zeros(dtype='<i8', shape=(max(0, numCounts), ))
+        cdef np.int64_t [:] otherChoices_view = otherChoices
+        
+        #arrays for the fm-indices
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] lowArray_view = lowArray
+        cdef np.uint64_t [:] highArray_view = highArray
+        
+        #ranges for counting
+        cdef unsigned long currLen = 0
+        cdef unsigned long l = 0
+        cdef unsigned long h = self.totalSize
+        
+        cdef unsigned long newL, newH
+        
+        #other vars
+        cdef unsigned long c, altC
+        cdef long x = len(seq)-1
+        cdef long y = 0
+        
+        #now we start traversing
+        for x in range(s-1, -1, -1):
+            c = self.charToNum_view[seq_view[x]]
+            newL = self.getOccurrenceOfCharAtIndex(c, l)
+            newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            if currLen == kmerSize-1:
+                self.fillFmAtIndex(lowArray_view, l)
+                self.fillFmAtIndex(highArray_view, h)
+                
+                for altC in range(1, self.vcLen):
+                    if altC != c:
+                        otherChoices_view[x] += (highArray_view[altC] - lowArray_view[altC])
+                
+            while newL == newH and currLen > 0:
+                #loosen up a bit
+                currLen -= 1
+                while l > 0 and self.lcps_view[l-1] >= currLen:
+                    l -= 1
+                while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                    h += 1
+                
+                #re-search
+                newL = self.getOccurrenceOfCharAtIndex(c, l)
+                newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            if newL == newH and currLen == 0:
+                #this symbol just doesn't occur at all
+                l = 0
+                h = self.totalSize
+            else:
+                #else, we set our l/h to newL/newH and increment the length
+                l = newL
+                h = newH
+                currLen += 1
+                
+                #check if we're ready to start counting
+                if x < numCounts:
+                    if currLen == kmerSize:
+                        #store the count
+                        ret_view[x] = h-l
+                        
+                        #now reduce the currLen and loosen
+                        currLen -= 1
+                        while l > 0 and self.lcps_view[l-1] >= currLen:
+                            l -= 1
+                        while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                            h += 1
+                        
+                    else:
+                        #we're too small, this means the count is 0
+                        ret_view[x] = 0
+                
+        return (ret, otherChoices)
+        
+    cpdef np.ndarray findKmerThreshold(BasicBWT self, bytes seq, unsigned long threshold):
+        '''
+        This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
+        "kmerSize" in that sequence and return it in an array.
+        @param seq - the seq to scan
+        @param kmerSize - the size of the k-mer to count
+        @param isStranded - if True, it ONLY counts the forward strand (aka, exactly matches "seq")
+                            if False, it counts forward strand and reverse-complement strand and adds them together
+        @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
+        '''
+        cdef long numCounts = len(seq)
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret
+        ret = self.findKmerThresholdStranded(seq, threshold)
+        
+        cdef np.uint64_t [:] ret_view = ret
+        
+        cdef long x
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] retRevComp
+        retRevComp = self.findKmerThresholdStranded(MultiStringBWT.reverseComplement(seq), threshold)
+        
+        cdef np.uint64_t [:] retRevComp_view = retRevComp
+        
+        #we want the max from either side
+        for x in range(0, numCounts):
+            #ret_view[x] = max(ret_view[x], retRevComp_view[numCounts-x-1])
+            ret_view[x] = ret_view[x] + retRevComp_view[numCounts-x-1]
+        
+        return ret
+        
+    cpdef np.ndarray findKmerThresholdStranded(BasicBWT self, bytes seq, unsigned long threshold):
+        '''
+        ??? need desc
+        @param seq - the seq to scan
+        @param kmerSize - the size of the k-mer to count
+        @param isStranded - if True, it ONLY counts the forward strand (aka, exactly matches "seq")
+                            if False, it counts forward strand and reverse-complement strand and adds them together
+        @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
+        '''
+        #get a view of the input
+        cdef unsigned char * seq_view = seq
+        cdef unsigned long s = len(seq)
+        
+        #array size stuff
+        cdef long numCounts = s
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] rightRet = np.zeros(dtype='<u8', shape=(numCounts, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] leftRet = np.zeros(dtype='<u8', shape=(numCounts, ))
+        cdef np.uint64_t [:] rightRet_view = rightRet
+        cdef np.uint64_t [:] leftRet_view = leftRet
+        
+        #arrays for the fm-indices
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] lowArray_view = lowArray
+        cdef np.uint64_t [:] highArray_view = highArray
+        
+        #ranges for counting
+        cdef unsigned long currLen = 0
+        cdef unsigned long l = 0
+        cdef unsigned long h = self.totalSize
+        
+        cdef unsigned long newL, newH
+        
+        #other vars
+        cdef unsigned long c, altC
+        cdef long x = len(seq)-1
+        cdef long y = 0
+        
+        #now we start traversing
+        for x in range(s-1, -1, -1):
+            c = self.charToNum_view[seq_view[x]]
+            newL = self.getOccurrenceOfCharAtIndex(c, l)
+            newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            #while the range we have is less than our threshold and the currLen is greater than 0
+            while newH-newL < threshold and currLen > 0:
+                #loosen up a bit
+                currLen -= 1
+                while l > 0 and self.lcps_view[l-1] >= currLen:
+                    l -= 1
+                while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                    h += 1
+                
+                #re-search
+                newL = self.getOccurrenceOfCharAtIndex(c, l)
+                newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            if newL == newH and currLen == 0:
+                #this symbol just doesn't occur at all (this pretty much never actually happens, but included for completeness)
+                l = 0
+                h = self.totalSize
+            else:
+                #we have an extension that fits here
+                l = newL
+                h = newH
+                currLen += 1
+                
+                #store the length of the k-mer we found
+                #ret_view[x] = currLen
+                rightRet_view[x] = currLen
+                
+                #TODO: this can likely be moved into the above loop to avoid a whole lot of checks
+                for y in range(x, x+currLen):
+                    leftRet_view[y] = max(leftRet_view[y], y-x+1)
+                
+                #this stores it for all values
+                #for y in range(x, x+currLen):
+                #    ret_view[y] = max(ret_view[y], currLen)
+        
+        #return ret
+        return (leftRet+rightRet)/2
+        '''
+        for x in range(0, s):
+            leftRet_view[x] = max(leftRet_view[x], rightRet_view[x])
+        return leftRet
+        '''
+    
+    cpdef np.ndarray findKTOtherStranded(BasicBWT self, bytes seq, unsigned long threshold):
+        '''
+        This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
+        "kmerSize" in that sequence and return it in an array.
+        @param seq - the seq to scan
+        @param kmerSize - the size of the k-mer to count
+        @param isStranded - if True, it ONLY counts the forward strand (aka, exactly matches "seq")
+                            if False, it counts forward strand and reverse-complement strand and adds them together
+        @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
+        '''
+        #get a view of the input
+        cdef unsigned char * seq_view = seq
+        cdef unsigned long s = len(seq)
+        
+        #array size stuff
+        cdef long numCounts = s
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.zeros(dtype='<u8', shape=(numCounts, ))
+        cdef np.uint64_t [:] ret_view = ret
+        
+        #arrays for the fm-indices
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] lowArray_view = lowArray
+        cdef np.uint64_t [:] highArray_view = highArray
+        
+        #ranges for counting
+        cdef unsigned long currLen = 0
+        cdef unsigned long altCurrLen
+        cdef unsigned long l = 0
+        cdef unsigned long h = self.totalSize
+        
+        cdef unsigned long newL, newH
+        cdef unsigned long altL, altH
+        
+        #other vars
+        cdef unsigned long c, altC
+        cdef long x = len(seq)-1
+        cdef long y = 0
+        
+        cdef unsigned long maxAlt, altVal
+        
+        #now we start traversing
+        for x in range(s-1, -1, -1):
+            c = self.charToNum_view[seq_view[x]]
+            self.fillFmAtIndex(lowArray_view, l)
+            self.fillFmAtIndex(highArray_view, h)
+            newL = lowArray_view[c]
+            newH = highArray_view[c]
+            
+            #here's the ret value magic
+            maxAlt = 0
+            altCurrLen = currLen
+            altL = l
+            altH = h
+            
+            #print 'moo', maxAlt, threshold, maxAlt < threshold
+            #print 'moo2', currLen, altCurrLen, altCurrLen > 0
+            
+            while maxAlt < threshold and altCurrLen > 0:
+                #print altCurrLen
+                for altC in range(1, self.vcLen):
+                    if altC != c:
+                        altVal = highArray_view[altC] - lowArray_view[altC]
+                        if altVal > maxAlt:
+                            maxAlt = altVal
+                
+                if maxAlt < threshold:
+                    #loosen up
+                    altCurrLen -= 1
+                    while altL > 0 and self.lcps_view[altL-1] >= altCurrLen:
+                        altL -= 1
+                    while altH < self.totalSize and self.lcps_view[altH-1] >= altCurrLen:
+                        altH += 1
+                    
+                    #re-calc the fm index with the loosened range
+                    self.fillFmAtIndex(lowArray_view, altL)
+                    self.fillFmAtIndex(highArray_view, altH)
+            
+            ret_view[x] = altCurrLen
+            
+            #while the range we have is less than our threshold and the currLen is greater than 0
+            while newH-newL < threshold and currLen > 0:
+                #loosen up a bit
+                currLen -= 1
+                while l > 0 and self.lcps_view[l-1] >= currLen:
+                    l -= 1
+                while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                    h += 1
+                
+                #re-search
+                newL = self.getOccurrenceOfCharAtIndex(c, l)
+                newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            if newL == newH and currLen == 0:
+                #this symbol just doesn't occur at all (this pretty much never actually happens, but included for completeness)
+                l = 0
+                h = self.totalSize
+            else:
+                #we have an extension that fits here
+                l = newL
+                h = newH
+                currLen += 1
+        
+        return ret

@@ -130,6 +130,13 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
         #it's faster b/c only one pass over full BWT which is important since we have to decomp it to calculate
         self.constructAuxiliary(logger)
         
+        if os.path.exists(self.dirName+'/lcps.npy'):
+            self.lcpsPresent = True
+            self.lcps = np.load(self.dirName+'/lcps.npy', 'r+')
+            self.lcps_view = self.lcps
+        else:
+            self.lcpsPresent = False
+        
     def constructAuxiliary(LZW_BWT self, logger):
         '''
         This function iterates through the BWT and counts the letters as it goes to create the FM index.  For example, the string 'ACC$' would have BWT

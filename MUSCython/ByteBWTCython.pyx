@@ -38,6 +38,13 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
         self.constructTotalCounts(logger)
         self.constructIndexing()
         self.constructFMIndex(logger)
+        
+        if os.path.exists(self.dirName+'/lcps.npy'):
+            self.lcpsPresent = True
+            self.lcps = np.load(self.dirName+'/lcps.npy', 'r+')
+            self.lcps_view = self.lcps
+        else:
+            self.lcpsPresent = False
     
     def constructTotalCounts(ByteBWT self, logger):
         '''

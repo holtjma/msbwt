@@ -476,7 +476,7 @@ def compressBWT(char * inputFN, char * outputFN, unsigned long numProcs, logger)
             totalSize -= int(math.floor(math.log(prevTotal, numPower)+1)+math.floor(math.log(ret[2], numPower)+1))
             prevTotal += ret[2]
             totalSize += int(math.floor(math.log(prevTotal, numPower)+1))
-            if ret[0] == 1:
+            if ret[0] == 1 or ret[6] == 1:
                 #don't clear prev total
                 pass
             else:
@@ -520,7 +520,7 @@ def compressBWT(char * inputFN, char * outputFN, unsigned long numProcs, logger)
             finalBWT[offset:offset+(copyArr.shape[0]-nextBytes)] = copyArr[nextBytes:]
             offset += (copyArr.shape[0] - nextBytes)
             
-            if ret[0] == 1:
+            if ret[0] == 1 or ret[6] == 1:
                 pass
             else:
                 prevTotal = ret[4]
@@ -615,7 +615,7 @@ def compressBWTPoolProcess(tuple tup):
     endChar = c
     
     #return a lot of information so we can easily combine the results
-    return (size, startChar, deltas[0], endChar, deltas[deltas.shape[0]-1], tempFN)
+    return (size, startChar, deltas[0], endChar, deltas[deltas.shape[0]-1], tempFN, deltas.shape[0])
     
 ##########################################################################################
 #Everything below here has not been cythonized yet
