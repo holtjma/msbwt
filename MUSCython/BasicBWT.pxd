@@ -58,6 +58,7 @@ cdef class BasicBWT(object):
     cpdef recoverString(BasicBWT self, unsigned long strIndex, bint withIndex=*)
     cdef void fillBin(BasicBWT self, np.uint8_t [:] binToFill, unsigned long binID) nogil
     cdef void fillFmAtIndex(BasicBWT self, np.uint64_t [:] fill_view, unsigned long index)
+    cpdef np.ndarray countPileup(BasicBWT self, bytes seq, long kmerSize)
     cpdef tuple countSeqMatches(BasicBWT self, bytes seq, unsigned long kmerSize)
     cpdef tuple countStrandedSeqMatches(BasicBWT self, bytes seq, unsigned long kmerSize)
     cpdef np.ndarray findKmerThreshold(BasicBWT self, bytes seq, unsigned long threshold)

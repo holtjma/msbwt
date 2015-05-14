@@ -660,17 +660,39 @@ cdef class BasicBWT(object):
         '''
         pass
     
+    cpdef np.ndarray countPileup(BasicBWT self, bytes seq, long kmerSize):
+        '''
+        This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
+        "kmerSize" in that sequence and return it in an array. Automatically includes reverse complement.
+        @param seq - the seq to scan
+        @param kmerSize - the size of the k-mer to count
+        @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
+        '''
+        cdef long seqLen = len(seq)
+        cdef long numCounts = max(0, seqLen-kmerSize+1)
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.zeros(dtype='<u8', shape=(numCounts, ))
+        cdef np.uint64_t [:] ret_view = ret
+        
+        cdef bytes subseq, subseqRevComp
+        cdef bytes revCompSeq = MultiStringBWT.reverseComplement(seq)
+        
+        cdef unsigned long x
+        for x in range(0, numCounts):
+            subseq = seq[x:x+kmerSize]
+            subseqRevComp = revCompSeq[seqLen-kmerSize-x:seqLen-x]
+            ret_view[x] = self.countOccurrencesOfSeq(subseq)+self.countOccurrencesOfSeq(subseqRevComp)
+        
+        return ret
+        
     cpdef tuple countSeqMatches(BasicBWT self, bytes seq, unsigned long kmerSize):
         '''
         This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
         "kmerSize" in that sequence and return it in an array.
         @param seq - the seq to scan
         @param kmerSize - the size of the k-mer to count
-        @param isStranded - if True, it ONLY counts the forward strand (aka, exactly matches "seq")
-                            if False, it counts forward strand and reverse-complement strand and adds them together
         @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
         '''
-        cdef long numCounts = len(seq)-kmerSize+1
+        cdef long numCounts = max(0, len(seq)-kmerSize+1)
         cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret
         cdef np.ndarray[np.int64_t, ndim=1, mode='c'] otherChoices
         (ret, otherChoices) = self.countStrandedSeqMatches(seq, kmerSize)
@@ -704,7 +726,7 @@ cdef class BasicBWT(object):
         '''
         #get a view of the input
         cdef unsigned char * seq_view = seq
-        cdef unsigned long s = len(seq)
+        cdef long s = len(seq)
         
         #array size stuff
         cdef long numCounts = s-kmerSize+1
@@ -822,8 +844,6 @@ cdef class BasicBWT(object):
         ??? need desc
         @param seq - the seq to scan
         @param kmerSize - the size of the k-mer to count
-        @param isStranded - if True, it ONLY counts the forward strand (aka, exactly matches "seq")
-                            if False, it counts forward strand and reverse-complement strand and adds them together
         @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
         '''
         #get a view of the input
@@ -889,21 +909,25 @@ cdef class BasicBWT(object):
                 rightRet_view[x] = currLen
                 
                 #TODO: this can likely be moved into the above loop to avoid a whole lot of checks
+                '''
                 for y in range(x, x+currLen):
                     leftRet_view[y] = max(leftRet_view[y], y-x+1)
+                '''
                 
                 #this stores it for all values
                 #for y in range(x, x+currLen):
                 #    ret_view[y] = max(ret_view[y], currLen)
         
-        #return ret
-        return (leftRet+rightRet)/2
+        #return (leftRet+rightRet)/2
         '''
         for x in range(0, s):
             leftRet_view[x] = max(leftRet_view[x], rightRet_view[x])
         return leftRet
         '''
-    
+        
+        #TODO: currently returning (and calculating) just the right side, are other metrics better?
+        return rightRet
+                
     cpdef np.ndarray findKTOtherStranded(BasicBWT self, bytes seq, unsigned long threshold):
         '''
         This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
@@ -953,14 +977,12 @@ cdef class BasicBWT(object):
             newL = lowArray_view[c]
             newH = highArray_view[c]
             
+            '''
             #here's the ret value magic
             maxAlt = 0
             altCurrLen = currLen
             altL = l
             altH = h
-            
-            #print 'moo', maxAlt, threshold, maxAlt < threshold
-            #print 'moo2', currLen, altCurrLen, altCurrLen > 0
             
             while maxAlt < threshold and altCurrLen > 0:
                 #print altCurrLen
@@ -981,8 +1003,17 @@ cdef class BasicBWT(object):
                     #re-calc the fm index with the loosened range
                     self.fillFmAtIndex(lowArray_view, altL)
                     self.fillFmAtIndex(highArray_view, altH)
-            
             ret_view[x] = altCurrLen
+            '''
+            
+            if currLen > 20:
+                maxAlt = 0
+                for altC in range(1, self.vcLen):
+                    if altC != c:
+                        altVal = highArray_view[altC] - lowArray_view[altC]
+                        if altVal > maxAlt:
+                            maxAlt = altVal
+                ret_view[x] = maxAlt
             
             #while the range we have is less than our threshold and the currLen is greater than 0
             while newH-newL < threshold and currLen > 0:
