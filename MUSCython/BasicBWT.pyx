@@ -720,8 +720,6 @@ cdef class BasicBWT(object):
         "kmerSize" in that sequence and return it in an array.
         @param seq - the seq to scan
         @param kmerSize - the size of the k-mer to count
-        @param isStranded - if True, it ONLY counts the forward strand (aka, exactly matches "seq")
-                            if False, it counts forward strand and reverse-complement strand and adds them together
         @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
         '''
         #get a view of the input
