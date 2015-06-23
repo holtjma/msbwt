@@ -494,9 +494,9 @@ def formatSeqsForMerge(seqIter, char * seqFN, char * offsetFN, unsigned long num
         offsetFP.write(seqOffsetArrayWrite.tostring())
     
     #cleanup of the pool
-    #pool.terminate()
-    #pool.join()
-    pool.close()
+    pool.terminate()
+    pool.join()
+    #pool.close()
     pool = None
     
     #save it all
@@ -526,11 +526,11 @@ def memoryBWT(seq):
     cdef char * seq_view = seq
     
     #interleave stuff
-    cdef np.ndarray[np.uint16_t, ndim=1, mode='c'] arr0 = np.zeros(dtype='<u2', shape=(seqLen, ))
-    cdef np.uint16_t [:] arr0_view = arr0
-    cdef np.ndarray[np.uint16_t, ndim=1, mode='c'] arr1 = np.zeros(dtype='<u2', shape=(seqLen, ))
-    cdef np.uint16_t [:] arr1_view = arr1
-    cdef np.ndarray[np.uint16_t, ndim=1, mode='c'] tempArr
+    cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] arr0 = np.zeros(dtype='<u4', shape=(seqLen, ))
+    cdef np.uint32_t [:] arr0_view = arr0
+    cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] arr1 = np.zeros(dtype='<u4', shape=(seqLen, ))
+    cdef np.uint32_t [:] arr1_view = arr1
+    cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] tempArr
     
     #convert the string
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] converted = np.zeros(dtype='<u1', shape=(seqLen, ))
@@ -539,8 +539,8 @@ def memoryBWT(seq):
     #ret and totalcounts for each symbol
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] ret = np.zeros(dtype='<u1', shape=(seqLen, ))
     cdef np.uint8_t [:] ret_view = ret
-    cdef np.ndarray[np.uint16_t, ndim=1, mode='c'] totalCounts = np.zeros(dtype='<u2', shape=(6, ))
-    cdef np.uint16_t [:] totalCounts_view = totalCounts
+    cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] totalCounts = np.zeros(dtype='<u4', shape=(6, ))
+    cdef np.uint32_t [:] totalCounts_view = totalCounts
     
     #iterate through the plain string doing both conversions and counts simultaneously
     cdef unsigned int x
@@ -741,8 +741,9 @@ def interleaveLevelMerge(char * mergedDir, unsigned long numProcs, bint areUnifo
         
         #clean up the pool
         if activeProcs > 1:
-            pool.close()
-            #pool.join()
+            #pool.close()
+            pool.terminate()
+            pool.join()
             pool = None
         
         #recalculate where we stand in terms of merging
@@ -1455,7 +1456,9 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
                 changesMade |= resultChangesMade
         
         #clean up
-        myPool.close()
+        #myPool.close()
+        myPool.terminate()
+        myPool.join()
         myPool = None
         #'''
         '''

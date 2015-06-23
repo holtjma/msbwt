@@ -720,7 +720,7 @@ cdef class BasicBWT(object):
         "kmerSize" in that sequence and return it in an array.
         @param seq - the seq to scan
         @param kmerSize - the size of the k-mer to count
-        @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
+        @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts, and the other choice also
         '''
         #get a view of the input
         cdef unsigned char * seq_view = seq
@@ -807,7 +807,93 @@ cdef class BasicBWT(object):
                         ret_view[x] = 0
                 
         return (ret, otherChoices)
+    
+    cpdef np.ndarray countStrandedSeqMatchesNoOther(BasicBWT self, bytes seq, unsigned long kmerSize):
+        '''
+        This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
+        "kmerSize" in that sequence and return it in an array.
+        @param seq - the seq to scan
+        @param kmerSize - the size of the k-mer to count
+        @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
+        '''
+        #get a view of the input
+        cdef unsigned char * seq_view = seq
+        cdef long s = len(seq)
         
+        #array size stuff
+        cdef long numCounts = s-kmerSize+1
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.zeros(dtype='<u8', shape=(max(0, numCounts), ))
+        cdef np.uint64_t [:] ret_view = ret
+        
+        #arrays for the fm-indices
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] lowArray_view = lowArray
+        cdef np.uint64_t [:] highArray_view = highArray
+        
+        #ranges for counting
+        cdef unsigned long currLen = 0
+        cdef unsigned long l = 0
+        cdef unsigned long h = self.totalSize
+        
+        cdef unsigned long newL, newH
+        
+        #other vars
+        cdef unsigned long c
+        cdef long x = len(seq)-1
+        cdef long y = 0
+        
+        #now we start traversing
+        for x in range(s-1, -1, -1):
+            c = self.charToNum_view[seq_view[x]]
+            newL = self.getOccurrenceOfCharAtIndex(c, l)
+            newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            if currLen == kmerSize-1:
+                self.fillFmAtIndex(lowArray_view, l)
+                self.fillFmAtIndex(highArray_view, h)
+                
+            while newL == newH and currLen > 0:
+                #loosen up a bit
+                currLen -= 1
+                while l > 0 and self.lcps_view[l-1] >= currLen:
+                    l -= 1
+                while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                    h += 1
+                
+                #re-search
+                newL = self.getOccurrenceOfCharAtIndex(c, l)
+                newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            if newL == newH and currLen == 0:
+                #this symbol just doesn't occur at all
+                l = 0
+                h = self.totalSize
+            else:
+                #else, we set our l/h to newL/newH and increment the length
+                l = newL
+                h = newH
+                currLen += 1
+                
+                #check if we're ready to start counting
+                if x < numCounts:
+                    if currLen == kmerSize:
+                        #store the count
+                        ret_view[x] = h-l
+                        
+                        #now reduce the currLen and loosen
+                        currLen -= 1
+                        while l > 0 and self.lcps_view[l-1] >= currLen:
+                            l -= 1
+                        while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                            h += 1
+                        
+                    else:
+                        #we're too small, this means the count is 0
+                        ret_view[x] = 0
+                
+        return ret
+    
     cpdef np.ndarray findKmerThreshold(BasicBWT self, bytes seq, unsigned long threshold):
         '''
         This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size

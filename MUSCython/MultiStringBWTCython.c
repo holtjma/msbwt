@@ -1024,8 +1024,10 @@ struct __pyx_vtabstruct_9MUSCython_8BasicBWT_BasicBWT {
   PyObject *(*recoverString)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, unsigned long, int __pyx_skip_dispatch, struct __pyx_opt_args_9MUSCython_8BasicBWT_8BasicBWT_recoverString *__pyx_optional_args);
   void (*fillBin)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, __Pyx_memviewslice, unsigned long);
   void (*fillFmAtIndex)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, __Pyx_memviewslice, unsigned long);
+  PyArrayObject *(*countPileup)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, long, int __pyx_skip_dispatch);
   PyObject *(*countSeqMatches)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
   PyObject *(*countStrandedSeqMatches)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
+  PyArrayObject *(*countStrandedSeqMatchesNoOther)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
   PyArrayObject *(*findKmerThreshold)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
   PyArrayObject *(*findKmerThresholdStranded)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);
   PyArrayObject *(*findKTOtherStranded)(struct __pyx_obj_9MUSCython_8BasicBWT_BasicBWT *, PyObject *, unsigned long, int __pyx_skip_dispatch);

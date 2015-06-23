@@ -758,3 +758,558 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             #USER IS RESPONSIBLE FOR RELOADING THE BWT
             pass
         
+    cpdef set findReadsMatchingSeq(RLE_BWT self, bytes seq, unsigned long strLen):
+        '''
+        REQUIRES LCP 
+        This function takes a sequence and finds all strings of length "stringLen" which exactly match the sequence
+        @param seq - the sequence we want to match, no buffer 'N's are required here
+        @param strLen - the length of the strings we are trying to extract
+        @return - a set of dollar IDs corresponding to strings that exactly match the seq somewhere
+        '''
+        #currLen = the length of the l-h k-mer at all time
+        cdef unsigned long currLen = 0
+        cdef set readSet = set([])
+        
+        cdef unsigned long l = 0
+        cdef unsigned long h = self.totalSize
+        cdef unsigned long s = len(seq)
+        cdef long x, y
+        cdef unsigned long c
+        
+        cdef unsigned long newL
+        cdef unsigned long newH
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        
+        #with nogil:
+        for x in range(s-1, -1, -1):
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[x]]
+            newL = self.getOccurrenceOfCharAtIndex(c, l)
+            newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            #currLen = the length of the l-h k-mer
+            
+            #while the new low and high are the same and we still have some length on the base k-mer
+            while newL == newH and currLen > 0:
+                #decrease currLen and loosen the k-mers to match it
+                currLen -= 1
+                while l > 0 and self.lcps_view[l-1] >= currLen:
+                    l -= 1
+                while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                    h += 1
+                        
+                #retry the search with the loosened parameters
+                newL = self.getOccurrenceOfCharAtIndex(c, l)
+                newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            if currLen == 0 and newL == newH:
+                #if we have no current length and there's nothing in the search range, we basically skip this letter
+                l = 0
+                h = self.totalSize
+            else:
+                #else, we set our l/h to newL/newH and increment the length
+                l = newL
+                h = newH
+                currLen += 1
+                
+                #also, we now check if we are at the read length
+                if currLen == strLen:
+                    #get all reads that match up
+                    newL = self.getOccurrenceOfCharAtIndex(0, l)
+                    newH = self.getOccurrenceOfCharAtIndex(0, h)
+                    
+                    #add each read on in
+                    for y in xrange(newL, newH):
+                        readSet.add(y)
+                    
+                    #now reduce the currLen and loosen
+                    currLen -= 1
+                    while l > 0 and self.lcps_view[l-1] >= currLen:
+                        l -= 1
+                    while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                        h += 1
+                    
+        #return the readSet
+        return readSet
+    
+    cpdef set findReadsMatchingSeqWithError(RLE_BWT self, bytes seq, unsigned long strLen):
+        '''
+        REQUIRES LCP 
+        This function takes a sequence and finds all strings of length "stringLen" which match the sequence
+        while allowing for <= 1 errors.  This is basically a combination of two functions: findReadsMatchingSeq(...)
+        and findStrWithError(...).
+        @param seq - the sequence we want to match, assumed to be buffered on both ends with 'N' symbols
+        @param strLen - the length of the strings we are trying to extract
+        @return - a set of dollar IDs corresponding to strings that match with <= 1 base changes the seq somewhere
+        '''
+        #currLen = the length of the l-h k-mer at all time
+        cdef unsigned long currLen = 0
+        cdef set readSet = set([])
+        
+        cdef unsigned long l = 0
+        cdef unsigned long h = self.totalSize
+        cdef unsigned long lc, hc
+        
+        cdef unsigned long s = len(seq)
+        cdef long x, y, z
+        cdef unsigned long c, c2
+        
+        cdef unsigned long altC
+        
+        #altPos is only -1 initially, but since it CAN be negative, the altCurrLen must also be a long
+        #I don't foresee any issues with this, but be aware future Matt; alternative is to do a shift of everything
+        #which would be both programatically and mentally annoying
+        cdef unsigned long altPos
+        cdef unsigned long altCurrLen
+        
+        cdef unsigned long newL
+        cdef unsigned long newH
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        
+        #arrays for the fm-indices
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] lowArray_view = lowArray
+        cdef np.uint64_t [:] highArray_view = highArray
+        
+        cdef unsigned long halfLen = strLen/2
+        
+        for x in range(s-1, -1, -1):
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[x]]
+            self.fillFmAtIndex(lowArray_view, l)
+            self.fillFmAtIndex(highArray_view, h)
+            
+            for c2 in xrange(1, self.vcLen):
+                if c2 != c:# and (x < halfLen or currLen >= halfLen):#<---if you do this, need a different function below
+                    #BEGIN SNP CHECK
+                    #copy x into y, and set the altPos at -1 since it isn't actually added yet
+                    y = x
+                    #altPos = <long>-1
+                    altPos = currLen+1
+                    
+                    #first copy into a temp area
+                    lc = l
+                    hc = h
+                    altCurrLen = currLen
+                    
+                    #while we have seq left AND we haven't rotated our alternate symbol out
+                    #while y >= 0 and altPos < <long>altCurrLen:
+                    while y >= 0 and altPos > 0:
+                        if y == x:
+                            #first one is actually a different character 
+                            altC = c2
+                            newL = lowArray_view[altC]
+                            newH = highArray_view[altC]
+                        else:
+                            #these are matching symbols now
+                            altC = self.charToNum_view[seq_view[y]]
+                            newL = self.getOccurrenceOfCharAtIndex(altC, lc)
+                            newH = self.getOccurrenceOfCharAtIndex(altC, hc)
+                        
+                        #while our new range is length 0, and the altCurrLen > 0, and we haven't shifted our symbol out
+                        #while newL == newH and altCurrLen > 0 and altPos < <long>altCurrLen:
+                        while newL == newH and altCurrLen > 0 and altPos > 0:
+                            #loosening time
+                            altCurrLen -= 1
+                            altPos -= 1
+                            while lc > 0 and self.lcps_view[lc-1] >= altCurrLen:
+                                lc -= 1
+                            while hc < self.totalSize and self.lcps_view[hc-1] >= altCurrLen:
+                                hc += 1
+                            
+                            #retry the search with the loosened parameters
+                            newL = self.getOccurrenceOfCharAtIndex(altC, lc)
+                            newH = self.getOccurrenceOfCharAtIndex(altC, hc)
+                    
+                        if altCurrLen == 0 and newL == newH:
+                            #if we have no current length and there's nothing in the search range, we basically skip this letter
+                            lc = 0
+                            hc = self.totalSize
+                            altPos = 0
+                        else:
+                            #else, we set our l/h to newL/newH and increment the length
+                            lc = newL
+                            hc = newH
+                            altCurrLen += 1
+                            #altPos += 1
+                            
+                            #also, we now check if we are at the read length
+                            if altCurrLen == strLen:
+                                #get all reads that match up
+                                newL = self.getOccurrenceOfCharAtIndex(0, lc)
+                                newH = self.getOccurrenceOfCharAtIndex(0, hc)
+                                
+                                #add each read on in
+                                for z in xrange(newL, newH):
+                                    readSet.add(z)
+                                
+                                #now reduce the currLen and loosen
+                                altCurrLen -= 1
+                                altPos -= 1
+                                while lc > 0 and self.lcps_view[lc-1] >= altCurrLen:
+                                    lc -= 1
+                                while hc < self.totalSize and self.lcps_view[hc-1] >= altCurrLen:
+                                    hc += 1
+                                    
+                        #now get the next symbol
+                        y -= 1
+                    
+                    
+                    #END SNP CHECK
+            
+            #set these to match the true symbol 
+            newL = lowArray_view[c]
+            newH = highArray_view[c]
+            
+            #while the new low and high are the same and we still have some length on the base k-mer
+            while newL == newH and currLen > 0:
+                #decrease currLen and loosen the k-mers to match it
+                currLen -= 1
+                while l > 0 and self.lcps_view[l-1] >= currLen:
+                    l -= 1
+                while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                    h += 1
+                
+                #retry the search with the loosened parameters
+                newL = self.getOccurrenceOfCharAtIndex(c, l)
+                newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            if currLen == 0 and newL == newH:
+                #if we have no current length and there's nothing in the search range, we basically skip this letter
+                l = 0
+                h = self.totalSize
+            else:
+                #else, we set our l/h to newL/newH and increment the length
+                l = newL
+                h = newH
+                currLen += 1
+                
+                #also, we now check if we are at the read length
+                if currLen == strLen:
+                    #get all reads that match up
+                    newL = self.getOccurrenceOfCharAtIndex(0, l)
+                    newH = self.getOccurrenceOfCharAtIndex(0, h)
+                    
+                    #add each read on in
+                    for y in xrange(newL, newH):
+                        readSet.add(y)
+                    
+                    #now reduce the currLen and loosen
+                    currLen -= 1
+                    while l > 0 and self.lcps_view[l-1] >= currLen:
+                        l -= 1
+                    while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                        h += 1
+        
+        #return the readSet
+        return readSet
+    
+    cpdef set findReadsMatchingSeqWithError2(RLE_BWT self, bytes seq, unsigned long strLen):
+        '''
+        REQUIRES LCP 
+        This function takes a sequence and finds all strings of length "stringLen" which match the sequence while
+        allowing for one base error
+        @param seq - the sequence we want to match, no buffer 'N's are required here
+        @param strLen - the length of the strings we are trying to extract
+        @return - a set of dollar IDs corresponding to strings that match with <= 1 base changes the seq somewhere
+        '''
+        #currLen = the length of the l-h k-mer at all time
+        cdef unsigned long currLen = 0
+        cdef set readSet = set([])
+        
+        cdef unsigned long l = 0
+        cdef unsigned long h = self.totalSize
+        cdef unsigned long s = len(seq)
+        cdef long x, y, z, i
+        cdef unsigned long c
+        
+        cdef unsigned long newL
+        cdef unsigned long newH
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        
+        #this will round down, which is fine
+        cdef unsigned long halfLen = strLen/2
+        cdef unsigned long hL = 0
+        cdef unsigned long hH = self.totalSize
+        cdef unsigned long hCurrLen = 0
+        
+        cdef bint isExactEntries = False
+        cdef unsigned long exactMatchLow, exactMatchHigh
+        
+        #local align vars
+        cdef str recoveredString
+        cdef unsigned long alignScore
+        cdef unsigned long c2, nextC
+        cdef unsigned long dollarIndex
+        cdef unsigned long symBefore, symAfter
+        
+        #arrays for the fm-indices
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] lowArray_view = lowArray
+        cdef np.uint64_t [:] highArray_view = highArray
+        
+        cdef unsigned long altL, altH
+        cdef unsigned long altCurrLen, altChangeOffset
+        cdef unsigned long c3
+        
+        cdef unsigned long ind
+        cdef unsigned long prevLZero, prevHZero
+        cdef unsigned long currLZero, currHZero
+        
+        #with nogil:
+        for x in range(s-1, -1, -1):
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[x]]
+            newL = self.getOccurrenceOfCharAtIndex(c, l)
+            newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            #while the new low and high are the same and we still have some length on the base k-mer
+            while newL == newH and currLen > 0:
+                #decrease currLen and loosen the k-mers to match it
+                currLen -= 1
+                while l > 0 and self.lcps_view[l-1] >= currLen:
+                    l -= 1
+                while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                    h += 1
+                        
+                #retry the search with the loosened parameters
+                newL = self.getOccurrenceOfCharAtIndex(c, l)
+                newH = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            if currLen == 0 and newL == newH:
+                #if we have no current length and there's nothing in the search range, we basically skip this letter
+                l = 0
+                h = self.totalSize
+                isExactEntries = False
+            else:
+                #else, we set our l/h to newL/newH and increment the length
+                l = newL
+                h = newH
+                currLen += 1
+                
+                exactMatchLow = self.getOccurrenceOfCharAtIndex(0, l)
+                exactMatchHigh = self.getOccurrenceOfCharAtIndex(0, h)
+                
+                #also, we now check if we are at the read length
+                if currLen == strLen:
+                    #get all reads that match up
+                    #newL = self.getOccurrenceOfCharAtIndex(0, l)
+                    #newH = self.getOccurrenceOfCharAtIndex(0, h)
+                    newL = exactMatchLow
+                    newH = exactMatchHigh
+                    
+                    #add each read on in
+                    for y in xrange(newL, newH):
+                        readSet.add(y)
+                    
+                    #now reduce the currLen and loosen
+                    currLen -= 1
+                    while l > 0 and self.lcps_view[l-1] >= currLen:
+                        l -= 1
+                    while h < self.totalSize and self.lcps_view[h-1] >= currLen:
+                        h += 1
+                    
+                    isExactEntries = True
+                else:
+                    isExactEntries = False
+            
+            #at this point, all exact matches have been found, now we do the off-by-one reads
+            
+            #Now we do everything again, but for the half length
+            newL = self.getOccurrenceOfCharAtIndex(c, hL)
+            newH = self.getOccurrenceOfCharAtIndex(c, hH)
+            
+            #while the new low and high are the same and we still have some length on the base k-mer
+            while newL == newH and hCurrLen > 0:
+                #decrease currLen and loosen the k-mers to match it
+                hCurrLen -= 1
+                while hL > 0 and self.lcps_view[hL-1] >= hCurrLen:
+                    hL -= 1
+                while hH < self.totalSize and self.lcps_view[hH-1] >= hCurrLen:
+                    hH += 1
+                        
+                #retry the search with the loosened parameters
+                newL = self.getOccurrenceOfCharAtIndex(c, hL)
+                newH = self.getOccurrenceOfCharAtIndex(c, hH)
+            
+            if hCurrLen == 0 and newL == newH:
+                #if we have no current length and there's nothing in the search range, we basically skip this letter
+                hL = 0
+                hH = self.totalSize
+            else:
+                #else, we set our l/h to newL/newH and increment the length
+                hL = newL
+                hH = newH
+                hCurrLen += 1
+                
+                #also, we now check if we are at the half read length
+                if hCurrLen == halfLen:
+                    #so new plan using local alignments
+                    #1 - take 50-mer range and find $+50-mer, then exclude those which exactly match, 
+                    #    recover the string and local align the string
+                    if x+strLen <= s:
+                        #first, we need to find those with a '$' before them
+                        newL = self.getOccurrenceOfCharAtIndex(0, hL)
+                        newH = self.getOccurrenceOfCharAtIndex(0, hH)
+                        
+                        #TODO: is this complicated 'if' necessary when we are also checking for "y in readSet"?
+                        if isExactEntries:
+                            for y in range(newL, exactMatchLow):
+                                if y in readSet:
+                                    continue
+                                else:
+                                    recoveredString = self.recoverString(y)
+                                    alignScore = AlignmentUtil.alignChanges(seq[x+halfLen:x+strLen], recoveredString[1+halfLen:])
+                                    if alignScore <= 1:
+                                        readSet.add(y)
+                            for y in range(exactMatchHigh, newH):
+                                if y in readSet:
+                                    continue
+                                else:
+                                    recoveredString = self.recoverString(y)
+                                    alignScore = AlignmentUtil.alignChanges(seq[x+halfLen:x+strLen], recoveredString[1+halfLen:])
+                                    if alignScore <= 1:
+                                        readSet.add(y)
+                            
+                        else:
+                            #we have no exact matching entries, so we start with everything
+                            for y in range(newL, newH):
+                                if y in readSet:
+                                    continue
+                                if not isExactEntries or y < exactMatchLow or y >= exactMatchHigh:
+                                    #not in the exact match range so handle it
+                                    recoveredString = self.recoverString(y)
+                                    alignScore = AlignmentUtil.alignChanges(seq[x+halfLen:x+strLen], recoveredString[1+halfLen:])
+                                    if alignScore <= 1:
+                                        readSet.add(y)
+                        
+                    #2 - take max level range, loosen until we have a c2+k-mer where c2 != nextC and k >= 50#
+                    #    then crawl until we cycle the 'c2' out
+                    if x > 0:
+                        #get the next symbol and the f-index at this position
+                        nextC = self.charToNum_view[seq_view[x-1]]
+                        self.fillFmAtIndex(lowArray_view, hL)
+                        self.fillFmAtIndex(highArray_view, hH)
+                        
+                        #for all other symbols
+                        for c2 in range(1, self.vcLen):
+                            if nextC != c2:
+                                if highArray_view[c2] - lowArray_view[c2] <= 1:
+                                    #THIS METHOD WORKS WELL WHEN THERE ARE SPARSE ERRORS
+                                    #basically local align the one-of reads
+                                    for y in range(lowArray_view[c2], highArray_view[c2]):
+                                        recoveredString = self.recoverString(y)
+                                        dollarIndex = recoveredString.find('$')
+                                        #number of symbols before k-mer = 1+(strLen-dollarIndex)
+                                        symBefore = 1+strLen-dollarIndex
+                                        #number of symbols after k-mer = dollarIndex-(halfLen+1)
+                                        symAfter = dollarIndex-(halfLen+1)
+                                        
+                                        if symBefore <= x and x+dollarIndex-1 < s:
+                                            alignScore = (AlignmentUtil.alignChanges(seq[x-symBefore:x], recoveredString[dollarIndex+1:]+recoveredString[0:1])
+                                                          + AlignmentUtil.alignChanges(seq[x+halfLen:x+halfLen+symAfter], recoveredString[1+halfLen:dollarIndex]))
+                                            
+                                            if alignScore <= 1:
+                                                readSet.add(self.getSequenceDollarID(y))
+                                else:
+                                    #when we have a more than just one (i.e., a SNP we didn't know about)
+                                    #we approach it by adding the "wrong" symbol and then forcing the rest to be correct
+                                    #copy some values
+                                    altL = l
+                                    altH = h
+                                    altCurrLen = currLen
+                                    altChangeOffset = 0
+                                    z = x - 2
+                                    
+                                    #try to tighten once
+                                    newL = lowArray_view[c2]
+                                    newH = highArray_view[c2]
+                                    
+                                    #loosen until we get a match we can tighten into
+                                    while newL == newH and altCurrLen > halfLen:
+                                        altCurrLen -= 1
+                                        while altL > 0 and self.lcps_view[altL-1] >= altCurrLen:
+                                            altL -= 1
+                                        while altH < self.totalSize and self.lcps_view[altH-1] >= altCurrLen:
+                                            altH += 1
+                                        
+                                        newL = self.getOccurrenceOfCharAtIndex(c2, altL)
+                                        newH = self.getOccurrenceOfCharAtIndex(c2, altH)
+                                    
+                                    if altCurrLen == 0 and newL == newH:
+                                        newL = 0
+                                        newH = self.totalSize
+                                    else:
+                                        #tighten once
+                                        altCurrLen += 1
+                                        altL = newL
+                                        altH = newH
+                                        
+                                        #if exact matches, copy them and loosen up
+                                        if altCurrLen == strLen:
+                                            for y in range(self.getOccurrenceOfCharAtIndex(0, altL), self.getOccurrenceOfCharAtIndex(0, altH)):
+                                                readSet.add(y)
+                                            
+                                            altCurrLen -= 1
+                                            while altL > 0 and self.lcps_view[altL-1] >= altCurrLen:
+                                                altL -= 1
+                                            while altH < self.totalSize and self.lcps_view[altH-1] >= altCurrLen:
+                                                altH += 1
+                                    
+                                    #while our alternate symbol is in the front half of our k-mer range
+                                    while altCurrLen - altChangeOffset > halfLen and z > 0:
+                                        c3 = self.charToNum_view[seq_view[z]]
+                                        newL = self.getOccurrenceOfCharAtIndex(c3, altL)
+                                        newH = self.getOccurrenceOfCharAtIndex(c3, altH)
+                                        
+                                        #loosen until we get a match we can tighten into
+                                        while newL == newH and altCurrLen - altChangeOffset > halfLen:
+                                            altCurrLen -= 1
+                                            while altL > 0 and self.lcps_view[altL-1] >= altCurrLen:
+                                                altL -= 1
+                                            while altH < self.totalSize and self.lcps_view[altH-1] >= altCurrLen:
+                                                altH += 1
+                                            
+                                            newL = self.getOccurrenceOfCharAtIndex(c3, altL)
+                                            newH = self.getOccurrenceOfCharAtIndex(c3, altH)
+                                        
+                                        if altCurrLen == 0 and newL == newH:
+                                            newL = 0
+                                            newH = self.totalSize
+                                        else:
+                                            #tighten once
+                                            altCurrLen += 1
+                                            altChangeOffset += 1
+                                            altL = newL
+                                            altH = newH
+                                            
+                                            #if exact matches, copy them and loosen up
+                                            if altCurrLen == strLen:
+                                                for y in range(self.getOccurrenceOfCharAtIndex(0, altL), self.getOccurrenceOfCharAtIndex(0, altH)):
+                                                    readSet.add(y)
+                                                
+                                                altCurrLen -= 1
+                                                while altL > 0 and self.lcps_view[altL-1] >= altCurrLen:
+                                                    altL -= 1
+                                                while altH < self.totalSize and self.lcps_view[altH-1] >= altCurrLen:
+                                                    altH += 1
+                                        
+                                        z -= 1
+                            
+                    #now reduce the currLen and loosen
+                    hCurrLen -= 1
+                    while hL > 0 and self.lcps_view[hL-1] >= hCurrLen:
+                        hL -= 1
+                    while hH < self.totalSize and self.lcps_view[hH-1] >= hCurrLen:
+                        hH += 1
+            
+        #return the readSet
+        return readSet

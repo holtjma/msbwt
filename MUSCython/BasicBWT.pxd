@@ -61,6 +61,7 @@ cdef class BasicBWT(object):
     cpdef np.ndarray countPileup(BasicBWT self, bytes seq, long kmerSize)
     cpdef tuple countSeqMatches(BasicBWT self, bytes seq, unsigned long kmerSize)
     cpdef tuple countStrandedSeqMatches(BasicBWT self, bytes seq, unsigned long kmerSize)
+    cpdef np.ndarray countStrandedSeqMatchesNoOther(BasicBWT self, bytes seq, unsigned long kmerSize)
     cpdef np.ndarray findKmerThreshold(BasicBWT self, bytes seq, unsigned long threshold)
     cpdef np.ndarray findKmerThresholdStranded(BasicBWT self, bytes seq, unsigned long threshold)
     cpdef np.ndarray findKTOtherStranded(BasicBWT self, bytes seq, unsigned long threshold)
