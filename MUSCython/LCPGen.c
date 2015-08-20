@@ -2648,14 +2648,14 @@ static PyObject *__pyx_pf_9MUSCython_6LCPGen_lcpGenerator(CYTHON_UNUSED PyObject
         __Pyx_XDECREF(__pyx_t_22); __pyx_t_22 = 0;
         goto __pyx_L17_try_end;
         __pyx_L10_error:;
-        __PYX_XDEC_MEMVIEW(&__pyx_t_9, 1);
-        __PYX_XDEC_MEMVIEW(&__pyx_t_6, 1);
-        __PYX_XDEC_MEMVIEW(&__pyx_t_11, 1);
         __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
         __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
         __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
         __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
         __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __PYX_XDEC_MEMVIEW(&__pyx_t_11, 1);
+        __PYX_XDEC_MEMVIEW(&__pyx_t_9, 1);
+        __PYX_XDEC_MEMVIEW(&__pyx_t_6, 1);
 
         /* "MUSCython/LCPGen.pyx":70
  *             try:
@@ -3132,9 +3132,6 @@ static PyObject *__pyx_pf_9MUSCython_6LCPGen_lcpGenerator(CYTHON_UNUSED PyObject
       __Pyx_XDECREF(__pyx_t_22); __pyx_t_22 = 0;
       goto __pyx_L39_try_end;
       __pyx_L32_error:;
-      __PYX_XDEC_MEMVIEW(&__pyx_t_9, 1);
-      __PYX_XDEC_MEMVIEW(&__pyx_t_6, 1);
-      __PYX_XDEC_MEMVIEW(&__pyx_t_11, 1);
       __Pyx_XDECREF(__pyx_t_23); __pyx_t_23 = 0;
       __Pyx_XDECREF(__pyx_t_24); __pyx_t_24 = 0;
       __Pyx_XDECREF(__pyx_t_25); __pyx_t_25 = 0;
@@ -3143,6 +3140,9 @@ static PyObject *__pyx_pf_9MUSCython_6LCPGen_lcpGenerator(CYTHON_UNUSED PyObject
       __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
       __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      __PYX_XDEC_MEMVIEW(&__pyx_t_11, 1);
+      __PYX_XDEC_MEMVIEW(&__pyx_t_9, 1);
+      __PYX_XDEC_MEMVIEW(&__pyx_t_6, 1);
 
       /* "MUSCython/LCPGen.pyx":114
  *         try:
