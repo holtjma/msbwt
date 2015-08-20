@@ -1,6 +1,7 @@
 #!python
 #cython: boundscheck=False
 #cython: wraparound=False
+#cython: initializedcheck=False
 
 '''
 Created on Mar 19, 2014
@@ -84,9 +85,9 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     with nogil:
         for i in range(0, numSeqs):
             #index to insert, symbol, sequence
-            initialInserts_view[i][0] = i
-            initialInserts_view[i][1] = finalSymbols_view[i]
-            initialInserts_view[i][2] = i
+            initialInserts_view[i,0] = i
+            initialInserts_view[i,1] = finalSymbols_view[i]
+            initialInserts_view[i,2] = i
             initialFmDeltas_view[finalSymbols_view[i]] += 1
     
     #fmStarts is basically an fm-index offset, fmdeltas tells us how much fmStarts should change each iterations
@@ -103,7 +104,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     
     #fmDeltas[0][:] = initialFmDeltas[:]
     for i in range(0, numValidChars):
-        fmDeltas_view[0][i] = initialFmDeltas[i]
+        fmDeltas_view[0,i] = initialFmDeltas[i]
     
     #figure out the files we insert in each iteration
     cdef dict insertionFNDict = {}
@@ -138,13 +139,13 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
         for i in range(0, numValidChars):
             cumsum = 0
             for j in range(0, numValidChars-1):
-                cumsum += fmDeltas_view[j][i]
-                fmStarts_view[j+1][i] += cumsum
-                fmEnds_view[j][i] += cumsum
-                nextFmDeltas_view[j][i] = 0
-            cumsum += fmDeltas_view[numValidChars-1][i]
-            fmEnds_view[numValidChars-1][i] += cumsum
-            nextFmDeltas_view[numValidChars-1][i] = 0
+                cumsum += fmDeltas_view[j,i]
+                fmStarts_view[j+1,i] += cumsum
+                fmEnds_view[j,i] += cumsum
+                nextFmDeltas_view[j,i] = 0
+            cumsum += fmDeltas_view[numValidChars-1,i]
+            fmEnds_view[numValidChars-1,i] += cumsum
+            nextFmDeltas_view[numValidChars-1,i] = 0
         
         #clear out the next fmDeltas
         #nextFmDeltas = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
@@ -173,7 +174,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
             retFmDeltas_view = retFmDeltas
             for i in range(0, numValidChars):
                 for j in range(0, numValidChars):
-                    nextFmDeltas_view[i][j] += retFmDeltas_view[i][j]
+                    nextFmDeltas_view[i,j] += retFmDeltas_view[i,j]
             
             #update our insertions files
             for c2 in range(0, numValidChars):
@@ -204,7 +205,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
         #fmDeltas[:] = nextFmDeltas[:]
         for i in range(0, numValidChars):
             for j in range(0, numValidChars):
-                fmDeltas_view[i][j] = nextFmDeltas_view[i][j]
+                fmDeltas_view[i,j] = nextFmDeltas_view[i,j]
         
         insertionFNDict = nextInsertionFNDict
         nextInsertionFNDict = {}
@@ -376,7 +377,7 @@ def iterateMsbwtCreate(tuple tup):
                 #go through each insert
                 for i in range(0, insertLen):
                     #get the position of the new insert
-                    insertIndex = inserts_view[i][0]
+                    insertIndex = inserts_view[i,0]
                     
                     #just copy up to that position
                     for j in range(prevIndex, insertIndex):
@@ -387,10 +388,10 @@ def iterateMsbwtCreate(tuple tup):
                         currIndex += 1
                         
                     #now we actually write the value from the insert
-                    symbol = inserts_view[i][1]
+                    symbol = inserts_view[i,1]
                     nextBwt_view[insertIndex] = symbol
                     
-                    nextSymbol = currSeqs_view[inserts_view[i][2]]
+                    nextSymbol = currSeqs_view[inserts_view[i,2]]
                     fmDeltas_view[symbol, nextSymbol] += 1
                     prevIndex = insertIndex+1
                     
@@ -403,7 +404,7 @@ def iterateMsbwtCreate(tuple tup):
                     outputInsert_p[ind] = fmIndex_view[symbol]
                     fmIndex_view[symbol] += 1
                     outputInsert_p[ind+1] = nextSymbol
-                    outputInsert_p[ind+2] = inserts_view[i][2]
+                    outputInsert_p[ind+2] = inserts_view[i,2]
                     
         with nogil:
             #at the end we need to copy all values that come after the final insert

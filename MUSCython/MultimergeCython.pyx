@@ -1,6 +1,7 @@
 #!python
 #cython: boundscheck=False
 #cython: wraparound=False
+#cython: initializedcheck=False
 
 import binascii
 import glob
@@ -243,8 +244,8 @@ def mergeTwoMSBWTs(char * inputMsbwtDir1, char * inputMsbwtDir2, char * mergedDi
     fmIndex1 = np.zeros(dtype='<u8', shape=(bwtLen2/binSize + 2, numValidChars))
     fmIndex0_view = fmIndex0
     fmIndex1_view = fmIndex1
-    initializeFMIndex(&inputBwt1_view[0], &fmIndex0_view[0][0], bwtLen1, binSize, numValidChars)
-    initializeFMIndex(&inputBwt2_view[0], &fmIndex1_view[0][0], bwtLen2, binSize, numValidChars)
+    initializeFMIndex(&inputBwt1_view[0], &fmIndex0_view[0,0], bwtLen1, binSize, numValidChars)
+    initializeFMIndex(&inputBwt2_view[0], &fmIndex1_view[0,0], bwtLen2, binSize, numValidChars)
     
     #values tracking progress
     cdef unsigned int iterCount = 0
@@ -256,7 +257,7 @@ def mergeTwoMSBWTs(char * inputMsbwtDir1, char * inputMsbwtDir2, char * mergedDi
     
     #format is (position in bwt0, position in bwt1, total length)
     ranges = np.zeros(dtype='<u8', shape=(1, 3))
-    ranges[0][2] = bwtLen1+bwtLen2
+    ranges[0,2] = bwtLen1+bwtLen2
     
     while changesMade:
         #copy the fm info
@@ -683,6 +684,8 @@ def interleaveLevelMerge(char * mergedDir, unsigned long numProcs, bint areUnifo
             numSeqs = offsets.shape[0]-1
         
         numJobs = max(int(math.ceil(numSeqs/(currMultiplier*splitDist))), 1)
+        '''
+        TODO: our multi-threading isn't actually very good for many situations, come up with alternative eventually
         if numJobs < 2*numProcs and splitDist == 2:
             activeProcs = 1
             numThreads = numProcs
@@ -702,6 +705,13 @@ def interleaveLevelMerge(char * mergedDir, unsigned long numProcs, bint areUnifo
             passedLogger = None
             logProgress = True
             prevProgress = 0
+            
+        '''
+        activeProcs = numProcs
+        numThreads = 1
+        passedLogger = None
+        logProgress = True
+        prevProgress = 0
             
         #this is an iterator which returns intervals for processing
         inputIter = levelIterator(offsets, areUniform, mergedDir, currMultiplier, splitDist, numThreads, passedLogger)
@@ -949,8 +959,8 @@ def buildViaMerge256(tup):
         fmIndex1 = np.zeros(dtype='<u8', shape=((offsets_view[2]-offsets_view[1])/binSize + 2, numValidChars))
         fmIndex0_view = fmIndex0
         fmIndex1_view = fmIndex1
-        initializeFMIndex(&seqs_view[offsets_view[0]], &fmIndex0_view[0][0], offsets_view[1]-offsets_view[0], binSize, numValidChars)
-        initializeFMIndex(&seqs_view[offsets_view[1]], &fmIndex1_view[0][0], offsets_view[2]-offsets_view[1], binSize, numValidChars)
+        initializeFMIndex(&seqs_view[offsets_view[0]], &fmIndex0_view[0,0], offsets_view[1]-offsets_view[0], binSize, numValidChars)
+        initializeFMIndex(&seqs_view[offsets_view[1]], &fmIndex1_view[0,0], offsets_view[2]-offsets_view[1], binSize, numValidChars)
     else:
         #for each input, go through its range and set the byte to the input ID
         #with nogil:
@@ -972,7 +982,7 @@ def buildViaMerge256(tup):
     if numInputs == 2:
         #format is (position in bwt0, position in bwt1, total length)
         ranges = np.zeros(dtype='<u8', shape=(1, 3))
-        ranges[0][2] = offsets[2]-offsets[0]
+        ranges[0,2] = offsets[2]-offsets[0]
         fullCoverageRanges = np.copy(ranges)
         
     #print '['+str(offsets_view[0])+'] Begin iterations.'
@@ -1094,7 +1104,7 @@ def buildViaMerge256(tup):
     #return the number of iterations it took us to converge
     return iterCount
 
-cdef void initializeFMIndex(np.uint8_t * seqs_view, np.uint64_t * fmIndex_view, unsigned long bwtLen, 
+cdef inline void initializeFMIndex(np.uint8_t * seqs_view, np.uint64_t * fmIndex_view, unsigned long bwtLen, 
                       unsigned long binSize, unsigned long numValidChars):
     '''
     This function takes a BWT string and fills in the FM-index for it at given intervals
@@ -1123,12 +1133,12 @@ cdef void initializeFMIndex(np.uint8_t * seqs_view, np.uint64_t * fmIndex_view, 
     
     counts = np.cumsum(counts)-counts
     y = 0
-    for x in xrange(0, bwtLen/binSize+1):
-        for z in xrange(0, numValidChars):
+    for x in range(0, bwtLen/binSize+1):
+        for z in range(0, numValidChars):
             fmIndex_view[y] += counts[z]
             y += 1
 
-cdef void getFmAtIndex(np.uint8_t * seqs_view, np.uint64_t [:, :] fmIndex_view, 
+cdef inline void getFmAtIndex(np.uint8_t * seqs_view, np.uint64_t [:, :] fmIndex_view, 
                         unsigned long pos, unsigned long binBits, unsigned long nvc,
                         np.uint64_t [:] ret_view) nogil:
     '''
@@ -1143,12 +1153,12 @@ cdef void getFmAtIndex(np.uint8_t * seqs_view, np.uint64_t [:, :] fmIndex_view,
     cdef unsigned long startBin = pos >> binBits
     cdef unsigned long x
     for x in range(0, nvc):
-        ret_view[x] = fmIndex_view[startBin][x]
+        ret_view[x] = fmIndex_view[startBin,x]
     
     for x in range(startBin << binBits, pos):
         ret_view[seqs_view[x]] += 1
 
-cdef void getFmAtIndex_p(np.uint8_t * seqs_view, np.uint64_t * fmIndex_view, 
+cdef inline void getFmAtIndex_p(np.uint8_t * seqs_view, np.uint64_t * fmIndex_view, 
                         unsigned long pos, unsigned long binBits, unsigned long nvc,
                         np.uint64_t [:] ret_view) nogil:
     '''
@@ -1169,7 +1179,7 @@ cdef void getFmAtIndex_p(np.uint8_t * seqs_view, np.uint64_t * fmIndex_view,
     for x in range(startBin << binBits, pos):
         ret_view[seqs_view[x]] += 1
     
-cdef bint singleIterationMerge256(np.uint8_t * seqs_view, np.uint64_t [:] offsets_view, np.uint8_t * inputInter_view, 
+cdef inline bint singleIterationMerge256(np.uint8_t * seqs_view, np.uint64_t [:] offsets_view, np.uint8_t * inputInter_view, 
                                np.uint8_t * outputInter_view, np.uint64_t [:] fmCurrent_view, unsigned long bwtLen):
     '''
     Performs a single pass over the data for a merge of at most 256 BWTs
@@ -1202,7 +1212,7 @@ cdef bint singleIterationMerge256(np.uint8_t * seqs_view, np.uint64_t [:] offset
     
     return changesMade
 
-cdef bint singleIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_view, np.uint64_t [:] offsets_view, 
+cdef inline bint singleIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_view, np.uint64_t [:] offsets_view, 
                                 np.uint8_t * inputInter_view, np.uint8_t * outputInter_view, np.uint64_t [:] fmCurrent_view, 
                                 unsigned long bwtLen):
     '''
@@ -1248,7 +1258,7 @@ cdef bint singleIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_view
     
     return changesMade
 
-cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_view, 
+cdef inline tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_view, 
                                   np.uint8_t * inputInter_view, np.uint8_t * outputInter_view, 
                                   unsigned long bwtLen, np.uint64_t [:, :] fmIndex0_view, np.uint64_t [:, :] fmIndex1_view, 
                                   np.ndarray[np.uint64_t, ndim=2, mode='c'] ranges, unsigned long binBits, unsigned long nvc,
@@ -1327,27 +1337,27 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
         #go through each input range
         for y in xrange(0, ranges.shape[0]):
             #check if we need to recalculate the FM-index because we skipped some values
-            if startIndex0 == ranges_view[y][0] and startIndex1 == ranges_view[y][1] and y != 0:
+            if startIndex0 == ranges_view[y,0] and startIndex1 == ranges_view[y,1] and y != 0:
                 #no recalc needed, just update our start to the current
                 for x in range(0, nvc):
                     fmStart0_view[x] = fmCurrent0_view[x]
                     fmStart1_view[x] = fmCurrent1_view[x]
             else:
                 #need to calculate the FM-index for this range
-                if (startIndex0 >> binBits) == (ranges_view[y][0] >> binBits):
-                    for x in xrange(startIndex0, ranges_view[y][0]):
+                if (startIndex0 >> binBits) == (ranges_view[y,0] >> binBits):
+                    for x in xrange(startIndex0, ranges_view[y,0]):
                         fmCurrent0_view[seqs0_view[x]] += 1
-                    startIndex0 = ranges_view[y][0]
+                    startIndex0 = ranges_view[y,0]
                 else:
-                    startIndex0 = ranges_view[y][0]
+                    startIndex0 = ranges_view[y,0]
                     getFmAtIndex(seqs0_view, fmIndex0_view, startIndex0, binBits, nvc, fmCurrent0_view)
                     
-                if (startIndex1 >> binBits) == (ranges_view[y][1] >> binBits):
-                    for x in xrange(startIndex1, ranges_view[y][1]):
+                if (startIndex1 >> binBits) == (ranges_view[y,1] >> binBits):
+                    for x in xrange(startIndex1, ranges_view[y,1]):
                         fmCurrent1_view[seqs1_view[x]] += 1
-                    startIndex1 = ranges_view[y][1]
+                    startIndex1 = ranges_view[y,1]
                 else:
-                    startIndex1 = ranges_view[y][1]
+                    startIndex1 = ranges_view[y,1]
                     getFmAtIndex(seqs1_view, fmIndex1_view, startIndex1, binBits, nvc, fmCurrent1_view)
                     
                 #trying to rewrite this to remove unnecssarily large getFMAtIndex
@@ -1362,7 +1372,7 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
                 currBytes_view[x] = 0
                 
             #regardless, we pull out how far we need to go now
-            dist = ranges_view[y][2]
+            dist = ranges_view[y,2]
             
             #clear our symbol change area
             for x in range(0, nvc):
@@ -1411,9 +1421,9 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
                         outputInter_view[byteIDs_view[x]] = currBytes_view[x]
                 
                 if symbolChange_view[x]:
-                    nextEntries_view[x][neIndex_view[x]][0] = fmStart0_view[x]
-                    nextEntries_view[x][neIndex_view[x]][1] = fmStart1_view[x]
-                    nextEntries_view[x][neIndex_view[x]][2] = fmCurrent0_view[x]+fmCurrent1_view[x]-fmStart0_view[x]-fmStart1_view[x]
+                    nextEntries_view[x,neIndex_view[x],0] = fmStart0_view[x]
+                    nextEntries_view[x,neIndex_view[x],1] = fmStart1_view[x]
+                    nextEntries_view[x,neIndex_view[x],2] = fmCurrent0_view[x]+fmCurrent1_view[x]-fmStart0_view[x]-fmStart1_view[x]
                     neIndex_view[x] += 1
                     changesMade = True
     
@@ -1422,12 +1432,12 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
         pointerArray = np.zeros(dtype='<u8', shape=(8, ))
         pointerArray[0] = <np.uint64_t>&seqs0_view[0]
         pointerArray[1] = <np.uint64_t>&seqs1_view[0]
-        pointerArray[2] = <np.uint64_t>&fmIndex0_view[0][0]
-        pointerArray[3] = <np.uint64_t>&fmIndex1_view[0][0]
-        pointerArray[4] = <np.uint64_t>&ranges_view[0][0]
+        pointerArray[2] = <np.uint64_t>&fmIndex0_view[0,0]
+        pointerArray[3] = <np.uint64_t>&fmIndex1_view[0,0]
+        pointerArray[4] = <np.uint64_t>&ranges_view[0,0]
         pointerArray[5] = <np.uint64_t>&inputInter_view[0]
         pointerArray[6] = <np.uint64_t>&outputInter_view[0]
-        pointerArray[7] = <np.uint64_t>&nextEntries_view[0][0][0]
+        pointerArray[7] = <np.uint64_t>&nextEntries_view[0,0,0]
         pointerArray_view = pointerArray
         
         #more than one thread allowed
@@ -1447,9 +1457,9 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
                     z = neIndex_view[x]
                     resultOffset = resultStart
                     for y in range(0, resultIndex_view[x]):
-                        nextEntries_view[x][z][0] = nextEntries_view[x][resultOffset][0]
-                        nextEntries_view[x][z][1] = nextEntries_view[x][resultOffset][1]
-                        nextEntries_view[x][z][2] = nextEntries_view[x][resultOffset][2]
+                        nextEntries_view[x,z,0] = nextEntries_view[x,resultOffset,0]
+                        nextEntries_view[x,z,1] = nextEntries_view[x,resultOffset,1]
+                        nextEntries_view[x,z,2] = nextEntries_view[x,resultOffset,2]
                         z += 1
                         resultOffset += 1
                     neIndex_view[x] = z
@@ -1508,8 +1518,8 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
             prevEnd = end
             
             #get the new start/end
-            start = nextEntries_view[z][x][0]+nextEntries_view[z][x][1]
-            end = start+nextEntries_view[z][x][2]
+            start = nextEntries_view[z,x,0]+nextEntries_view[z,x,1]
+            end = start+nextEntries_view[z,x,2]
             
             if prevEnd != start:
                 #if we're tackling a new region, clear out these counts
@@ -1532,22 +1542,22 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
                     output0c += 1
             
             #append it
-            extendedEntries_view[exIndex][0] = nextEntries_view[z][x][0]
-            extendedEntries_view[exIndex][1] = nextEntries_view[z][x][1]
-            extendedEntries_view[exIndex][2] = nextEntries_view[z][x][2]
+            extendedEntries_view[exIndex,0] = nextEntries_view[z,x,0]
+            extendedEntries_view[exIndex,1] = nextEntries_view[z,x,1]
+            extendedEntries_view[exIndex,2] = nextEntries_view[z,x,2]
             exIndex += 1
             
             #now check if there's a group after to add that we missed
-            hiddenStart0 = nextEntries_view[z][x][0]+output0c-prev0c
-            hiddenStart1 = nextEntries_view[z][x][1]+output1c-prev1c
+            hiddenStart0 = nextEntries_view[z,x,0]+output0c-prev0c
+            hiddenStart1 = nextEntries_view[z,x,1]+output1c-prev1c
             
             if x+1 < neIndex_view[z]:
                 #the next one is in this range
-                nextStart = nextEntries_view[z][x+1][0]+nextEntries_view[z][x+1][1]
+                nextStart = nextEntries_view[z,x+1,0]+nextEntries_view[z,x+1,1]
             else:
                 for y in range(z+1, nvc):
                     if neIndex_view[y] > 0:
-                        nextStart = nextEntries_view[y][0][0]+nextEntries_view[y][0][1]
+                        nextStart = nextEntries_view[y,0,0]+nextEntries_view[y,0,1]
                         break
                 else:
                     nextStart = bwtLen
@@ -1577,9 +1587,9 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
             
             #check if we found something, aka the dist > 0
             if end-hiddenStart0-hiddenStart1 > 0:
-                extendedEntries_view[exIndex][0] = hiddenStart0
-                extendedEntries_view[exIndex][1] = hiddenStart1
-                extendedEntries_view[exIndex][2] = end-hiddenStart0-hiddenStart1
+                extendedEntries_view[exIndex,0] = hiddenStart0
+                extendedEntries_view[exIndex,1] = hiddenStart1
+                extendedEntries_view[exIndex,2] = end-hiddenStart0-hiddenStart1
                 exIndex += 1
     
     #shrink our entries so we don't just blow up in size
@@ -1593,16 +1603,16 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
     cdef bint collapseEntries = False
     if collapseEntries:
         for currIndex in xrange(1, exIndex):
-            if (extendedEntries_view[shrinkIndex][0]+extendedEntries_view[shrinkIndex][1]+extendedEntries_view[shrinkIndex][2] ==
-                extendedEntries_view[currIndex][0]+extendedEntries_view[currIndex][1]):
+            if (extendedEntries_view[shrinkIndex,0]+extendedEntries_view[shrinkIndex,1]+extendedEntries_view[shrinkIndex,2] ==
+                extendedEntries_view[currIndex,0]+extendedEntries_view[currIndex,1]):
                 #these are adjacent, extend the range 
-                extendedEntries_view[shrinkIndex][2] += extendedEntries_view[currIndex][2]
+                extendedEntries_view[shrinkIndex,2] += extendedEntries_view[currIndex,2]
             else:
                 #not adjacent, start off the next range
                 shrinkIndex += 1
-                extendedEntries_view[shrinkIndex][0] = extendedEntries_view[currIndex][0]
-                extendedEntries_view[shrinkIndex][1] = extendedEntries_view[currIndex][1]
-                extendedEntries_view[shrinkIndex][2] = extendedEntries_view[currIndex][2]
+                extendedEntries_view[shrinkIndex,0] = extendedEntries_view[currIndex,0]
+                extendedEntries_view[shrinkIndex,1] = extendedEntries_view[currIndex,1]
+                extendedEntries_view[shrinkIndex,2] = extendedEntries_view[currIndex,2]
         
         #collapse down to one past the shrink index
         extendedEntries = extendedEntries[0:shrinkIndex+1]
@@ -1615,8 +1625,8 @@ cdef tuple targetedIterationMerge2(np.uint8_t * seqs0_view, np.uint8_t * seqs1_v
     for z in range(0, nvc):
         for y in range(0, neIndex_view[z]):
             #get the start and distance
-            totalStart = nextEntries_view[z][y][0]+nextEntries_view[z][y][1]
-            dist = nextEntries_view[z][y][2]
+            totalStart = nextEntries_view[z,y,0]+nextEntries_view[z,y,1]
+            dist = nextEntries_view[z,y,2]
             
             #copy the first sub-byte
             while totalStart % 8 != 0 and dist > 0:

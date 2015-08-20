@@ -1,6 +1,7 @@
 #!python
 #cython: boundscheck=False
 #cython: wraparound=False
+#cython: initializedcheck=False
 
 '''
 Created on Mar 19, 2014
@@ -140,7 +141,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
         for i in range(0, numValidChars):
             cumsum = 0
             for j in range(0, numValidChars-1):
-                cumsum += fmDeltas_view[j][i]
+                cumsum += fmDeltas_view[j,i]
                 fmStarts_view[j+1, i] += cumsum
                 fmEnds_view[j, i] += cumsum
                 nextFmDeltas_view[j, i] = 0
@@ -175,7 +176,7 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
             retFmDeltas_view = retFmDeltas
             for i in range(0, numValidChars):
                 for j in range(0, numValidChars):
-                    nextFmDeltas_view[i][j] += retFmDeltas_view[i][j]
+                    nextFmDeltas_view[i,j] += retFmDeltas_view[i,j]
             
             #update our insertions files
             for c2 in range(0, numValidChars):
@@ -467,7 +468,7 @@ def iterateMsbwtCreate(tuple tup):
                 newInsertArray = np.lib.format.open_memmap(newInsertFN, 'w+', '<u8', (prevFmDelta_view[c], 3))
                 newInsertArray_view = newInsertArray
                 outputInserts.append(newInsertArray)
-                outputInsertPointers_view[c] = <np.uint64_t> &(newInsertArray_view[0][0])
+                outputInsertPointers_view[c] = <np.uint64_t> &(newInsertArray_view[0,0])
         
         #now build the iteration, we'll start at zero obviously
         prevIndex = 0#tracks BWT index, aka the number of values written thus far, equivalently, the index of the start of the run next to be written
@@ -500,7 +501,7 @@ def iterateMsbwtCreate(tuple tup):
                     writeBufferCount = 1
                 
                 symbol = writeBufferSymbol
-                nextSymbol = currSeqs_view[inserts_view[i][2]]
+                nextSymbol = currSeqs_view[inserts_view[i,2]]
                 fmDeltas_view[symbol, nextSymbol] += 1
                 
                 #now we need to add the information for our next insertion
@@ -511,7 +512,7 @@ def iterateMsbwtCreate(tuple tup):
                 #finally, store the values
                 outputInsert_p[ind] = fmIndex_view[symbol]+writeBufferCount-1
                 outputInsert_p[ind+1] = nextSymbol
-                outputInsert_p[ind+2] = inserts_view[i][2]
+                outputInsert_p[ind+2] = inserts_view[i,2]
                 i += 1
             
             #the real main loop
@@ -557,7 +558,7 @@ def iterateMsbwtCreate(tuple tup):
                         writeBufferCount = 1
                     
                     symbol = writeBufferSymbol
-                    nextSymbol = currSeqs_view[inserts_view[i][2]]
+                    nextSymbol = currSeqs_view[inserts_view[i,2]]
                     fmDeltas_view[symbol, nextSymbol] += 1
                     
                     #now we need to add the information for our next insertion
@@ -568,7 +569,7 @@ def iterateMsbwtCreate(tuple tup):
                     #finally, store the values
                     outputInsert_p[ind] = fmIndex_view[symbol]+writeBufferCount-1
                     outputInsert_p[ind+1] = nextSymbol
-                    outputInsert_p[ind+2] = inserts_view[i][2]
+                    outputInsert_p[ind+2] = inserts_view[i,2]
                     i += 1
         
         if writeBufferSymbol == readBufferSymbol:

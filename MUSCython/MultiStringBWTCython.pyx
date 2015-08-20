@@ -1,6 +1,7 @@
 #!python
 #cython: boundscheck=False
 #cython: wraparound=False
+#cython: initializedcheck=False
 
 '''
 Created on Aug 5, 2013

@@ -1,6 +1,7 @@
 #!python
 #cython: boundscheck=False
 #cython: wraparound=False
+#cython: initializedcheck=False
 
 import numpy as np
 cimport numpy as np
@@ -313,30 +314,30 @@ cdef tuple targetedIterationMerge2(BasicBWT.BasicBWT bwt0, BasicBWT.BasicBWT bwt
         for y in range(0, ranges.shape[0]):
             #need to calculate the FM-index for this range
             #check if we already have the right bin loaded
-            if currentBinID0 == (ranges_view[y][0] >> binBits0):
+            if currentBinID0 == (ranges_view[y,0] >> binBits0):
                 #right bin, just need to advance the indices
-                for x in range(currentBinUse0, ranges_view[y][0] - (currentBinID0 << binBits0)):
+                for x in range(currentBinUse0, ranges_view[y,0] - (currentBinID0 << binBits0)):
                     fmCurrent0_view[currentBin0_view[x]] += 1
-                startIndex0 = ranges_view[y][0]
-                currentBinUse0 = ranges_view[y][0] - (currentBinID0 << binBits0)
+                startIndex0 = ranges_view[y,0]
+                currentBinUse0 = ranges_view[y,0] - (currentBinID0 << binBits0)
             else:
                 #wrong bin, need to get the right indexing and the right bin
-                startIndex0 = ranges_view[y][0]
+                startIndex0 = ranges_view[y,0]
                 bwt0.fillFmAtIndex(fmCurrent0_view, startIndex0)
                 
                 currentBinID0 = startIndex0 >> binBits0
                 currentBinUse0 = startIndex0 - (currentBinID0 << binBits0)
                 bwt0.fillBin(currentBin0_view, currentBinID0)
                 
-            if currentBinID1 == (ranges_view[y][1] >> binBits1):
+            if currentBinID1 == (ranges_view[y,1] >> binBits1):
                 #right bin, just need to advance the indices
-                for x in range(currentBinUse1, ranges_view[y][1] - (currentBinID1 << binBits1)):
+                for x in range(currentBinUse1, ranges_view[y,1] - (currentBinID1 << binBits1)):
                     fmCurrent1_view[currentBin1_view[x]] += 1
-                startIndex1 = ranges_view[y][1]
-                currentBinUse1 = ranges_view[y][1] - (currentBinID1 << binBits1)
+                startIndex1 = ranges_view[y,1]
+                currentBinUse1 = ranges_view[y,1] - (currentBinID1 << binBits1)
             else:
                 #wrong bin, need to get the right indexing and the right bin
-                startIndex1 = ranges_view[y][1]
+                startIndex1 = ranges_view[y,1]
                 bwt1.fillFmAtIndex(fmCurrent1_view, startIndex1)
                 
                 currentBinID1 = startIndex1 >> binBits1
@@ -356,7 +357,7 @@ cdef tuple targetedIterationMerge2(BasicBWT.BasicBWT bwt0, BasicBWT.BasicBWT bwt
                 currBytes_view[x] = 0
                 
             #regardless, we pull out how far we need to go now
-            dist = ranges_view[y][2]
+            dist = ranges_view[y,2]
             
             #clear our symbol change area
             for x in range(0, nvc):
@@ -412,9 +413,9 @@ cdef tuple targetedIterationMerge2(BasicBWT.BasicBWT bwt0, BasicBWT.BasicBWT bwt
                         outputInter_view[byteIDs_view[x]] = currBytes_view[x]
                 
                 if symbolChange_view[x]:
-                    nextEntries_view[x][neIndex_view[x]][0] = fmStart0_view[x]
-                    nextEntries_view[x][neIndex_view[x]][1] = fmStart1_view[x]
-                    nextEntries_view[x][neIndex_view[x]][2] = fmCurrent0_view[x]+fmCurrent1_view[x]-fmStart0_view[x]-fmStart1_view[x]
+                    nextEntries_view[x,neIndex_view[x],0] = fmStart0_view[x]
+                    nextEntries_view[x,neIndex_view[x],1] = fmStart1_view[x]
+                    nextEntries_view[x,neIndex_view[x],2] = fmCurrent0_view[x]+fmCurrent1_view[x]-fmStart0_view[x]-fmStart1_view[x]
                     neIndex_view[x] += 1
                     changesMade = True
     
@@ -444,8 +445,8 @@ cdef tuple targetedIterationMerge2(BasicBWT.BasicBWT bwt0, BasicBWT.BasicBWT bwt
             prevEnd = end
             
             #get the new start/end
-            start = nextEntries_view[z][x][0]+nextEntries_view[z][x][1]
-            end = start+nextEntries_view[z][x][2]
+            start = nextEntries_view[z,x,0]+nextEntries_view[z,x,1]
+            end = start+nextEntries_view[z,x,2]
             
             if prevEnd != start:
                 #if we're tackling a new region, clear out these counts
@@ -468,22 +469,22 @@ cdef tuple targetedIterationMerge2(BasicBWT.BasicBWT bwt0, BasicBWT.BasicBWT bwt
                     output0c += 1
             
             #append it
-            extendedEntries_view[exIndex][0] = nextEntries_view[z][x][0]
-            extendedEntries_view[exIndex][1] = nextEntries_view[z][x][1]
-            extendedEntries_view[exIndex][2] = nextEntries_view[z][x][2]
+            extendedEntries_view[exIndex,0] = nextEntries_view[z,x,0]
+            extendedEntries_view[exIndex,1] = nextEntries_view[z,x,1]
+            extendedEntries_view[exIndex,2] = nextEntries_view[z,x,2]
             exIndex += 1
             
             #now check if there's a group after to add that we missed
-            hiddenStart0 = nextEntries_view[z][x][0]+output0c-prev0c
-            hiddenStart1 = nextEntries_view[z][x][1]+output1c-prev1c
+            hiddenStart0 = nextEntries_view[z,x,0]+output0c-prev0c
+            hiddenStart1 = nextEntries_view[z,x,1]+output1c-prev1c
             
             if x+1 < neIndex_view[z]:
                 #the next one is in this range
-                nextStart = nextEntries_view[z][x+1][0]+nextEntries_view[z][x+1][1]
+                nextStart = nextEntries_view[z,x+1,0]+nextEntries_view[z,x+1,1]
             else:
                 for y in range(z+1, nvc):
                     if neIndex_view[y] > 0:
-                        nextStart = nextEntries_view[y][0][0]+nextEntries_view[y][0][1]
+                        nextStart = nextEntries_view[y,0,0]+nextEntries_view[y,0,1]
                         break
                 else:
                     nextStart = bwtLen
@@ -504,9 +505,9 @@ cdef tuple targetedIterationMerge2(BasicBWT.BasicBWT bwt0, BasicBWT.BasicBWT bwt
             #check if we found something, aka the dist > 0
             if end-hiddenStart0-hiddenStart1 > 0:
                 #print 'hidden', extendedEntries.shape[0], exIndex
-                extendedEntries_view[exIndex][0] = hiddenStart0
-                extendedEntries_view[exIndex][1] = hiddenStart1
-                extendedEntries_view[exIndex][2] = end-hiddenStart0-hiddenStart1
+                extendedEntries_view[exIndex,0] = hiddenStart0
+                extendedEntries_view[exIndex,1] = hiddenStart1
+                extendedEntries_view[exIndex,2] = end-hiddenStart0-hiddenStart1
                 exIndex += 1
     
     #shrink our entries so we don't just blow up in size
@@ -521,16 +522,16 @@ cdef tuple targetedIterationMerge2(BasicBWT.BasicBWT bwt0, BasicBWT.BasicBWT bwt
     #cdef bint collapseEntries = False
     if collapseEntries:
         for currIndex in xrange(1, exIndex):
-            if (extendedEntries_view[shrinkIndex][0]+extendedEntries_view[shrinkIndex][1]+extendedEntries_view[shrinkIndex][2] ==
-                extendedEntries_view[currIndex][0]+extendedEntries_view[currIndex][1]):
+            if (extendedEntries_view[shrinkIndex,0]+extendedEntries_view[shrinkIndex,1]+extendedEntries_view[shrinkIndex,2] ==
+                extendedEntries_view[currIndex,0]+extendedEntries_view[currIndex,1]):
                 #these are adjacent, extend the range 
-                extendedEntries_view[shrinkIndex][2] += extendedEntries_view[currIndex][2]
+                extendedEntries_view[shrinkIndex,2] += extendedEntries_view[currIndex,2]
             else:
                 #not adjacent, start off the next range
                 shrinkIndex += 1
-                extendedEntries_view[shrinkIndex][0] = extendedEntries_view[currIndex][0]
-                extendedEntries_view[shrinkIndex][1] = extendedEntries_view[currIndex][1]
-                extendedEntries_view[shrinkIndex][2] = extendedEntries_view[currIndex][2]
+                extendedEntries_view[shrinkIndex,0] = extendedEntries_view[currIndex,0]
+                extendedEntries_view[shrinkIndex,1] = extendedEntries_view[currIndex,1]
+                extendedEntries_view[shrinkIndex,2] = extendedEntries_view[currIndex,2]
         
         #collapse down to one past the shrink index
         extendedEntries = extendedEntries[0:shrinkIndex+1]
@@ -543,8 +544,8 @@ cdef tuple targetedIterationMerge2(BasicBWT.BasicBWT bwt0, BasicBWT.BasicBWT bwt
     for z in range(0, nvc):
         for y in range(0, neIndex_view[z]):
             #get the start and distance
-            totalStart = nextEntries_view[z][y][0]+nextEntries_view[z][y][1]
-            dist = nextEntries_view[z][y][2]
+            totalStart = nextEntries_view[z,y,0]+nextEntries_view[z,y,1]
+            dist = nextEntries_view[z,y,2]
             
             #copy the first sub-byte
             while totalStart % 8 != 0 and dist > 0:

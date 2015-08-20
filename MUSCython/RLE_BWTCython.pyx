@@ -1,6 +1,7 @@
 #!python
 #cython: boundscheck=False
 #cython: wraparound=False
+#cython: initializedcheck=False
 
 import math
 import numpy as np
@@ -185,7 +186,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                         while bwtIndex + totalCharCount >= binEnd:
                             self.refFM_view[binID] = prevStart
                             for j in range(0, self.vcLen):
-                                self.partialFM_view[binID][j] = countsSoFar_view[j]
+                                self.partialFM_view[binID,j] = countsSoFar_view[j]
                             binEnd += self.binSize
                             inc(binID)
                         
@@ -201,7 +202,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                 while bwtIndex + totalCharCount >= binEnd:
                     self.refFM_view[binID] = prevStart
                     for j in range(0, self.vcLen):
-                        self.partialFM_view[binID][j] = countsSoFar_view[j]
+                        self.partialFM_view[binID,j] = countsSoFar_view[j]
                     binEnd += self.binSize
                     inc(binID)
             
@@ -223,7 +224,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned long trueIndex = 0
         cdef unsigned long i
         for i in range(0, self.vcLen):
-            trueIndex += self.partialFM_view[binID][i]
+            trueIndex += self.partialFM_view[binID,i]
         trueIndex -= self.offsetSum
         
         cdef unsigned long prevChar = self.bwt_view[bwtIndex] & self.mask
@@ -265,7 +266,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned long trueIndex = 0
         cdef unsigned long i
         for i in range(0, self.vcLen):
-            trueIndex += self.partialFM_view[binID][i]
+            trueIndex += self.partialFM_view[binID,i]
         trueIndex -= self.offsetSum
         
         cdef unsigned long prevChar = self.bwt_view[bwtIndex] & self.mask
@@ -407,21 +408,24 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned long bwtIndex = 0
         cdef unsigned long j
         for j in range(0, self.vcLen):
-            bwtIndex += self.partialFM_view[binID][j]
+            bwtIndex += self.partialFM_view[binID,j]
         bwtIndex -= self.offsetSum
             
-        cdef unsigned long ret = self.partialFM_view[binID][sym]
+        cdef unsigned long ret = self.partialFM_view[binID,sym]
         
         cdef np.uint8_t prevChar = 255
         cdef np.uint8_t currentChar
         cdef unsigned long prevCount = 0
         cdef unsigned long powerMultiple = 1
+        #cdef unsigned long powerMultiple = 0
         
         while bwtIndex + prevCount < index:
             currentChar = self.bwt_view[compressedIndex] & self.mask
             if currentChar == prevChar:
                 prevCount += (self.bwt_view[compressedIndex] >> self.letterBits) * powerMultiple
                 powerMultiple *= self.numPower
+                #prevCount += <unsigned long>(self.bwt_view[compressedIndex] >> self.letterBits) << powerMultiple
+                #powerMultiple += self.numberBits
             else:
                 if prevChar == sym:
                     ret += prevCount
@@ -430,6 +434,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                 prevCount = (self.bwt_view[compressedIndex] >> self.letterBits)
                 prevChar = currentChar
                 powerMultiple = self.numPower
+                #powerMultiple = self.numberBits
                 
             compressedIndex += 1
         
@@ -462,8 +467,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned long j
         
         for j in range(0, self.vcLen):
-            bwtIndex += self.partialFM_view[binID][j]
-            ret_view[j] = self.partialFM_view[binID][j]
+            bwtIndex += self.partialFM_view[binID,j]
+            ret_view[j] = self.partialFM_view[binID,j]
         bwtIndex -= self.offsetSum
         
         cdef np.uint8_t prevChar = self.bwt_view[compressedIndex] & self.mask
