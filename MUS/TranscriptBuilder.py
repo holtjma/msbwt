@@ -103,11 +103,11 @@ class PathNode(object):
                 
                 unexploredPaths.append(nodes[newID])
                 
-                print 'Ending block for merge'
+                #print 'Ending block for merge'
                 terminate = True
                 
             elif total == 0:
-                print 'No strings found.'
+                #print 'No strings found.'
                 self.termCondition = 'TERMINAL'
                 terminate = True
             else:
@@ -184,10 +184,10 @@ class PathNode(object):
                             self.termCondition = '$ Max'
                             terminate = True
                     
-        print 'END EXPLORE RESULTS:'
-        print self.seq[-100:]
-        print kmer
-        print
+        #print 'END EXPLORE RESULTS:'
+        #print self.seq[-100:]
+        #print kmer
+        #print
     
     def followNewHistory(self, newHistMer):
         print 'UNHANDLED '
@@ -233,6 +233,7 @@ class Assembler(object):
         trackPairs = self.settingsDict.get('trackPairs', False)
         trackReads = self.settingsDict.get('trackReads', False)
         useMemmap = self.settingsDict.get('useMemmap', True)
+        maxDistance = self.settingsDict.get('maxDistance', 0xFFFFFFFF)
         
         if len(seedKmer) != pathK:
             raise Exception('Seed k-mer incorrect length')
@@ -240,7 +241,8 @@ class Assembler(object):
         numNodes = self.settingsDict['numNodes']
         validChars = ['$', 'A', 'C', 'G', 'N', 'T']
         
-        self.logger.info('Loading '+self.bwtDir+'...')
+        if self.logger != None:
+            self.logger.info('Loading '+self.bwtDir+'...')
         msbwt = MultiStringBWT.loadBWT(self.bwtDir, useMemmap, self.logger)
         if os.path.exists(self.bwtDir+'/origins.npy'):
             raise Exception("You haven\'t reimplemented the handling of origin files")
@@ -265,7 +267,8 @@ class Assembler(object):
                 self.nodes[endID].termCondition = 'END_SEED_'+str(i)
                 self.foundKmers[endSeed] = endID
         
-        self.logger.info('Beginning with seed \''+seedKmer+'\', pathK='+str(pathK)+', countK='+str(countK))
+        if self.logger != None:
+            self.logger.info('Beginning with seed \''+seedKmer+'\', pathK='+str(pathK)+', countK='+str(countK))
         
         unexploredPaths = [self.nodes[firstID]]
         
@@ -275,17 +278,20 @@ class Assembler(object):
         while len(unexploredPaths) > 0:
             #uncomment to make this smallest first
             unexploredPaths.sort(key = lambda node: node.minDistToSeed)
-            print 'UP: '+'['+','.join([str((node.minDistToSeed, node.nodeID)) for node in unexploredPaths])+']'
+            #print 'UP: '+'['+','.join([str((node.minDistToSeed, node.nodeID)) for node in unexploredPaths])+']'
             nextNode = unexploredPaths.pop(0)
             
-            if nextNode.nodeID < numNodes:
+            if nextNode.nodeID >= numNodes:
+                nextNode.termCondition = 'UNEXPLORED_NODE'
+            elif nextNode.minDistToSeed >= maxDistance:
+                nextNode.termCondition = 'UNEXPLORED_DIST'
+            else:
                 nextNode.execOrder = execID
                 execID += 1
                 
-                self.logger.info('Exploring new node')
+                if self.logger != None:
+                    self.logger.info('Exploring new node')
                 nextNode.firstTimeExtension(self.foundKmers, unexploredPaths, self.nodes, self.edges)
-            else:
-                nextNode.termCondition = 'UNEXPLORED'
             
         if isMerged and trackReads:
             interleaveFN = self.bwtDir+'/inter0.npy'
