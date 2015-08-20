@@ -158,9 +158,9 @@ def mainRun():
                 Multimerge.interleaveLevelMerge(args.bwtDir, args.numProcesses, args.areUniform, logger)
         
     elif args.subparserID == 'compress':
-        logger.info('Soure Directory:'+args.srcDir)
+        logger.info('Source Directory:'+args.srcDir)
         logger.info('Dest Directory:'+args.dstDir)
-        logger.info('Processes:'+args.numProcesses)
+        logger.info('Processes:'+str(args.numProcesses))
         if args.srcDir == args.dstDir:
             raise Exception('Source and destination directories cannot be the same directory.')
         print
