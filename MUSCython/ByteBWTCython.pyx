@@ -18,6 +18,9 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
     is correct.  This particular BWT uses one byte per symbol and is the most intuitive of the BWT structures due to it's
     relative simplicity.  However, it's also the least compressed and not necessarily the fastest for searching.
     '''
+    
+    cdef bint useMemmap
+    
     def loadMsbwt(ByteBWT self, char * dirName, bint useMemmap=True, logger=None):
         '''
         This functions loads a BWT file and constructs total counts, indexes start positions, and constructs an FM index
