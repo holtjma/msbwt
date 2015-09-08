@@ -10,13 +10,12 @@ from MUS import util
 
 #borrowed from online code: http://stackoverflow.com/questions/4505747/how-should-i-structure-a-python-package-that-contains-cython-code
 try:
-    from Cython.Distutils import build_ext
+    from Cython.Distutils import _build_ext
 except ImportError:
+    from setuptools.command.build_ext import build_ext as _build_ext
     useCython = False
 else:
     useCython = True
-
-import numpy as np
 
 cmdClass = {}
 extModules = []
@@ -33,13 +32,14 @@ if useCython:
                    Extension('MUSCython.MultimergeCython', ['MUSCython/MultimergeCython.pyx'], include_dirs=['.']),
                    Extension('MUSCython.MultiStringBWTCython', ['MUSCython/MultiStringBWTCython.pyx'], include_dirs=['.']),
                    Extension('MUSCython.RLE_BWTCython', ['MUSCython/RLE_BWTCython.pyx'], include_dirs=['.'])]
-    cmdClass.update({'build_ext':build_ext})
+    cmdClass.update({'build_ext':_build_ext})
     
     #this is also from the stackoverflow link above, used to auto-compile when you do the sdist command
     class sdist(_sdist):
         def run(self):
             # Make sure the compiled Cython files in the distribution are up-to-date
             from Cython.Build import cythonize
+            import numpy as np
             cythonize('MUSCython/AlignmentUtil.pyx', include_path=[np.get_include()])
             cythonize('MUSCython/BasicBWT.pyx', include_path=[np.get_include()])
             cythonize('MUSCython/ByteBWTCython.pyx', include_path=[np.get_include()])
@@ -67,6 +67,15 @@ else:
                    Extension('MUSCython.MultiStringBWTCython', ['MUSCython/MultiStringBWTCython.c'], include_dirs=['.']),
                    Extension('MUSCython.RLE_BWTCython', ['MUSCython/RLE_BWTCython.c'], include_dirs=['.'])]
 
+class build_ext(_build_ext):
+    def finalize_options(self):
+        _build_ext.finalize_options(self)
+        # Prevent numpy from thinking it is still in its setup process:
+        __builtins__.__NUMPY_SETUP__ = False
+        import numpy as np
+        self.include_dirs.append(np.get_include())
+cmdClass['build_ext']=build_ext
+
 setup(name='msbwt',
       version=util.VERSION,
       description='Allows for merging and querying of multi-string BWTs for genomic strings',
@@ -76,9 +85,9 @@ setup(name='msbwt',
       license='MIT',
       packages=['MUS', 'MUSCython'],
       package_data={'MUSCython':['BasicBWT.pxd']},
+      setup_requires=['numpy'],
       install_requires=['pysam', 'numpy'],
       scripts=['bin/msbwt'],
       zip_safe=False,
-      include_dirs=[np.get_include()],
       ext_modules=extModules,
-      cmdclass = cmdClass)
+      cmdclass=cmdClass)
