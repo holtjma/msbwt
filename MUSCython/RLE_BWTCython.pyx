@@ -81,7 +81,10 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         
         cdef str abtFN = self.dirName+'/totalCounts.npy'
         if os.path.exists(abtFN):
-            self.totalCounts = np.load(abtFN, 'r+')
+            if self.useMemmapRLE:
+                self.totalCounts = np.load(abtFN, 'r+')
+            else:
+                self.totalCounts = np.load(abtFN)
             self.totalCounts_view = self.totalCounts
         else:
             if logger != None:
@@ -147,9 +150,16 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         
         if os.path.exists(fmIndexFN) and os.path.exists(fmRefFN):
             #both exist, just memmap them
-            self.partialFM = np.load(fmIndexFN, 'r+')
+            if self.useMemmapRLE:
+                self.partialFM = np.load(fmIndexFN, 'r+')
+            else:
+                self.partialFM = np.load(fmIndexFN)
             self.partialFM_view = self.partialFM
-            self.refFM = np.load(fmRefFN, 'r+')
+            
+            if self.useMemmapRLE:
+                self.refFM = np.load(fmRefFN, 'r+')
+            else:
+                self.refFM = np.load(fmRefFN)
             self.refFM_view = self.refFM
         else:
             if logger != None:

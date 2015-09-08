@@ -28,6 +28,7 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
         '''
         #open the file with our BWT in it
         self.dirName = dirName
+        self.useMemmap = useMemmap
         if useMemmap:
             self.bwt = np.load(self.dirName+'/msbwt.npy', 'r+')
         else:
@@ -56,7 +57,10 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
         self.totalSize = self.bwt.shape[0]
         abtFN = self.dirName+'/totalCounts.npy'
         if os.path.exists(abtFN):
-            self.totalCounts = np.load(abtFN, 'r+')
+            if self.useMemmap:
+                self.totalCounts = np.load(abtFN, 'r+')
+            else:
+                self.totalCounts = np.load(abtFN)
             self.totalCounts_view = self.totalCounts
         else:
             if logger != None:
@@ -97,7 +101,10 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
         cdef unsigned long samplingSize
         
         if os.path.exists(fmIndexFN):
-            self.partialFM = np.load(fmIndexFN, 'r+')
+            if self.useMemmap:
+                self.partialFM = np.load(fmIndexFN, 'r+')
+            else:
+                self.partialFM = np.load(fmIndexFN)
             self.partialFM_view = self.partialFM
         else:
             if logger != None:
