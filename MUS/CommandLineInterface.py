@@ -120,13 +120,9 @@ def mainRun():
         logger.info('Inputs:\t'+str(args.inputFastqs))
         logger.info('Uniform:\t'+str(args.areUniform))
         logger.info('Output:\t'+args.outBwtDir)
-        print
-        seqFN = args.outBwtDir+'/seqs.npy'
-        offsetFN = args.outBwtDir+'/offsets.npy'
-        aboutFN = args.outBwtDir+'/about.npy'
         if args.areUniform:
             #preprocess for Bauer et al. method
-            MultiStringBWT.preprocessFastqs(args.inputFastqs, seqFN, offsetFN, aboutFN, args.areUniform, logger)
+            MultiStringBWT.preprocessFastqs(args.inputFastqs, args.outBwtDir, args.areUniform, logger)
         else:
             #preprocess for Holt et al. method
             numProcs = 1
