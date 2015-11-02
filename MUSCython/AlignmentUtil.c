@@ -1012,22 +1012,6 @@ static CYTHON_INLINE int __Pyx_PyObject_SetSlice(
         PyObject** py_start, PyObject** py_stop, PyObject** py_slice,
         int has_cstart, int has_cstop, int wraparound);
 
-#if CYTHON_COMPILING_IN_CPYTHON
-static CYTHON_INLINE int __Pyx_PyList_Append(PyObject* list, PyObject* x) {
-    PyListObject* L = (PyListObject*) list;
-    Py_ssize_t len = Py_SIZE(list);
-    if (likely(L->allocated > len) & likely(len > (L->allocated >> 1))) {
-        Py_INCREF(x);
-        PyList_SET_ITEM(list, len, x);
-        Py_SIZE(list) = len+1;
-        return 0;
-    }
-    return PyList_Append(list, x);
-}
-#else
-#define __Pyx_PyList_Append(L,x) PyList_Append(L,x)
-#endif
-
 #define __Pyx_BUF_MAX_NDIMS %(BUF_MAX_NDIMS)d
 #define __Pyx_MEMVIEW_DIRECT   1
 #define __Pyx_MEMVIEW_PTR      2
@@ -1052,6 +1036,29 @@ static CYTHON_INLINE int __pyx_sub_acquisition_count_locked(
 #define __PYX_XDEC_MEMVIEW(slice, have_gil) __Pyx_XDEC_MEMVIEW(slice, have_gil, __LINE__)
 static CYTHON_INLINE void __Pyx_INC_MEMVIEW(__Pyx_memviewslice *, int, int);
 static CYTHON_INLINE void __Pyx_XDEC_MEMVIEW(__Pyx_memviewslice *, int, int);
+
+#if CYTHON_COMPILING_IN_CPYTHON
+static CYTHON_INLINE PyObject* __Pyx_PyObject_CallMethO(PyObject *func, PyObject *arg);
+#endif
+
+static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg);
+
+#define __Pyx_BufPtrCContig1d(type, buf, i0, s0) ((type)buf + i0)
+#if CYTHON_COMPILING_IN_CPYTHON
+static CYTHON_INLINE int __Pyx_PyList_Append(PyObject* list, PyObject* x) {
+    PyListObject* L = (PyListObject*) list;
+    Py_ssize_t len = Py_SIZE(list);
+    if (likely(L->allocated > len) & likely(len > (L->allocated >> 1))) {
+        Py_INCREF(x);
+        PyList_SET_ITEM(list, len, x);
+        Py_SIZE(list) = len+1;
+        return 0;
+    }
+    return PyList_Append(list, x);
+}
+#else
+#define __Pyx_PyList_Append(L,x) PyList_Append(L,x)
+#endif
 
 static CYTHON_INLINE void __Pyx_ErrRestore(PyObject *type, PyObject *value, PyObject *tb);
 static CYTHON_INLINE void __Pyx_ErrFetch(PyObject **type, PyObject **value, PyObject **tb);
@@ -1168,12 +1175,6 @@ static CYTHON_INLINE void __Pyx_RaiseUnboundLocalError(const char *varname);
 static CYTHON_INLINE long __Pyx_div_long(long, long); /* proto */
 
 static PyObject *__pyx_memoryviewslice__get__base(PyObject *__pyx_v_self); /*proto*/
-#if CYTHON_COMPILING_IN_CPYTHON
-static CYTHON_INLINE PyObject* __Pyx_PyObject_CallMethO(PyObject *func, PyObject *arg);
-#endif
-
-static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg);
-
 static int __Pyx_SetVtable(PyObject *dict, void *vtable);
 
 typedef struct {
@@ -1223,6 +1224,13 @@ static PyObject *__Pyx_Import(PyObject *name, PyObject *from_list, int level);
 static CYTHON_INLINE PyObject* __Pyx_PyInt_From_unsigned_long(unsigned long value);
 
 static CYTHON_INLINE unsigned long __Pyx_PyInt_As_unsigned_long(PyObject *);
+
+static CYTHON_INLINE PyObject* __Pyx_PyInt_From_npy_uint32(npy_uint32 value);
+
+static CYTHON_INLINE npy_uint32 __Pyx_PyInt_As_npy_uint32(PyObject *);
+
+static PyObject *__pyx_memview_get_nn___pyx_t_5numpy_uint32_t(const char *itemp);
+static int __pyx_memview_set_nn___pyx_t_5numpy_uint32_t(const char *itemp, PyObject *obj);
 
 #if CYTHON_CCOMPLEX
   #ifdef __cplusplus
@@ -1359,9 +1367,11 @@ static int __Pyx_ValidateAndInit_memviewslice(
                 __Pyx_memviewslice *memviewslice,
                 PyObject *original_obj);
 
-static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint32_t(PyObject *);
-
 static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_uint32_t(PyObject *);
+
+static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_uint8_t(PyObject *);
+
+static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint32_t(PyObject *);
 
 static int __Pyx_check_binary_version(void);
 
@@ -1460,12 +1470,12 @@ static void __pyx_memoryview_refcount_objects_in_slice(char *, Py_ssize_t *, Py_
 static void __pyx_memoryview_slice_assign_scalar(__Pyx_memviewslice *, int, size_t, void *, int); /*proto*/
 static void __pyx_memoryview__slice_assign_scalar(char *, Py_ssize_t *, Py_ssize_t *, int, size_t, void *); /*proto*/
 static __Pyx_TypeInfo __Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t = { "uint32_t", NULL, sizeof(__pyx_t_5numpy_uint32_t), { 0 }, 0, IS_UNSIGNED(__pyx_t_5numpy_uint32_t) ? 'U' : 'I', IS_UNSIGNED(__pyx_t_5numpy_uint32_t), 0 };
+static __Pyx_TypeInfo __Pyx_TypeInfo_nn___pyx_t_5numpy_uint8_t = { "uint8_t", NULL, sizeof(__pyx_t_5numpy_uint8_t), { 0 }, 0, IS_UNSIGNED(__pyx_t_5numpy_uint8_t) ? 'U' : 'I', IS_UNSIGNED(__pyx_t_5numpy_uint8_t), 0 };
 #define __Pyx_MODULE_NAME "MUSCython.AlignmentUtil"
 int __pyx_module_is_main_MUSCython__AlignmentUtil = 0;
 
 /* Implementation of 'MUSCython.AlignmentUtil' */
 static PyObject *__pyx_builtin_range;
-static PyObject *__pyx_builtin_xrange;
 static PyObject *__pyx_builtin_Exception;
 static PyObject *__pyx_builtin_ValueError;
 static PyObject *__pyx_builtin_RuntimeError;
@@ -1473,6 +1483,7 @@ static PyObject *__pyx_builtin_MemoryError;
 static PyObject *__pyx_builtin_enumerate;
 static PyObject *__pyx_builtin_Ellipsis;
 static PyObject *__pyx_builtin_TypeError;
+static PyObject *__pyx_builtin_xrange;
 static PyObject *__pyx_builtin_id;
 static PyObject *__pyx_builtin_IndexError;
 static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_original, PyObject *__pyx_v_modified); /* proto */
@@ -1539,9 +1550,11 @@ static char __pyx_k_z[] = "z";
 static char __pyx_k_Zd[] = "Zd";
 static char __pyx_k_Zf[] = "Zf";
 static char __pyx_k_Zg[] = "Zg";
-static char __pyx_k__2[] = "=";
+static char __pyx_k__6[] = "=";
 static char __pyx_k_id[] = "id";
+static char __pyx_k_nc[] = "nc";
 static char __pyx_k_np[] = "np";
+static char __pyx_k_u1[] = "<u1";
 static char __pyx_k_u4[] = "<u4";
 static char __pyx_k_cig[] = "cig";
 static char __pyx_k_obj[] = "obj";
@@ -1570,9 +1583,12 @@ static char __pyx_k_range[] = "range";
 static char __pyx_k_shape[] = "shape";
 static char __pyx_k_start[] = "start";
 static char __pyx_k_zeros[] = "zeros";
+static char __pyx_k_argmin[] = "argmin";
+static char __pyx_k_choice[] = "choice";
 static char __pyx_k_format[] = "format";
 static char __pyx_k_import[] = "__import__";
 static char __pyx_k_name_2[] = "__name__";
+static char __pyx_k_scores[] = "scores";
 static char __pyx_k_struct[] = "struct";
 static char __pyx_k_unpack[] = "unpack";
 static char __pyx_k_xrange[] = "xrange";
@@ -1687,11 +1703,13 @@ static PyObject *__pyx_kp_s_Unable_to_convert_item_to_object;
 static PyObject *__pyx_kp_s_Users_Matt_Documents_workspace;
 static PyObject *__pyx_n_s_ValueError;
 static PyObject *__pyx_n_s_X;
-static PyObject *__pyx_kp_s__2;
+static PyObject *__pyx_kp_s__6;
 static PyObject *__pyx_n_s_allocate_buffer;
+static PyObject *__pyx_n_s_argmin;
 static PyObject *__pyx_n_s_base;
 static PyObject *__pyx_n_s_c;
 static PyObject *__pyx_n_u_c;
+static PyObject *__pyx_n_s_choice;
 static PyObject *__pyx_n_s_cig;
 static PyObject *__pyx_n_s_class;
 static PyObject *__pyx_kp_s_contiguous_and_direct;
@@ -1726,6 +1744,7 @@ static PyObject *__pyx_n_s_modified;
 static PyObject *__pyx_n_s_modified_view;
 static PyObject *__pyx_n_s_name;
 static PyObject *__pyx_n_s_name_2;
+static PyObject *__pyx_n_s_nc;
 static PyObject *__pyx_kp_u_ndarray_is_not_C_contiguous;
 static PyObject *__pyx_kp_u_ndarray_is_not_Fortran_contiguou;
 static PyObject *__pyx_n_s_ndim;
@@ -1746,6 +1765,7 @@ static PyObject *__pyx_n_s_pyx_vtable;
 static PyObject *__pyx_n_s_range;
 static PyObject *__pyx_n_s_scoreArray;
 static PyObject *__pyx_n_s_scoreArray_view;
+static PyObject *__pyx_n_s_scores;
 static PyObject *__pyx_n_s_shape;
 static PyObject *__pyx_n_s_size;
 static PyObject *__pyx_n_s_start;
@@ -1757,6 +1777,7 @@ static PyObject *__pyx_kp_s_strided_and_indirect;
 static PyObject *__pyx_n_s_struct;
 static PyObject *__pyx_n_s_test;
 static PyObject *__pyx_n_s_typeToCig;
+static PyObject *__pyx_kp_s_u1;
 static PyObject *__pyx_kp_s_u4;
 static PyObject *__pyx_kp_s_unable_to_allocate_array_data;
 static PyObject *__pyx_kp_s_unable_to_allocate_shape_and_str;
@@ -1770,19 +1791,21 @@ static PyObject *__pyx_n_s_zeros;
 static PyObject *__pyx_int_0;
 static PyObject *__pyx_int_1;
 static PyObject *__pyx_int_2;
+static PyObject *__pyx_int_3;
+static PyObject *__pyx_int_2147483647;
 static PyObject *__pyx_int_4294967295;
 static PyObject *__pyx_int_neg_1;
 static PyObject *__pyx_slice_;
 static PyObject *__pyx_slice__3;
+static PyObject *__pyx_slice__4;
 static PyObject *__pyx_slice__5;
-static PyObject *__pyx_tuple__4;
-static PyObject *__pyx_tuple__6;
-static PyObject *__pyx_tuple__7;
+static PyObject *__pyx_slice__7;
+static PyObject *__pyx_slice__9;
+static PyObject *__pyx_tuple__2;
 static PyObject *__pyx_tuple__8;
-static PyObject *__pyx_tuple__9;
-static PyObject *__pyx_slice__19;
-static PyObject *__pyx_slice__20;
-static PyObject *__pyx_slice__21;
+static PyObject *__pyx_slice__23;
+static PyObject *__pyx_slice__24;
+static PyObject *__pyx_slice__25;
 static PyObject *__pyx_tuple__10;
 static PyObject *__pyx_tuple__11;
 static PyObject *__pyx_tuple__12;
@@ -1792,16 +1815,20 @@ static PyObject *__pyx_tuple__15;
 static PyObject *__pyx_tuple__16;
 static PyObject *__pyx_tuple__17;
 static PyObject *__pyx_tuple__18;
+static PyObject *__pyx_tuple__19;
+static PyObject *__pyx_tuple__20;
+static PyObject *__pyx_tuple__21;
 static PyObject *__pyx_tuple__22;
-static PyObject *__pyx_tuple__23;
-static PyObject *__pyx_tuple__25;
+static PyObject *__pyx_tuple__26;
 static PyObject *__pyx_tuple__27;
-static PyObject *__pyx_tuple__28;
 static PyObject *__pyx_tuple__29;
-static PyObject *__pyx_tuple__30;
 static PyObject *__pyx_tuple__31;
-static PyObject *__pyx_codeobj__24;
-static PyObject *__pyx_codeobj__26;
+static PyObject *__pyx_tuple__32;
+static PyObject *__pyx_tuple__33;
+static PyObject *__pyx_tuple__34;
+static PyObject *__pyx_tuple__35;
+static PyObject *__pyx_codeobj__28;
+static PyObject *__pyx_codeobj__30;
 
 /* "MUSCython/AlignmentUtil.pyx":9
  * cimport numpy as np
@@ -1889,15 +1916,16 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
   unsigned long __pyx_v_mLen;
   PyArrayObject *__pyx_v_scoreArray = 0;
   __Pyx_memviewslice __pyx_v_scoreArray_view = { 0, 0, { 0 }, { 0 }, { 0 } };
-  unsigned long __pyx_v_x;
-  unsigned long __pyx_v_y;
-  unsigned long __pyx_v_z;
   PyArrayObject *__pyx_v_previousPos = 0;
   __Pyx_memviewslice __pyx_v_previousPos_view = { 0, 0, { 0 }, { 0 }, { 0 } };
+  unsigned long __pyx_v_x;
+  unsigned long __pyx_v_y;
   char *__pyx_v_original_view;
   char *__pyx_v_modified_view;
   unsigned long __pyx_v_diagScore;
-  unsigned long __pyx_v_jumpScore;
+  PyArrayObject *__pyx_v_scores = 0;
+  unsigned long __pyx_v_choice;
+  unsigned long __pyx_v_nc;
   unsigned long __pyx_v_MATCH_T;
   unsigned long __pyx_v_MISMATCH_T;
   unsigned long __pyx_v_INSERTION_T;
@@ -1905,16 +1933,15 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
   PyObject *__pyx_v_typeToCig = 0;
   CYTHON_UNUSED unsigned long __pyx_v_numMatches;
   PyObject *__pyx_v_cig = 0;
-  unsigned long __pyx_v_nextX;
-  unsigned long __pyx_v_nextY;
   unsigned long __pyx_v_instructionType;
   unsigned long __pyx_v_instructionCount;
   unsigned long __pyx_v_currType;
-  unsigned long __pyx_v_currCount;
   __Pyx_LocalBuf_ND __pyx_pybuffernd_previousPos;
   __Pyx_Buffer __pyx_pybuffer_previousPos;
   __Pyx_LocalBuf_ND __pyx_pybuffernd_scoreArray;
   __Pyx_Buffer __pyx_pybuffer_scoreArray;
+  __Pyx_LocalBuf_ND __pyx_pybuffernd_scores;
+  __Pyx_Buffer __pyx_pybuffer_scores;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   Py_ssize_t __pyx_t_1;
@@ -1925,65 +1952,71 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
   PyObject *__pyx_t_6 = NULL;
   PyArrayObject *__pyx_t_7 = NULL;
   __Pyx_memviewslice __pyx_t_8 = { 0, 0, { 0 }, { 0 }, { 0 } };
-  Py_ssize_t __pyx_t_9;
-  unsigned long __pyx_t_10;
-  unsigned long __pyx_t_11;
-  unsigned long __pyx_t_12;
-  Py_ssize_t __pyx_t_13;
-  Py_ssize_t __pyx_t_14;
+  __Pyx_memviewslice __pyx_t_9 = { 0, 0, { 0 }, { 0 }, { 0 } };
+  int __pyx_t_10;
+  PyArrayObject *__pyx_t_11 = NULL;
+  __Pyx_memviewslice __pyx_t_12 = { 0, 0, { 0 }, { 0 }, { 0 } };
+  unsigned long __pyx_t_13;
+  unsigned long __pyx_t_14;
   unsigned long __pyx_t_15;
-  PyArrayObject *__pyx_t_16 = NULL;
-  __Pyx_memviewslice __pyx_t_17 = { 0, 0, { 0 }, { 0 }, { 0 } };
-  char *__pyx_t_18;
-  unsigned long __pyx_t_19;
-  unsigned long __pyx_t_20;
-  int __pyx_t_21;
-  int __pyx_t_22;
-  unsigned long __pyx_t_23;
+  Py_ssize_t __pyx_t_16;
+  unsigned long __pyx_t_17;
+  Py_ssize_t __pyx_t_18;
+  Py_ssize_t __pyx_t_19;
+  Py_ssize_t __pyx_t_20;
+  unsigned long __pyx_t_21;
+  Py_ssize_t __pyx_t_22;
+  Py_ssize_t __pyx_t_23;
   unsigned long __pyx_t_24;
-  unsigned long __pyx_t_25;
-  unsigned long __pyx_t_26;
-  unsigned long __pyx_t_27;
+  Py_ssize_t __pyx_t_25;
+  char *__pyx_t_26;
+  PyArrayObject *__pyx_t_27 = NULL;
   unsigned long __pyx_t_28;
   unsigned long __pyx_t_29;
-  unsigned long __pyx_t_30;
-  unsigned long __pyx_t_31;
+  int __pyx_t_30;
+  __Pyx_memviewslice __pyx_t_31 = { 0, 0, { 0 }, { 0 }, { 0 } };
   unsigned long __pyx_t_32;
-  Py_ssize_t __pyx_t_33;
+  unsigned long __pyx_t_33;
   unsigned long __pyx_t_34;
-  unsigned long __pyx_t_35;
-  Py_ssize_t __pyx_t_36;
+  Py_ssize_t __pyx_t_35;
+  unsigned long __pyx_t_36;
   unsigned long __pyx_t_37;
-  unsigned long __pyx_t_38;
+  Py_ssize_t __pyx_t_38;
   unsigned long __pyx_t_39;
   unsigned long __pyx_t_40;
-  unsigned long __pyx_t_41;
+  Py_ssize_t __pyx_t_41;
   unsigned long __pyx_t_42;
   unsigned long __pyx_t_43;
-  unsigned long __pyx_t_44;
+  Py_ssize_t __pyx_t_44;
   unsigned long __pyx_t_45;
   unsigned long __pyx_t_46;
   Py_ssize_t __pyx_t_47;
   unsigned long __pyx_t_48;
   unsigned long __pyx_t_49;
-  Py_ssize_t __pyx_t_50;
-  unsigned long __pyx_t_51;
+  unsigned long __pyx_t_50;
+  Py_ssize_t __pyx_t_51;
   unsigned long __pyx_t_52;
   unsigned long __pyx_t_53;
-  unsigned long __pyx_t_54;
+  Py_ssize_t __pyx_t_54;
   unsigned long __pyx_t_55;
   unsigned long __pyx_t_56;
-  unsigned long __pyx_t_57;
+  Py_ssize_t __pyx_t_57;
   unsigned long __pyx_t_58;
-  Py_ssize_t __pyx_t_59;
-  unsigned long __pyx_t_60;
+  unsigned long __pyx_t_59;
+  Py_ssize_t __pyx_t_60;
   unsigned long __pyx_t_61;
-  Py_ssize_t __pyx_t_62;
+  unsigned long __pyx_t_62;
   Py_ssize_t __pyx_t_63;
-  Py_ssize_t __pyx_t_64;
+  unsigned long __pyx_t_64;
   unsigned long __pyx_t_65;
   unsigned long __pyx_t_66;
-  int __pyx_t_67;
+  Py_ssize_t __pyx_t_67;
+  unsigned long __pyx_t_68;
+  unsigned long __pyx_t_69;
+  Py_ssize_t __pyx_t_70;
+  __Pyx_memviewslice __pyx_t_71 = { 0, 0, { 0 }, { 0 }, { 0 } };
+  int __pyx_t_72;
+  int __pyx_t_73;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -1996,6 +2029,10 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
   __pyx_pybuffer_previousPos.refcount = 0;
   __pyx_pybuffernd_previousPos.data = NULL;
   __pyx_pybuffernd_previousPos.rcbuffer = &__pyx_pybuffer_previousPos;
+  __pyx_pybuffer_scores.pybuffer.buf = NULL;
+  __pyx_pybuffer_scores.refcount = 0;
+  __pyx_pybuffernd_scores.data = NULL;
+  __pyx_pybuffernd_scores.rcbuffer = &__pyx_pybuffer_scores;
 
   /* "MUSCython/AlignmentUtil.pyx":15
  *     '''
@@ -2052,7 +2089,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
  *     cdef unsigned long oLen = len(original)
  *     cdef unsigned long mLen = len(modified)             # <<<<<<<<<<<<<<
  * 
- *     #initialize the scores
+ *     '''
  */
   if (unlikely(__pyx_v_modified == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
@@ -2061,513 +2098,700 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
   __pyx_t_1 = PyBytes_GET_SIZE(__pyx_v_modified); if (unlikely(__pyx_t_1 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 22; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_mLen = __pyx_t_1;
 
-  /* "MUSCython/AlignmentUtil.pyx":25
- * 
- *     #initialize the scores
- *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))             # <<<<<<<<<<<<<<
- *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
- *     scoreArray[:] = 0xFFFFFFFF
+  /* "MUSCython/AlignmentUtil.pyx":30
+ *     [x, y, 2] corresponds to insertion to original
+ *     '''
+ *     cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1, 3))             # <<<<<<<<<<<<<<
+ *     cdef np.uint32_t [:, :, :] scoreArray_view = scoreArray
+ *     scoreArray[:] = 0x7FFFFFFF
  */
-  __pyx_t_2 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_empty); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_empty); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyDict_New(); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = PyDict_New(); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_dtype, __pyx_kp_s_u4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_t_4 = __Pyx_PyInt_From_unsigned_long((__pyx_v_oLen + 1)); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_dtype, __pyx_kp_s_u4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = __Pyx_PyInt_From_unsigned_long((__pyx_v_oLen + 1)); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((__pyx_v_mLen + 1)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((__pyx_v_mLen + 1)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_6 = PyTuple_New(2); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_6 = PyTuple_New(3); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
   PyTuple_SET_ITEM(__pyx_t_6, 0, __pyx_t_4);
   __Pyx_GIVEREF(__pyx_t_4);
   PyTuple_SET_ITEM(__pyx_t_6, 1, __pyx_t_5);
   __Pyx_GIVEREF(__pyx_t_5);
+  __Pyx_INCREF(__pyx_int_3);
+  PyTuple_SET_ITEM(__pyx_t_6, 2, __pyx_int_3);
+  __Pyx_GIVEREF(__pyx_int_3);
   __pyx_t_4 = 0;
   __pyx_t_5 = 0;
-  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_shape, __pyx_t_6) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_shape, __pyx_t_6) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_empty_tuple, __pyx_t_2); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_empty_tuple, __pyx_t_2); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  if (!(likely(((__pyx_t_6) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_6, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (!(likely(((__pyx_t_6) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_6, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_t_7 = ((PyArrayObject *)__pyx_t_6);
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
-    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_scoreArray.rcbuffer->pybuffer, (PyObject*)__pyx_t_7, &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, PyBUF_FORMAT| PyBUF_C_CONTIGUOUS, 2, 0, __pyx_stack) == -1)) {
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_scoreArray.rcbuffer->pybuffer, (PyObject*)__pyx_t_7, &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, PyBUF_FORMAT| PyBUF_C_CONTIGUOUS, 3, 0, __pyx_stack) == -1)) {
       __pyx_v_scoreArray = ((PyArrayObject *)Py_None); __Pyx_INCREF(Py_None); __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.buf = NULL;
-      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 25; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-    } else {__pyx_pybuffernd_scoreArray.diminfo[0].strides = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_scoreArray.diminfo[0].shape = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.shape[0]; __pyx_pybuffernd_scoreArray.diminfo[1].strides = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.strides[1]; __pyx_pybuffernd_scoreArray.diminfo[1].shape = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.shape[1];
+      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 30; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    } else {__pyx_pybuffernd_scoreArray.diminfo[0].strides = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_scoreArray.diminfo[0].shape = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.shape[0]; __pyx_pybuffernd_scoreArray.diminfo[1].strides = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.strides[1]; __pyx_pybuffernd_scoreArray.diminfo[1].shape = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.shape[1]; __pyx_pybuffernd_scoreArray.diminfo[2].strides = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.strides[2]; __pyx_pybuffernd_scoreArray.diminfo[2].shape = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.shape[2];
     }
   }
   __pyx_t_7 = 0;
   __pyx_v_scoreArray = ((PyArrayObject *)__pyx_t_6);
   __pyx_t_6 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":26
- *     #initialize the scores
- *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
- *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray             # <<<<<<<<<<<<<<
- *     scoreArray[:] = 0xFFFFFFFF
- *     scoreArray_view[0, 0] = 0
+  /* "MUSCython/AlignmentUtil.pyx":31
+ *     '''
+ *     cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1, 3))
+ *     cdef np.uint32_t [:, :, :] scoreArray_view = scoreArray             # <<<<<<<<<<<<<<
+ *     scoreArray[:] = 0x7FFFFFFF
+ *     scoreArray_view[0, 0, :] = 0
  */
-  __pyx_t_8 = __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint32_t(((PyObject *)__pyx_v_scoreArray));
-  if (unlikely(!__pyx_t_8.memview)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 26; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_8 = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_uint32_t(((PyObject *)__pyx_v_scoreArray));
+  if (unlikely(!__pyx_t_8.memview)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 31; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_scoreArray_view = __pyx_t_8;
   __pyx_t_8.memview = NULL;
   __pyx_t_8.data = NULL;
 
-  /* "MUSCython/AlignmentUtil.pyx":27
- *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
- *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
- *     scoreArray[:] = 0xFFFFFFFF             # <<<<<<<<<<<<<<
- *     scoreArray_view[0, 0] = 0
+  /* "MUSCython/AlignmentUtil.pyx":32
+ *     cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1, 3))
+ *     cdef np.uint32_t [:, :, :] scoreArray_view = scoreArray
+ *     scoreArray[:] = 0x7FFFFFFF             # <<<<<<<<<<<<<<
+ *     scoreArray_view[0, 0, :] = 0
  * 
  */
-  if (__Pyx_PyObject_SetSlice(((PyObject *)__pyx_v_scoreArray), __pyx_int_4294967295, 0, 0, NULL, NULL, &__pyx_slice_, 0, 0, 0) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 27; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-
-  /* "MUSCython/AlignmentUtil.pyx":28
- *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
- *     scoreArray[:] = 0xFFFFFFFF
- *     scoreArray_view[0, 0] = 0             # <<<<<<<<<<<<<<
- * 
- *     cdef unsigned long x, y, z
- */
-  __pyx_t_1 = 0;
-  __pyx_t_9 = 0;
-  *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_1 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_9 * __pyx_v_scoreArray_view.strides[1]) )) = 0;
-
-  /* "MUSCython/AlignmentUtil.pyx":31
- * 
- *     cdef unsigned long x, y, z
- *     for x in range(1, oLen+1):             # <<<<<<<<<<<<<<
- *         scoreArray_view[x, 0] = GAP_OPEN+x*GAP_EXTEND
- *     for x in range(1, mLen+1):
- */
-  __pyx_t_10 = (__pyx_v_oLen + 1);
-  for (__pyx_t_11 = 1; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
-    __pyx_v_x = __pyx_t_11;
-
-    /* "MUSCython/AlignmentUtil.pyx":32
- *     cdef unsigned long x, y, z
- *     for x in range(1, oLen+1):
- *         scoreArray_view[x, 0] = GAP_OPEN+x*GAP_EXTEND             # <<<<<<<<<<<<<<
- *     for x in range(1, mLen+1):
- *         scoreArray_view[0, x] = GAP_OPEN+x*GAP_EXTEND
- */
-    __pyx_t_12 = __pyx_v_x;
-    __pyx_t_13 = 0;
-    *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_12 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_13 * __pyx_v_scoreArray_view.strides[1]) )) = (__pyx_v_GAP_OPEN + (__pyx_v_x * __pyx_v_GAP_EXTEND));
-  }
+  if (__Pyx_PyObject_SetSlice(((PyObject *)__pyx_v_scoreArray), __pyx_int_2147483647, 0, 0, NULL, NULL, &__pyx_slice_, 0, 0, 0) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 32; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
   /* "MUSCython/AlignmentUtil.pyx":33
- *     for x in range(1, oLen+1):
- *         scoreArray_view[x, 0] = GAP_OPEN+x*GAP_EXTEND
- *     for x in range(1, mLen+1):             # <<<<<<<<<<<<<<
- *         scoreArray_view[0, x] = GAP_OPEN+x*GAP_EXTEND
+ *     cdef np.uint32_t [:, :, :] scoreArray_view = scoreArray
+ *     scoreArray[:] = 0x7FFFFFFF
+ *     scoreArray_view[0, 0, :] = 0             # <<<<<<<<<<<<<<
  * 
+ *     #initialize the jumpers: 0 coming from M, 1 coming from X, 2 coming from Y
  */
-  __pyx_t_10 = (__pyx_v_mLen + 1);
-  for (__pyx_t_11 = 1; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
-    __pyx_v_x = __pyx_t_11;
+  __pyx_t_10 = -1;
+  __pyx_t_9.data = __pyx_v_scoreArray_view.data;
+  __pyx_t_9.memview = __pyx_v_scoreArray_view.memview;
+  __PYX_INC_MEMVIEW(&__pyx_t_9, 0);
+  {
+    Py_ssize_t __pyx_tmp_idx = 0;
+    Py_ssize_t __pyx_tmp_shape = __pyx_v_scoreArray_view.shape[0];
+    Py_ssize_t __pyx_tmp_stride = __pyx_v_scoreArray_view.strides[0];
+    if (0 && (__pyx_tmp_idx < 0))
+        __pyx_tmp_idx += __pyx_tmp_shape;
+    if (0 && (__pyx_tmp_idx < 0 || __pyx_tmp_idx >= __pyx_tmp_shape)) {
+        PyErr_SetString(PyExc_IndexError, "Index out of bounds (axis 0)");
+        {__pyx_filename = __pyx_f[0]; __pyx_lineno = 33; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    }
+        __pyx_t_9.data += __pyx_tmp_idx * __pyx_tmp_stride;
+}
 
-    /* "MUSCython/AlignmentUtil.pyx":34
- *         scoreArray_view[x, 0] = GAP_OPEN+x*GAP_EXTEND
- *     for x in range(1, mLen+1):
- *         scoreArray_view[0, x] = GAP_OPEN+x*GAP_EXTEND             # <<<<<<<<<<<<<<
- * 
- *     #initialize the jumpers
- */
-    __pyx_t_14 = 0;
-    __pyx_t_15 = __pyx_v_x;
-    *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_14 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_15 * __pyx_v_scoreArray_view.strides[1]) )) = (__pyx_v_GAP_OPEN + (__pyx_v_x * __pyx_v_GAP_EXTEND));
+{
+    Py_ssize_t __pyx_tmp_idx = 0;
+    Py_ssize_t __pyx_tmp_shape = __pyx_v_scoreArray_view.shape[1];
+    Py_ssize_t __pyx_tmp_stride = __pyx_v_scoreArray_view.strides[1];
+    if (0 && (__pyx_tmp_idx < 0))
+        __pyx_tmp_idx += __pyx_tmp_shape;
+    if (0 && (__pyx_tmp_idx < 0 || __pyx_tmp_idx >= __pyx_tmp_shape)) {
+        PyErr_SetString(PyExc_IndexError, "Index out of bounds (axis 1)");
+        {__pyx_filename = __pyx_f[0]; __pyx_lineno = 33; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    }
+        __pyx_t_9.data += __pyx_tmp_idx * __pyx_tmp_stride;
+}
+
+__pyx_t_9.shape[0] = __pyx_v_scoreArray_view.shape[2];
+__pyx_t_9.strides[0] = __pyx_v_scoreArray_view.strides[2];
+    __pyx_t_9.suboffsets[0] = -1;
+
+{
+      __pyx_t_5numpy_uint32_t __pyx_temp_scalar = 0;
+      {
+          Py_ssize_t __pyx_temp_extent_0 = __pyx_t_9.shape[0];
+          Py_ssize_t __pyx_temp_stride_0 = __pyx_t_9.strides[0];
+          char *__pyx_temp_pointer_0;
+          Py_ssize_t __pyx_temp_idx_0;
+          __pyx_temp_pointer_0 = __pyx_t_9.data;
+          for (__pyx_temp_idx_0 = 0; __pyx_temp_idx_0 < __pyx_temp_extent_0; __pyx_temp_idx_0++) {
+            *((__pyx_t_5numpy_uint32_t *) __pyx_temp_pointer_0) = __pyx_temp_scalar;
+            __pyx_temp_pointer_0 += __pyx_temp_stride_0;
+          }
+      }
   }
+  __PYX_XDEC_MEMVIEW(&__pyx_t_9, 1);
 
-  /* "MUSCython/AlignmentUtil.pyx":37
+  /* "MUSCython/AlignmentUtil.pyx":36
  * 
- *     #initialize the jumpers
- *     cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] previousPos = np.zeros(dtype='<u4', shape=(oLen+1, mLen+1, 2))             # <<<<<<<<<<<<<<
- *     cdef np.uint32_t [:, :, :] previousPos_view = previousPos
+ *     #initialize the jumpers: 0 coming from M, 1 coming from X, 2 coming from Y
+ *     cdef np.ndarray[np.uint8_t, ndim=3, mode='c'] previousPos = np.zeros(dtype='<u1', shape=(oLen+1, mLen+1, 3))             # <<<<<<<<<<<<<<
+ *     cdef np.uint8_t [:, :, :] previousPos_view = previousPos
  * 
  */
-  __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_zeros); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_zeros); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_6 = PyDict_New(); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_6 = PyDict_New(); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
-  if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_dtype, __pyx_kp_s_u4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_t_3 = __Pyx_PyInt_From_unsigned_long((__pyx_v_oLen + 1)); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_dtype, __pyx_kp_s_u1) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_3 = __Pyx_PyInt_From_unsigned_long((__pyx_v_oLen + 1)); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((__pyx_v_mLen + 1)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((__pyx_v_mLen + 1)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_4 = PyTuple_New(3); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = PyTuple_New(3); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_4);
   PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_3);
   __Pyx_GIVEREF(__pyx_t_3);
   PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_t_5);
   __Pyx_GIVEREF(__pyx_t_5);
-  __Pyx_INCREF(__pyx_int_2);
-  PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_int_2);
-  __Pyx_GIVEREF(__pyx_int_2);
+  __Pyx_INCREF(__pyx_int_3);
+  PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_int_3);
+  __Pyx_GIVEREF(__pyx_int_3);
   __pyx_t_3 = 0;
   __pyx_t_5 = 0;
-  if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_shape, __pyx_t_4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_shape, __pyx_t_4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_empty_tuple, __pyx_t_6); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_empty_tuple, __pyx_t_6); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_t_16 = ((PyArrayObject *)__pyx_t_4);
+  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_11 = ((PyArrayObject *)__pyx_t_4);
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
-    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_previousPos.rcbuffer->pybuffer, (PyObject*)__pyx_t_16, &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, PyBUF_FORMAT| PyBUF_C_CONTIGUOUS, 3, 0, __pyx_stack) == -1)) {
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_previousPos.rcbuffer->pybuffer, (PyObject*)__pyx_t_11, &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint8_t, PyBUF_FORMAT| PyBUF_C_CONTIGUOUS, 3, 0, __pyx_stack) == -1)) {
       __pyx_v_previousPos = ((PyArrayObject *)Py_None); __Pyx_INCREF(Py_None); __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.buf = NULL;
-      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 36; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     } else {__pyx_pybuffernd_previousPos.diminfo[0].strides = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_previousPos.diminfo[0].shape = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.shape[0]; __pyx_pybuffernd_previousPos.diminfo[1].strides = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.strides[1]; __pyx_pybuffernd_previousPos.diminfo[1].shape = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.shape[1]; __pyx_pybuffernd_previousPos.diminfo[2].strides = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.strides[2]; __pyx_pybuffernd_previousPos.diminfo[2].shape = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.shape[2];
     }
   }
-  __pyx_t_16 = 0;
+  __pyx_t_11 = 0;
   __pyx_v_previousPos = ((PyArrayObject *)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":38
- *     #initialize the jumpers
- *     cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] previousPos = np.zeros(dtype='<u4', shape=(oLen+1, mLen+1, 2))
- *     cdef np.uint32_t [:, :, :] previousPos_view = previousPos             # <<<<<<<<<<<<<<
+  /* "MUSCython/AlignmentUtil.pyx":37
+ *     #initialize the jumpers: 0 coming from M, 1 coming from X, 2 coming from Y
+ *     cdef np.ndarray[np.uint8_t, ndim=3, mode='c'] previousPos = np.zeros(dtype='<u1', shape=(oLen+1, mLen+1, 3))
+ *     cdef np.uint8_t [:, :, :] previousPos_view = previousPos             # <<<<<<<<<<<<<<
+ * 
+ *     cdef unsigned long x, y, z
+ */
+  __pyx_t_12 = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_uint8_t(((PyObject *)__pyx_v_previousPos));
+  if (unlikely(!__pyx_t_12.memview)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 37; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_v_previousPos_view = __pyx_t_12;
+  __pyx_t_12.memview = NULL;
+  __pyx_t_12.data = NULL;
+
+  /* "MUSCython/AlignmentUtil.pyx":40
+ * 
+ *     cdef unsigned long x, y, z
+ *     for x in range(1, oLen+1):             # <<<<<<<<<<<<<<
+ *         scoreArray_view[x, 0, 1] = GAP_OPEN+x*GAP_EXTEND
+ *         previousPos_view[x, 0, 1] = 1
+ */
+  __pyx_t_13 = (__pyx_v_oLen + 1);
+  for (__pyx_t_14 = 1; __pyx_t_14 < __pyx_t_13; __pyx_t_14+=1) {
+    __pyx_v_x = __pyx_t_14;
+
+    /* "MUSCython/AlignmentUtil.pyx":41
+ *     cdef unsigned long x, y, z
+ *     for x in range(1, oLen+1):
+ *         scoreArray_view[x, 0, 1] = GAP_OPEN+x*GAP_EXTEND             # <<<<<<<<<<<<<<
+ *         previousPos_view[x, 0, 1] = 1
+ *     for x in range(1, mLen+1):
+ */
+    __pyx_t_15 = __pyx_v_x;
+    __pyx_t_1 = 0;
+    __pyx_t_16 = 1;
+    *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_15 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_1 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_16 * __pyx_v_scoreArray_view.strides[2]) )) = (__pyx_v_GAP_OPEN + (__pyx_v_x * __pyx_v_GAP_EXTEND));
+
+    /* "MUSCython/AlignmentUtil.pyx":42
+ *     for x in range(1, oLen+1):
+ *         scoreArray_view[x, 0, 1] = GAP_OPEN+x*GAP_EXTEND
+ *         previousPos_view[x, 0, 1] = 1             # <<<<<<<<<<<<<<
+ *     for x in range(1, mLen+1):
+ *         scoreArray_view[0, x, 2] = GAP_OPEN+x*GAP_EXTEND
+ */
+    __pyx_t_17 = __pyx_v_x;
+    __pyx_t_18 = 0;
+    __pyx_t_19 = 1;
+    *((__pyx_t_5numpy_uint8_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_17 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_18 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_19 * __pyx_v_previousPos_view.strides[2]) )) = 1;
+  }
+
+  /* "MUSCython/AlignmentUtil.pyx":43
+ *         scoreArray_view[x, 0, 1] = GAP_OPEN+x*GAP_EXTEND
+ *         previousPos_view[x, 0, 1] = 1
+ *     for x in range(1, mLen+1):             # <<<<<<<<<<<<<<
+ *         scoreArray_view[0, x, 2] = GAP_OPEN+x*GAP_EXTEND
+ *         previousPos_view[0, x, 2] = 2
+ */
+  __pyx_t_13 = (__pyx_v_mLen + 1);
+  for (__pyx_t_14 = 1; __pyx_t_14 < __pyx_t_13; __pyx_t_14+=1) {
+    __pyx_v_x = __pyx_t_14;
+
+    /* "MUSCython/AlignmentUtil.pyx":44
+ *         previousPos_view[x, 0, 1] = 1
+ *     for x in range(1, mLen+1):
+ *         scoreArray_view[0, x, 2] = GAP_OPEN+x*GAP_EXTEND             # <<<<<<<<<<<<<<
+ *         previousPos_view[0, x, 2] = 2
+ * 
+ */
+    __pyx_t_20 = 0;
+    __pyx_t_21 = __pyx_v_x;
+    __pyx_t_22 = 2;
+    *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_20 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_21 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_22 * __pyx_v_scoreArray_view.strides[2]) )) = (__pyx_v_GAP_OPEN + (__pyx_v_x * __pyx_v_GAP_EXTEND));
+
+    /* "MUSCython/AlignmentUtil.pyx":45
+ *     for x in range(1, mLen+1):
+ *         scoreArray_view[0, x, 2] = GAP_OPEN+x*GAP_EXTEND
+ *         previousPos_view[0, x, 2] = 2             # <<<<<<<<<<<<<<
  * 
  *     cdef char * original_view = original
  */
-  __pyx_t_17 = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_uint32_t(((PyObject *)__pyx_v_previousPos));
-  if (unlikely(!__pyx_t_17.memview)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 38; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_v_previousPos_view = __pyx_t_17;
-  __pyx_t_17.memview = NULL;
-  __pyx_t_17.data = NULL;
+    __pyx_t_23 = 0;
+    __pyx_t_24 = __pyx_v_x;
+    __pyx_t_25 = 2;
+    *((__pyx_t_5numpy_uint8_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_23 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_24 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_25 * __pyx_v_previousPos_view.strides[2]) )) = 2;
+  }
 
-  /* "MUSCython/AlignmentUtil.pyx":40
- *     cdef np.uint32_t [:, :, :] previousPos_view = previousPos
+  /* "MUSCython/AlignmentUtil.pyx":47
+ *         previousPos_view[0, x, 2] = 2
  * 
  *     cdef char * original_view = original             # <<<<<<<<<<<<<<
  *     cdef char * modified_view = modified
  *     cdef unsigned long diagScore, jumpScore
  */
-  __pyx_t_18 = __Pyx_PyObject_AsString(__pyx_v_original); if (unlikely((!__pyx_t_18) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 40; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_v_original_view = __pyx_t_18;
+  __pyx_t_26 = __Pyx_PyObject_AsString(__pyx_v_original); if (unlikely((!__pyx_t_26) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 47; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_v_original_view = __pyx_t_26;
 
-  /* "MUSCython/AlignmentUtil.pyx":41
+  /* "MUSCython/AlignmentUtil.pyx":48
  * 
  *     cdef char * original_view = original
  *     cdef char * modified_view = modified             # <<<<<<<<<<<<<<
  *     cdef unsigned long diagScore, jumpScore
  * 
  */
-  __pyx_t_18 = __Pyx_PyObject_AsString(__pyx_v_modified); if (unlikely((!__pyx_t_18) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 41; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_v_modified_view = __pyx_t_18;
+  __pyx_t_26 = __Pyx_PyObject_AsString(__pyx_v_modified); if (unlikely((!__pyx_t_26) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 48; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_v_modified_view = __pyx_t_26;
 
-  /* "MUSCython/AlignmentUtil.pyx":44
+  /* "MUSCython/AlignmentUtil.pyx":51
  *     cdef unsigned long diagScore, jumpScore
  * 
- *     for x in range(0, oLen+1):             # <<<<<<<<<<<<<<
- *         for y in range(0, mLen+1):
- *             #make sure there is a diagonal before trying to handle it
- */
-  __pyx_t_10 = (__pyx_v_oLen + 1);
-  for (__pyx_t_11 = 0; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
-    __pyx_v_x = __pyx_t_11;
-
-    /* "MUSCython/AlignmentUtil.pyx":45
- * 
- *     for x in range(0, oLen+1):
- *         for y in range(0, mLen+1):             # <<<<<<<<<<<<<<
- *             #make sure there is a diagonal before trying to handle it
- *             if x < oLen and y < mLen:
- */
-    __pyx_t_19 = (__pyx_v_mLen + 1);
-    for (__pyx_t_20 = 0; __pyx_t_20 < __pyx_t_19; __pyx_t_20+=1) {
-      __pyx_v_y = __pyx_t_20;
-
-      /* "MUSCython/AlignmentUtil.pyx":47
- *         for y in range(0, mLen+1):
- *             #make sure there is a diagonal before trying to handle it
- *             if x < oLen and y < mLen:             # <<<<<<<<<<<<<<
- *                 #first, handle the diagonal
- *                 if original_view[x] == modified_view[y]:
- */
-      __pyx_t_22 = ((__pyx_v_x < __pyx_v_oLen) != 0);
-      if (__pyx_t_22) {
-      } else {
-        __pyx_t_21 = __pyx_t_22;
-        goto __pyx_L12_bool_binop_done;
-      }
-      __pyx_t_22 = ((__pyx_v_y < __pyx_v_mLen) != 0);
-      __pyx_t_21 = __pyx_t_22;
-      __pyx_L12_bool_binop_done:;
-      if (__pyx_t_21) {
-
-        /* "MUSCython/AlignmentUtil.pyx":49
- *             if x < oLen and y < mLen:
- *                 #first, handle the diagonal
- *                 if original_view[x] == modified_view[y]:             # <<<<<<<<<<<<<<
- *                     diagScore = scoreArray_view[x, y]+MATCH
- *                 else:
- */
-        __pyx_t_21 = (((__pyx_v_original_view[__pyx_v_x]) == (__pyx_v_modified_view[__pyx_v_y])) != 0);
-        if (__pyx_t_21) {
-
-          /* "MUSCython/AlignmentUtil.pyx":50
- *                 #first, handle the diagonal
- *                 if original_view[x] == modified_view[y]:
- *                     diagScore = scoreArray_view[x, y]+MATCH             # <<<<<<<<<<<<<<
- *                 else:
- *                     diagScore = scoreArray_view[x, y]+MISMATCH
- */
-          __pyx_t_23 = __pyx_v_x;
-          __pyx_t_24 = __pyx_v_y;
-          __pyx_v_diagScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_23 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_24 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_MATCH);
-          goto __pyx_L14;
-        }
-        /*else*/ {
-
-          /* "MUSCython/AlignmentUtil.pyx":52
- *                     diagScore = scoreArray_view[x, y]+MATCH
- *                 else:
- *                     diagScore = scoreArray_view[x, y]+MISMATCH             # <<<<<<<<<<<<<<
- *                 if scoreArray_view[x+1, y+1] > diagScore:
- *                     scoreArray_view[x+1, y+1] = diagScore
- */
-          __pyx_t_25 = __pyx_v_x;
-          __pyx_t_26 = __pyx_v_y;
-          __pyx_v_diagScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_25 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_26 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_MISMATCH);
-        }
-        __pyx_L14:;
-
-        /* "MUSCython/AlignmentUtil.pyx":53
- *                 else:
- *                     diagScore = scoreArray_view[x, y]+MISMATCH
- *                 if scoreArray_view[x+1, y+1] > diagScore:             # <<<<<<<<<<<<<<
- *                     scoreArray_view[x+1, y+1] = diagScore
- *                     previousPos_view[x+1, y+1, 0] = x
- */
-        __pyx_t_27 = (__pyx_v_x + 1);
-        __pyx_t_28 = (__pyx_v_y + 1);
-        __pyx_t_21 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_27 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_28 * __pyx_v_scoreArray_view.strides[1]) ))) > __pyx_v_diagScore) != 0);
-        if (__pyx_t_21) {
-
-          /* "MUSCython/AlignmentUtil.pyx":54
- *                     diagScore = scoreArray_view[x, y]+MISMATCH
- *                 if scoreArray_view[x+1, y+1] > diagScore:
- *                     scoreArray_view[x+1, y+1] = diagScore             # <<<<<<<<<<<<<<
- *                     previousPos_view[x+1, y+1, 0] = x
- *                     previousPos_view[x+1, y+1, 1] = y
- */
-          __pyx_t_29 = (__pyx_v_x + 1);
-          __pyx_t_30 = (__pyx_v_y + 1);
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_29 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_30 * __pyx_v_scoreArray_view.strides[1]) )) = __pyx_v_diagScore;
-
-          /* "MUSCython/AlignmentUtil.pyx":55
- *                 if scoreArray_view[x+1, y+1] > diagScore:
- *                     scoreArray_view[x+1, y+1] = diagScore
- *                     previousPos_view[x+1, y+1, 0] = x             # <<<<<<<<<<<<<<
- *                     previousPos_view[x+1, y+1, 1] = y
+ *     cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] scores = np.zeros(dtype='<u4', shape=(3, ))             # <<<<<<<<<<<<<<
+ *     cdef unsigned long choice, nc
  * 
  */
-          __pyx_t_31 = (__pyx_v_x + 1);
-          __pyx_t_32 = (__pyx_v_y + 1);
-          __pyx_t_33 = 0;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_31 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_32 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_33 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_x;
+  __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_4);
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_zeros); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_6);
+  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+  __pyx_t_4 = PyDict_New(); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_4);
+  if (PyDict_SetItem(__pyx_t_4, __pyx_n_s_dtype, __pyx_kp_s_u4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_4, __pyx_n_s_shape, __pyx_tuple__2) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_empty_tuple, __pyx_t_4); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_2);
+  __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+  if (!(likely(((__pyx_t_2) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_2, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_27 = ((PyArrayObject *)__pyx_t_2);
+  {
+    __Pyx_BufFmt_StackElem __pyx_stack[1];
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_scores.rcbuffer->pybuffer, (PyObject*)__pyx_t_27, &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, PyBUF_FORMAT| PyBUF_C_CONTIGUOUS, 1, 0, __pyx_stack) == -1)) {
+      __pyx_v_scores = ((PyArrayObject *)Py_None); __Pyx_INCREF(Py_None); __pyx_pybuffernd_scores.rcbuffer->pybuffer.buf = NULL;
+      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    } else {__pyx_pybuffernd_scores.diminfo[0].strides = __pyx_pybuffernd_scores.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_scores.diminfo[0].shape = __pyx_pybuffernd_scores.rcbuffer->pybuffer.shape[0];
+    }
+  }
+  __pyx_t_27 = 0;
+  __pyx_v_scores = ((PyArrayObject *)__pyx_t_2);
+  __pyx_t_2 = 0;
 
-          /* "MUSCython/AlignmentUtil.pyx":56
- *                     scoreArray_view[x+1, y+1] = diagScore
- *                     previousPos_view[x+1, y+1, 0] = x
- *                     previousPos_view[x+1, y+1, 1] = y             # <<<<<<<<<<<<<<
+  /* "MUSCython/AlignmentUtil.pyx":54
+ *     cdef unsigned long choice, nc
  * 
- *             #now handle deletions to the original
+ *     for x in range(1, oLen+1):             # <<<<<<<<<<<<<<
+ *         for y in range(1, mLen+1):
+ *             #the "M" matrix
  */
-          __pyx_t_34 = (__pyx_v_x + 1);
-          __pyx_t_35 = (__pyx_v_y + 1);
-          __pyx_t_36 = 1;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_34 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_35 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_36 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_y;
-          goto __pyx_L15;
-        }
-        __pyx_L15:;
+  __pyx_t_13 = (__pyx_v_oLen + 1);
+  for (__pyx_t_14 = 1; __pyx_t_14 < __pyx_t_13; __pyx_t_14+=1) {
+    __pyx_v_x = __pyx_t_14;
+
+    /* "MUSCython/AlignmentUtil.pyx":55
+ * 
+ *     for x in range(1, oLen+1):
+ *         for y in range(1, mLen+1):             # <<<<<<<<<<<<<<
+ *             #the "M" matrix
+ *             if original_view[x-1] == modified_view[y-1]:
+ */
+    __pyx_t_28 = (__pyx_v_mLen + 1);
+    for (__pyx_t_29 = 1; __pyx_t_29 < __pyx_t_28; __pyx_t_29+=1) {
+      __pyx_v_y = __pyx_t_29;
+
+      /* "MUSCython/AlignmentUtil.pyx":57
+ *         for y in range(1, mLen+1):
+ *             #the "M" matrix
+ *             if original_view[x-1] == modified_view[y-1]:             # <<<<<<<<<<<<<<
+ *                 diagScore = MATCH
+ *             else:
+ */
+      __pyx_t_30 = (((__pyx_v_original_view[(__pyx_v_x - 1)]) == (__pyx_v_modified_view[(__pyx_v_y - 1)])) != 0);
+      if (__pyx_t_30) {
+
+        /* "MUSCython/AlignmentUtil.pyx":58
+ *             #the "M" matrix
+ *             if original_view[x-1] == modified_view[y-1]:
+ *                 diagScore = MATCH             # <<<<<<<<<<<<<<
+ *             else:
+ *                 diagScore = MISMATCH
+ */
+        __pyx_v_diagScore = __pyx_v_MATCH;
         goto __pyx_L11;
+      }
+      /*else*/ {
+
+        /* "MUSCython/AlignmentUtil.pyx":60
+ *                 diagScore = MATCH
+ *             else:
+ *                 diagScore = MISMATCH             # <<<<<<<<<<<<<<
+ *             scores[:] = scoreArray_view[x-1, y-1, :]
+ *             choice = np.argmin(scores)
+ */
+        __pyx_v_diagScore = __pyx_v_MISMATCH;
       }
       __pyx_L11:;
 
-      /* "MUSCython/AlignmentUtil.pyx":59
- * 
- *             #now handle deletions to the original
- *             jumpScore = scoreArray_view[x, y]+GAP_OPEN             # <<<<<<<<<<<<<<
- *             for z in xrange(x+1, oLen+1):
- *                 jumpScore += GAP_EXTEND
+      /* "MUSCython/AlignmentUtil.pyx":61
+ *             else:
+ *                 diagScore = MISMATCH
+ *             scores[:] = scoreArray_view[x-1, y-1, :]             # <<<<<<<<<<<<<<
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 0] = diagScore+scores[choice]
  */
-      __pyx_t_37 = __pyx_v_x;
-      __pyx_t_38 = __pyx_v_y;
-      __pyx_v_jumpScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_37 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_38 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_GAP_OPEN);
+      __pyx_t_10 = -1;
+      __pyx_t_31.data = __pyx_v_scoreArray_view.data;
+      __pyx_t_31.memview = __pyx_v_scoreArray_view.memview;
+      __PYX_INC_MEMVIEW(&__pyx_t_31, 0);
+      {
+    Py_ssize_t __pyx_tmp_idx = (__pyx_v_x - 1);
+    Py_ssize_t __pyx_tmp_shape = __pyx_v_scoreArray_view.shape[0];
+    Py_ssize_t __pyx_tmp_stride = __pyx_v_scoreArray_view.strides[0];
+    if (0 && (__pyx_tmp_idx < 0))
+        __pyx_tmp_idx += __pyx_tmp_shape;
+    if (0 && (__pyx_tmp_idx < 0 || __pyx_tmp_idx >= __pyx_tmp_shape)) {
+        PyErr_SetString(PyExc_IndexError, "Index out of bounds (axis 0)");
+        {__pyx_filename = __pyx_f[0]; __pyx_lineno = 61; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    }
+        __pyx_t_31.data += __pyx_tmp_idx * __pyx_tmp_stride;
+}
 
-      /* "MUSCython/AlignmentUtil.pyx":60
- *             #now handle deletions to the original
- *             jumpScore = scoreArray_view[x, y]+GAP_OPEN
- *             for z in xrange(x+1, oLen+1):             # <<<<<<<<<<<<<<
- *                 jumpScore += GAP_EXTEND
- *                 if scoreArray_view[z, y] > jumpScore:
- */
-      __pyx_t_39 = (__pyx_v_oLen + 1);
-      for (__pyx_t_40 = (__pyx_v_x + 1); __pyx_t_40 < __pyx_t_39; __pyx_t_40+=1) {
-        __pyx_v_z = __pyx_t_40;
+{
+    Py_ssize_t __pyx_tmp_idx = (__pyx_v_y - 1);
+    Py_ssize_t __pyx_tmp_shape = __pyx_v_scoreArray_view.shape[1];
+    Py_ssize_t __pyx_tmp_stride = __pyx_v_scoreArray_view.strides[1];
+    if (0 && (__pyx_tmp_idx < 0))
+        __pyx_tmp_idx += __pyx_tmp_shape;
+    if (0 && (__pyx_tmp_idx < 0 || __pyx_tmp_idx >= __pyx_tmp_shape)) {
+        PyErr_SetString(PyExc_IndexError, "Index out of bounds (axis 1)");
+        {__pyx_filename = __pyx_f[0]; __pyx_lineno = 61; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    }
+        __pyx_t_31.data += __pyx_tmp_idx * __pyx_tmp_stride;
+}
 
-        /* "MUSCython/AlignmentUtil.pyx":61
- *             jumpScore = scoreArray_view[x, y]+GAP_OPEN
- *             for z in xrange(x+1, oLen+1):
- *                 jumpScore += GAP_EXTEND             # <<<<<<<<<<<<<<
- *                 if scoreArray_view[z, y] > jumpScore:
- *                     scoreArray_view[z, y] = jumpScore
- */
-        __pyx_v_jumpScore = (__pyx_v_jumpScore + __pyx_v_GAP_EXTEND);
+__pyx_t_31.shape[0] = __pyx_v_scoreArray_view.shape[2];
+__pyx_t_31.strides[0] = __pyx_v_scoreArray_view.strides[2];
+    __pyx_t_31.suboffsets[0] = -1;
 
-        /* "MUSCython/AlignmentUtil.pyx":62
- *             for z in xrange(x+1, oLen+1):
- *                 jumpScore += GAP_EXTEND
- *                 if scoreArray_view[z, y] > jumpScore:             # <<<<<<<<<<<<<<
- *                     scoreArray_view[z, y] = jumpScore
- *                     previousPos_view[z, y, 0] = x
- */
-        __pyx_t_41 = __pyx_v_z;
-        __pyx_t_42 = __pyx_v_y;
-        __pyx_t_21 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_41 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_42 * __pyx_v_scoreArray_view.strides[1]) ))) > __pyx_v_jumpScore) != 0);
-        if (__pyx_t_21) {
+__pyx_t_2 = __pyx_memoryview_fromslice(__pyx_t_31, 1, (PyObject *(*)(char *)) __pyx_memview_get_nn___pyx_t_5numpy_uint32_t, (int (*)(char *, PyObject *)) __pyx_memview_set_nn___pyx_t_5numpy_uint32_t, 0);; if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 61; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_2);
+      __PYX_XDEC_MEMVIEW(&__pyx_t_31, 1);
+      if (__Pyx_PyObject_SetSlice(((PyObject *)__pyx_v_scores), __pyx_t_2, 0, 0, NULL, NULL, &__pyx_slice__3, 0, 0, 0) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 61; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-          /* "MUSCython/AlignmentUtil.pyx":63
- *                 jumpScore += GAP_EXTEND
- *                 if scoreArray_view[z, y] > jumpScore:
- *                     scoreArray_view[z, y] = jumpScore             # <<<<<<<<<<<<<<
- *                     previousPos_view[z, y, 0] = x
- *                     previousPos_view[z, y, 1] = y
+      /* "MUSCython/AlignmentUtil.pyx":62
+ *                 diagScore = MISMATCH
+ *             scores[:] = scoreArray_view[x-1, y-1, :]
+ *             choice = np.argmin(scores)             # <<<<<<<<<<<<<<
+ *             scoreArray_view[x, y, 0] = diagScore+scores[choice]
+ *             previousPos_view[x, y, 0] = choice
  */
-          __pyx_t_43 = __pyx_v_z;
-          __pyx_t_44 = __pyx_v_y;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_43 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_44 * __pyx_v_scoreArray_view.strides[1]) )) = __pyx_v_jumpScore;
-
-          /* "MUSCython/AlignmentUtil.pyx":64
- *                 if scoreArray_view[z, y] > jumpScore:
- *                     scoreArray_view[z, y] = jumpScore
- *                     previousPos_view[z, y, 0] = x             # <<<<<<<<<<<<<<
- *                     previousPos_view[z, y, 1] = y
- * 
- */
-          __pyx_t_45 = __pyx_v_z;
-          __pyx_t_46 = __pyx_v_y;
-          __pyx_t_47 = 0;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_45 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_46 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_47 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_x;
-
-          /* "MUSCython/AlignmentUtil.pyx":65
- *                     scoreArray_view[z, y] = jumpScore
- *                     previousPos_view[z, y, 0] = x
- *                     previousPos_view[z, y, 1] = y             # <<<<<<<<<<<<<<
- * 
- *             #now handle insertions to the original
- */
-          __pyx_t_48 = __pyx_v_z;
-          __pyx_t_49 = __pyx_v_y;
-          __pyx_t_50 = 1;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_48 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_49 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_50 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_y;
-          goto __pyx_L18;
+      __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 62; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_4);
+      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_argmin); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 62; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_6);
+      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+      __pyx_t_4 = NULL;
+      if (CYTHON_COMPILING_IN_CPYTHON && unlikely(PyMethod_Check(__pyx_t_6))) {
+        __pyx_t_4 = PyMethod_GET_SELF(__pyx_t_6);
+        if (likely(__pyx_t_4)) {
+          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_6);
+          __Pyx_INCREF(__pyx_t_4);
+          __Pyx_INCREF(function);
+          __Pyx_DECREF_SET(__pyx_t_6, function);
         }
-        __pyx_L18:;
       }
+      if (!__pyx_t_4) {
+        __pyx_t_2 = __Pyx_PyObject_CallOneArg(__pyx_t_6, ((PyObject *)__pyx_v_scores)); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 62; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_2);
+      } else {
+        __pyx_t_5 = PyTuple_New(1+1); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 62; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_5);
+        PyTuple_SET_ITEM(__pyx_t_5, 0, __pyx_t_4); __Pyx_GIVEREF(__pyx_t_4); __pyx_t_4 = NULL;
+        __Pyx_INCREF(((PyObject *)__pyx_v_scores));
+        PyTuple_SET_ITEM(__pyx_t_5, 0+1, ((PyObject *)__pyx_v_scores));
+        __Pyx_GIVEREF(((PyObject *)__pyx_v_scores));
+        __pyx_t_2 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_t_5, NULL); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 62; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_2);
+        __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+      }
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_32 = __Pyx_PyInt_As_unsigned_long(__pyx_t_2); if (unlikely((__pyx_t_32 == (unsigned long)-1) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 62; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+      __pyx_v_choice = __pyx_t_32;
+
+      /* "MUSCython/AlignmentUtil.pyx":63
+ *             scores[:] = scoreArray_view[x-1, y-1, :]
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 0] = diagScore+scores[choice]             # <<<<<<<<<<<<<<
+ *             previousPos_view[x, y, 0] = choice
+ * 
+ */
+      __pyx_t_32 = __pyx_v_choice;
+      __pyx_t_33 = __pyx_v_x;
+      __pyx_t_34 = __pyx_v_y;
+      __pyx_t_35 = 0;
+      *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_33 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_34 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_35 * __pyx_v_scoreArray_view.strides[2]) )) = (__pyx_v_diagScore + (*__Pyx_BufPtrCContig1d(__pyx_t_5numpy_uint32_t *, __pyx_pybuffernd_scores.rcbuffer->pybuffer.buf, __pyx_t_32, __pyx_pybuffernd_scores.diminfo[0].strides)));
+
+      /* "MUSCython/AlignmentUtil.pyx":64
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 0] = diagScore+scores[choice]
+ *             previousPos_view[x, y, 0] = choice             # <<<<<<<<<<<<<<
+ * 
+ *             #the "X" matrix
+ */
+      __pyx_t_36 = __pyx_v_x;
+      __pyx_t_37 = __pyx_v_y;
+      __pyx_t_38 = 0;
+      *((__pyx_t_5numpy_uint8_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_36 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_37 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_38 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_choice;
+
+      /* "MUSCython/AlignmentUtil.pyx":67
+ * 
+ *             #the "X" matrix
+ *             scores[:] = (scoreArray_view[x-1, y, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x-1, y, 1]+GAP_EXTEND, scoreArray_view[x-1, y, 2]+GAP_OPEN+GAP_EXTEND)             # <<<<<<<<<<<<<<
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 1] = scores[choice]
+ */
+      __pyx_t_39 = (__pyx_v_x - 1);
+      __pyx_t_40 = __pyx_v_y;
+      __pyx_t_41 = 0;
+      __pyx_t_2 = __Pyx_PyInt_From_unsigned_long((((*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_39 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_40 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_41 * __pyx_v_scoreArray_view.strides[2]) ))) + __pyx_v_GAP_OPEN) + __pyx_v_GAP_EXTEND)); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 67; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_2);
+      __pyx_t_42 = (__pyx_v_x - 1);
+      __pyx_t_43 = __pyx_v_y;
+      __pyx_t_44 = 1;
+      __pyx_t_6 = __Pyx_PyInt_From_unsigned_long(((*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_42 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_43 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_44 * __pyx_v_scoreArray_view.strides[2]) ))) + __pyx_v_GAP_EXTEND)); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 67; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_45 = (__pyx_v_x - 1);
+      __pyx_t_46 = __pyx_v_y;
+      __pyx_t_47 = 2;
+      __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((((*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_45 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_46 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_47 * __pyx_v_scoreArray_view.strides[2]) ))) + __pyx_v_GAP_OPEN) + __pyx_v_GAP_EXTEND)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 67; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_5);
+      __pyx_t_4 = PyTuple_New(3); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 67; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_4);
+      PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_2);
+      __Pyx_GIVEREF(__pyx_t_2);
+      PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_t_6);
+      __Pyx_GIVEREF(__pyx_t_6);
+      PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_t_5);
+      __Pyx_GIVEREF(__pyx_t_5);
+      __pyx_t_2 = 0;
+      __pyx_t_6 = 0;
+      __pyx_t_5 = 0;
+      if (__Pyx_PyObject_SetSlice(((PyObject *)__pyx_v_scores), __pyx_t_4, 0, 0, NULL, NULL, &__pyx_slice__4, 0, 0, 0) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 67; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
       /* "MUSCython/AlignmentUtil.pyx":68
- * 
- *             #now handle insertions to the original
- *             jumpScore = scoreArray_view[x, y]+GAP_OPEN             # <<<<<<<<<<<<<<
- *             for z in xrange(y+1, mLen+1):
- *                 jumpScore += GAP_EXTEND
+ *             #the "X" matrix
+ *             scores[:] = (scoreArray_view[x-1, y, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x-1, y, 1]+GAP_EXTEND, scoreArray_view[x-1, y, 2]+GAP_OPEN+GAP_EXTEND)
+ *             choice = np.argmin(scores)             # <<<<<<<<<<<<<<
+ *             scoreArray_view[x, y, 1] = scores[choice]
+ *             previousPos_view[x, y, 1] = choice
  */
-      __pyx_t_39 = __pyx_v_x;
-      __pyx_t_40 = __pyx_v_y;
-      __pyx_v_jumpScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_39 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_40 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_GAP_OPEN);
+      __pyx_t_5 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 68; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_5);
+      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_5, __pyx_n_s_argmin); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 68; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_6);
+      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+      __pyx_t_5 = NULL;
+      if (CYTHON_COMPILING_IN_CPYTHON && unlikely(PyMethod_Check(__pyx_t_6))) {
+        __pyx_t_5 = PyMethod_GET_SELF(__pyx_t_6);
+        if (likely(__pyx_t_5)) {
+          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_6);
+          __Pyx_INCREF(__pyx_t_5);
+          __Pyx_INCREF(function);
+          __Pyx_DECREF_SET(__pyx_t_6, function);
+        }
+      }
+      if (!__pyx_t_5) {
+        __pyx_t_4 = __Pyx_PyObject_CallOneArg(__pyx_t_6, ((PyObject *)__pyx_v_scores)); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 68; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_4);
+      } else {
+        __pyx_t_2 = PyTuple_New(1+1); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 68; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_2);
+        PyTuple_SET_ITEM(__pyx_t_2, 0, __pyx_t_5); __Pyx_GIVEREF(__pyx_t_5); __pyx_t_5 = NULL;
+        __Pyx_INCREF(((PyObject *)__pyx_v_scores));
+        PyTuple_SET_ITEM(__pyx_t_2, 0+1, ((PyObject *)__pyx_v_scores));
+        __Pyx_GIVEREF(((PyObject *)__pyx_v_scores));
+        __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_t_2, NULL); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 68; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_4);
+        __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+      }
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_48 = __Pyx_PyInt_As_unsigned_long(__pyx_t_4); if (unlikely((__pyx_t_48 == (unsigned long)-1) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 68; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+      __pyx_v_choice = __pyx_t_48;
 
       /* "MUSCython/AlignmentUtil.pyx":69
- *             #now handle insertions to the original
- *             jumpScore = scoreArray_view[x, y]+GAP_OPEN
- *             for z in xrange(y+1, mLen+1):             # <<<<<<<<<<<<<<
- *                 jumpScore += GAP_EXTEND
- *                 if scoreArray_view[x, z] > jumpScore:
- */
-      __pyx_t_51 = (__pyx_v_mLen + 1);
-      for (__pyx_t_52 = (__pyx_v_y + 1); __pyx_t_52 < __pyx_t_51; __pyx_t_52+=1) {
-        __pyx_v_z = __pyx_t_52;
-
-        /* "MUSCython/AlignmentUtil.pyx":70
- *             jumpScore = scoreArray_view[x, y]+GAP_OPEN
- *             for z in xrange(y+1, mLen+1):
- *                 jumpScore += GAP_EXTEND             # <<<<<<<<<<<<<<
- *                 if scoreArray_view[x, z] > jumpScore:
- *                     scoreArray_view[x, z] = jumpScore
- */
-        __pyx_v_jumpScore = (__pyx_v_jumpScore + __pyx_v_GAP_EXTEND);
-
-        /* "MUSCython/AlignmentUtil.pyx":71
- *             for z in xrange(y+1, mLen+1):
- *                 jumpScore += GAP_EXTEND
- *                 if scoreArray_view[x, z] > jumpScore:             # <<<<<<<<<<<<<<
- *                     scoreArray_view[x, z] = jumpScore
- *                     previousPos_view[x, z, 0] = x
- */
-        __pyx_t_53 = __pyx_v_x;
-        __pyx_t_54 = __pyx_v_z;
-        __pyx_t_21 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_53 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_54 * __pyx_v_scoreArray_view.strides[1]) ))) > __pyx_v_jumpScore) != 0);
-        if (__pyx_t_21) {
-
-          /* "MUSCython/AlignmentUtil.pyx":72
- *                 jumpScore += GAP_EXTEND
- *                 if scoreArray_view[x, z] > jumpScore:
- *                     scoreArray_view[x, z] = jumpScore             # <<<<<<<<<<<<<<
- *                     previousPos_view[x, z, 0] = x
- *                     previousPos_view[x, z, 1] = y
- */
-          __pyx_t_55 = __pyx_v_x;
-          __pyx_t_56 = __pyx_v_z;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_55 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_56 * __pyx_v_scoreArray_view.strides[1]) )) = __pyx_v_jumpScore;
-
-          /* "MUSCython/AlignmentUtil.pyx":73
- *                 if scoreArray_view[x, z] > jumpScore:
- *                     scoreArray_view[x, z] = jumpScore
- *                     previousPos_view[x, z, 0] = x             # <<<<<<<<<<<<<<
- *                     previousPos_view[x, z, 1] = y
+ *             scores[:] = (scoreArray_view[x-1, y, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x-1, y, 1]+GAP_EXTEND, scoreArray_view[x-1, y, 2]+GAP_OPEN+GAP_EXTEND)
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 1] = scores[choice]             # <<<<<<<<<<<<<<
+ *             previousPos_view[x, y, 1] = choice
  * 
  */
-          __pyx_t_57 = __pyx_v_x;
-          __pyx_t_58 = __pyx_v_z;
-          __pyx_t_59 = 0;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_57 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_58 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_59 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_x;
+      __pyx_t_48 = __pyx_v_choice;
+      __pyx_t_49 = __pyx_v_x;
+      __pyx_t_50 = __pyx_v_y;
+      __pyx_t_51 = 1;
+      *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_49 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_50 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_51 * __pyx_v_scoreArray_view.strides[2]) )) = (*__Pyx_BufPtrCContig1d(__pyx_t_5numpy_uint32_t *, __pyx_pybuffernd_scores.rcbuffer->pybuffer.buf, __pyx_t_48, __pyx_pybuffernd_scores.diminfo[0].strides));
 
-          /* "MUSCython/AlignmentUtil.pyx":74
- *                     scoreArray_view[x, z] = jumpScore
- *                     previousPos_view[x, z, 0] = x
- *                     previousPos_view[x, z, 1] = y             # <<<<<<<<<<<<<<
+      /* "MUSCython/AlignmentUtil.pyx":70
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 1] = scores[choice]
+ *             previousPos_view[x, y, 1] = choice             # <<<<<<<<<<<<<<
+ * 
+ *             #the "Y" matrix
+ */
+      __pyx_t_52 = __pyx_v_x;
+      __pyx_t_53 = __pyx_v_y;
+      __pyx_t_54 = 1;
+      *((__pyx_t_5numpy_uint8_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_52 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_53 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_54 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_choice;
+
+      /* "MUSCython/AlignmentUtil.pyx":73
+ * 
+ *             #the "Y" matrix
+ *             scores[:] = (scoreArray_view[x, y-1, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 1]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 2]+GAP_EXTEND)             # <<<<<<<<<<<<<<
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 2] = scores[choice]
+ */
+      __pyx_t_55 = __pyx_v_x;
+      __pyx_t_56 = (__pyx_v_y - 1);
+      __pyx_t_57 = 0;
+      __pyx_t_4 = __Pyx_PyInt_From_unsigned_long((((*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_55 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_56 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_57 * __pyx_v_scoreArray_view.strides[2]) ))) + __pyx_v_GAP_OPEN) + __pyx_v_GAP_EXTEND)); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 73; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_4);
+      __pyx_t_58 = __pyx_v_x;
+      __pyx_t_59 = (__pyx_v_y - 1);
+      __pyx_t_60 = 1;
+      __pyx_t_6 = __Pyx_PyInt_From_unsigned_long((((*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_58 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_59 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_60 * __pyx_v_scoreArray_view.strides[2]) ))) + __pyx_v_GAP_OPEN) + __pyx_v_GAP_EXTEND)); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 73; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_61 = __pyx_v_x;
+      __pyx_t_62 = (__pyx_v_y - 1);
+      __pyx_t_63 = 2;
+      __pyx_t_2 = __Pyx_PyInt_From_unsigned_long(((*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_61 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_62 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_63 * __pyx_v_scoreArray_view.strides[2]) ))) + __pyx_v_GAP_EXTEND)); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 73; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_2);
+      __pyx_t_5 = PyTuple_New(3); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 73; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_5);
+      PyTuple_SET_ITEM(__pyx_t_5, 0, __pyx_t_4);
+      __Pyx_GIVEREF(__pyx_t_4);
+      PyTuple_SET_ITEM(__pyx_t_5, 1, __pyx_t_6);
+      __Pyx_GIVEREF(__pyx_t_6);
+      PyTuple_SET_ITEM(__pyx_t_5, 2, __pyx_t_2);
+      __Pyx_GIVEREF(__pyx_t_2);
+      __pyx_t_4 = 0;
+      __pyx_t_6 = 0;
+      __pyx_t_2 = 0;
+      if (__Pyx_PyObject_SetSlice(((PyObject *)__pyx_v_scores), __pyx_t_5, 0, 0, NULL, NULL, &__pyx_slice__5, 0, 0, 0) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 73; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+
+      /* "MUSCython/AlignmentUtil.pyx":74
+ *             #the "Y" matrix
+ *             scores[:] = (scoreArray_view[x, y-1, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 1]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 2]+GAP_EXTEND)
+ *             choice = np.argmin(scores)             # <<<<<<<<<<<<<<
+ *             scoreArray_view[x, y, 2] = scores[choice]
+ *             previousPos_view[x, y, 2] = choice
+ */
+      __pyx_t_2 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 74; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_2);
+      __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_argmin); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 74; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_GOTREF(__pyx_t_6);
+      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+      __pyx_t_2 = NULL;
+      if (CYTHON_COMPILING_IN_CPYTHON && unlikely(PyMethod_Check(__pyx_t_6))) {
+        __pyx_t_2 = PyMethod_GET_SELF(__pyx_t_6);
+        if (likely(__pyx_t_2)) {
+          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_6);
+          __Pyx_INCREF(__pyx_t_2);
+          __Pyx_INCREF(function);
+          __Pyx_DECREF_SET(__pyx_t_6, function);
+        }
+      }
+      if (!__pyx_t_2) {
+        __pyx_t_5 = __Pyx_PyObject_CallOneArg(__pyx_t_6, ((PyObject *)__pyx_v_scores)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 74; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_5);
+      } else {
+        __pyx_t_4 = PyTuple_New(1+1); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 74; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_4);
+        PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_2); __Pyx_GIVEREF(__pyx_t_2); __pyx_t_2 = NULL;
+        __Pyx_INCREF(((PyObject *)__pyx_v_scores));
+        PyTuple_SET_ITEM(__pyx_t_4, 0+1, ((PyObject *)__pyx_v_scores));
+        __Pyx_GIVEREF(((PyObject *)__pyx_v_scores));
+        __pyx_t_5 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_t_4, NULL); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 74; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_5);
+        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+      }
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_64 = __Pyx_PyInt_As_unsigned_long(__pyx_t_5); if (unlikely((__pyx_t_64 == (unsigned long)-1) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 74; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+      __pyx_v_choice = __pyx_t_64;
+
+      /* "MUSCython/AlignmentUtil.pyx":75
+ *             scores[:] = (scoreArray_view[x, y-1, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 1]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 2]+GAP_EXTEND)
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 2] = scores[choice]             # <<<<<<<<<<<<<<
+ *             previousPos_view[x, y, 2] = choice
+ * 
+ */
+      __pyx_t_64 = __pyx_v_choice;
+      __pyx_t_65 = __pyx_v_x;
+      __pyx_t_66 = __pyx_v_y;
+      __pyx_t_67 = 2;
+      *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_65 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_66 * __pyx_v_scoreArray_view.strides[1]) ) + __pyx_t_67 * __pyx_v_scoreArray_view.strides[2]) )) = (*__Pyx_BufPtrCContig1d(__pyx_t_5numpy_uint32_t *, __pyx_pybuffernd_scores.rcbuffer->pybuffer.buf, __pyx_t_64, __pyx_pybuffernd_scores.diminfo[0].strides));
+
+      /* "MUSCython/AlignmentUtil.pyx":76
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 2] = scores[choice]
+ *             previousPos_view[x, y, 2] = choice             # <<<<<<<<<<<<<<
  * 
  *     cdef unsigned long MATCH_T = 0
  */
-          __pyx_t_60 = __pyx_v_x;
-          __pyx_t_61 = __pyx_v_z;
-          __pyx_t_62 = 1;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_60 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_61 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_62 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_y;
-          goto __pyx_L21;
-        }
-        __pyx_L21:;
-      }
+      __pyx_t_68 = __pyx_v_x;
+      __pyx_t_69 = __pyx_v_y;
+      __pyx_t_70 = 2;
+      *((__pyx_t_5numpy_uint8_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_68 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_69 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_70 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_choice;
     }
   }
 
-  /* "MUSCython/AlignmentUtil.pyx":76
- *                     previousPos_view[x, z, 1] = y
+  /* "MUSCython/AlignmentUtil.pyx":78
+ *             previousPos_view[x, y, 2] = choice
  * 
  *     cdef unsigned long MATCH_T = 0             # <<<<<<<<<<<<<<
  *     cdef unsigned long MISMATCH_T = 1
@@ -2575,7 +2799,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
  */
   __pyx_v_MATCH_T = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":77
+  /* "MUSCython/AlignmentUtil.pyx":79
  * 
  *     cdef unsigned long MATCH_T = 0
  *     cdef unsigned long MISMATCH_T = 1             # <<<<<<<<<<<<<<
@@ -2584,7 +2808,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
  */
   __pyx_v_MISMATCH_T = 1;
 
-  /* "MUSCython/AlignmentUtil.pyx":78
+  /* "MUSCython/AlignmentUtil.pyx":80
  *     cdef unsigned long MATCH_T = 0
  *     cdef unsigned long MISMATCH_T = 1
  *     cdef unsigned long INSERTION_T = 2             # <<<<<<<<<<<<<<
@@ -2593,7 +2817,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
  */
   __pyx_v_INSERTION_T = 2;
 
-  /* "MUSCython/AlignmentUtil.pyx":79
+  /* "MUSCython/AlignmentUtil.pyx":81
  *     cdef unsigned long MISMATCH_T = 1
  *     cdef unsigned long INSERTION_T = 2
  *     cdef unsigned long DELETION_T = 3             # <<<<<<<<<<<<<<
@@ -2602,31 +2826,31 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
  */
   __pyx_v_DELETION_T = 3;
 
-  /* "MUSCython/AlignmentUtil.pyx":81
+  /* "MUSCython/AlignmentUtil.pyx":83
  *     cdef unsigned long DELETION_T = 3
  * 
  *     cdef list typeToCig = ['=', 'X', 'I', 'D']             # <<<<<<<<<<<<<<
  * 
  *     cdef unsigned long numMatches = 0
  */
-  __pyx_t_4 = PyList_New(4); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 81; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_t_4);
-  __Pyx_INCREF(__pyx_kp_s__2);
-  PyList_SET_ITEM(__pyx_t_4, 0, __pyx_kp_s__2);
-  __Pyx_GIVEREF(__pyx_kp_s__2);
+  __pyx_t_5 = PyList_New(4); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 83; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_5);
+  __Pyx_INCREF(__pyx_kp_s__6);
+  PyList_SET_ITEM(__pyx_t_5, 0, __pyx_kp_s__6);
+  __Pyx_GIVEREF(__pyx_kp_s__6);
   __Pyx_INCREF(__pyx_n_s_X);
-  PyList_SET_ITEM(__pyx_t_4, 1, __pyx_n_s_X);
+  PyList_SET_ITEM(__pyx_t_5, 1, __pyx_n_s_X);
   __Pyx_GIVEREF(__pyx_n_s_X);
   __Pyx_INCREF(__pyx_n_s_I);
-  PyList_SET_ITEM(__pyx_t_4, 2, __pyx_n_s_I);
+  PyList_SET_ITEM(__pyx_t_5, 2, __pyx_n_s_I);
   __Pyx_GIVEREF(__pyx_n_s_I);
   __Pyx_INCREF(__pyx_n_s_D);
-  PyList_SET_ITEM(__pyx_t_4, 3, __pyx_n_s_D);
+  PyList_SET_ITEM(__pyx_t_5, 3, __pyx_n_s_D);
   __Pyx_GIVEREF(__pyx_n_s_D);
-  __pyx_v_typeToCig = ((PyObject*)__pyx_t_4);
-  __pyx_t_4 = 0;
+  __pyx_v_typeToCig = ((PyObject*)__pyx_t_5);
+  __pyx_t_5 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":83
+  /* "MUSCython/AlignmentUtil.pyx":85
  *     cdef list typeToCig = ['=', 'X', 'I', 'D']
  * 
  *     cdef unsigned long numMatches = 0             # <<<<<<<<<<<<<<
@@ -2635,19 +2859,19 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
  */
   __pyx_v_numMatches = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":84
+  /* "MUSCython/AlignmentUtil.pyx":86
  * 
  *     cdef unsigned long numMatches = 0
  *     cdef list cig = []             # <<<<<<<<<<<<<<
  *     cdef unsigned long nextX, nextY
  *     cdef unsigned long instructionType = MATCH_T
  */
-  __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 84; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_t_4);
-  __pyx_v_cig = ((PyObject*)__pyx_t_4);
-  __pyx_t_4 = 0;
+  __pyx_t_5 = PyList_New(0); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 86; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_5);
+  __pyx_v_cig = ((PyObject*)__pyx_t_5);
+  __pyx_t_5 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":86
+  /* "MUSCython/AlignmentUtil.pyx":88
  *     cdef list cig = []
  *     cdef unsigned long nextX, nextY
  *     cdef unsigned long instructionType = MATCH_T             # <<<<<<<<<<<<<<
@@ -2656,7 +2880,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
  */
   __pyx_v_instructionType = __pyx_v_MATCH_T;
 
-  /* "MUSCython/AlignmentUtil.pyx":87
+  /* "MUSCython/AlignmentUtil.pyx":89
  *     cdef unsigned long nextX, nextY
  *     cdef unsigned long instructionType = MATCH_T
  *     cdef unsigned long instructionCount = 0             # <<<<<<<<<<<<<<
@@ -2665,306 +2889,383 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
  */
   __pyx_v_instructionCount = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":91
+  /* "MUSCython/AlignmentUtil.pyx":93
  *     cdef unsigned long currCount
  * 
  *     x = oLen             # <<<<<<<<<<<<<<
  *     y = mLen
- * 
+ *     choice = np.argmin(scoreArray_view[x, y])
  */
   __pyx_v_x = __pyx_v_oLen;
 
-  /* "MUSCython/AlignmentUtil.pyx":92
+  /* "MUSCython/AlignmentUtil.pyx":94
  * 
  *     x = oLen
  *     y = mLen             # <<<<<<<<<<<<<<
+ *     choice = np.argmin(scoreArray_view[x, y])
  * 
- *     while x != 0 and y != 0:
  */
   __pyx_v_y = __pyx_v_mLen;
 
-  /* "MUSCython/AlignmentUtil.pyx":94
+  /* "MUSCython/AlignmentUtil.pyx":95
+ *     x = oLen
  *     y = mLen
+ *     choice = np.argmin(scoreArray_view[x, y])             # <<<<<<<<<<<<<<
  * 
- *     while x != 0 and y != 0:             # <<<<<<<<<<<<<<
- *         nextX = previousPos_view[x, y, 0]
- *         nextY = previousPos_view[x, y, 1]
+ *     while x != 0 or y != 0:
+ */
+  __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 95; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_6);
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_argmin); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 95; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_4);
+  __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+  __pyx_t_10 = -1;
+  __pyx_t_71.data = __pyx_v_scoreArray_view.data;
+  __pyx_t_71.memview = __pyx_v_scoreArray_view.memview;
+  __PYX_INC_MEMVIEW(&__pyx_t_71, 0);
+  {
+    Py_ssize_t __pyx_tmp_idx = __pyx_v_x;
+    Py_ssize_t __pyx_tmp_shape = __pyx_v_scoreArray_view.shape[0];
+    Py_ssize_t __pyx_tmp_stride = __pyx_v_scoreArray_view.strides[0];
+    if (0 && (__pyx_tmp_idx < 0))
+        __pyx_tmp_idx += __pyx_tmp_shape;
+    if (0 && (__pyx_tmp_idx < 0 || __pyx_tmp_idx >= __pyx_tmp_shape)) {
+        PyErr_SetString(PyExc_IndexError, "Index out of bounds (axis 0)");
+        {__pyx_filename = __pyx_f[0]; __pyx_lineno = 95; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    }
+        __pyx_t_71.data += __pyx_tmp_idx * __pyx_tmp_stride;
+}
+
+{
+    Py_ssize_t __pyx_tmp_idx = __pyx_v_y;
+    Py_ssize_t __pyx_tmp_shape = __pyx_v_scoreArray_view.shape[1];
+    Py_ssize_t __pyx_tmp_stride = __pyx_v_scoreArray_view.strides[1];
+    if (0 && (__pyx_tmp_idx < 0))
+        __pyx_tmp_idx += __pyx_tmp_shape;
+    if (0 && (__pyx_tmp_idx < 0 || __pyx_tmp_idx >= __pyx_tmp_shape)) {
+        PyErr_SetString(PyExc_IndexError, "Index out of bounds (axis 1)");
+        {__pyx_filename = __pyx_f[0]; __pyx_lineno = 95; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    }
+        __pyx_t_71.data += __pyx_tmp_idx * __pyx_tmp_stride;
+}
+
+__pyx_t_71.shape[0] = __pyx_v_scoreArray_view.shape[2];
+__pyx_t_71.strides[0] = __pyx_v_scoreArray_view.strides[2];
+    __pyx_t_71.suboffsets[0] = -1;
+
+__pyx_t_6 = __pyx_memoryview_fromslice(__pyx_t_71, 1, (PyObject *(*)(char *)) __pyx_memview_get_nn___pyx_t_5numpy_uint32_t, (int (*)(char *, PyObject *)) __pyx_memview_set_nn___pyx_t_5numpy_uint32_t, 0);; if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 95; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_t_6);
+  __PYX_XDEC_MEMVIEW(&__pyx_t_71, 1);
+  __pyx_t_2 = NULL;
+  if (CYTHON_COMPILING_IN_CPYTHON && unlikely(PyMethod_Check(__pyx_t_4))) {
+    __pyx_t_2 = PyMethod_GET_SELF(__pyx_t_4);
+    if (likely(__pyx_t_2)) {
+      PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_4);
+      __Pyx_INCREF(__pyx_t_2);
+      __Pyx_INCREF(function);
+      __Pyx_DECREF_SET(__pyx_t_4, function);
+    }
+  }
+  if (!__pyx_t_2) {
+    __pyx_t_5 = __Pyx_PyObject_CallOneArg(__pyx_t_4, __pyx_t_6); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 95; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __Pyx_GOTREF(__pyx_t_5);
+  } else {
+    __pyx_t_3 = PyTuple_New(1+1); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 95; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __Pyx_GOTREF(__pyx_t_3);
+    PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_2); __Pyx_GIVEREF(__pyx_t_2); __pyx_t_2 = NULL;
+    PyTuple_SET_ITEM(__pyx_t_3, 0+1, __pyx_t_6);
+    __Pyx_GIVEREF(__pyx_t_6);
+    __pyx_t_6 = 0;
+    __pyx_t_5 = __Pyx_PyObject_Call(__pyx_t_4, __pyx_t_3, NULL); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 95; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __Pyx_GOTREF(__pyx_t_5);
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  }
+  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+  __pyx_t_13 = __Pyx_PyInt_As_unsigned_long(__pyx_t_5); if (unlikely((__pyx_t_13 == (unsigned long)-1) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 95; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+  __pyx_v_choice = __pyx_t_13;
+
+  /* "MUSCython/AlignmentUtil.pyx":97
+ *     choice = np.argmin(scoreArray_view[x, y])
+ * 
+ *     while x != 0 or y != 0:             # <<<<<<<<<<<<<<
+ *         nc = previousPos_view[x, y, choice]
+ *         if choice == 0:
  */
   while (1) {
-    __pyx_t_22 = ((__pyx_v_x != 0) != 0);
-    if (__pyx_t_22) {
+    __pyx_t_72 = ((__pyx_v_x != 0) != 0);
+    if (!__pyx_t_72) {
     } else {
-      __pyx_t_21 = __pyx_t_22;
-      goto __pyx_L24_bool_binop_done;
+      __pyx_t_30 = __pyx_t_72;
+      goto __pyx_L14_bool_binop_done;
     }
-    __pyx_t_22 = ((__pyx_v_y != 0) != 0);
-    __pyx_t_21 = __pyx_t_22;
-    __pyx_L24_bool_binop_done:;
-    if (!__pyx_t_21) break;
-
-    /* "MUSCython/AlignmentUtil.pyx":95
- * 
- *     while x != 0 and y != 0:
- *         nextX = previousPos_view[x, y, 0]             # <<<<<<<<<<<<<<
- *         nextY = previousPos_view[x, y, 1]
- * 
- */
-    __pyx_t_10 = __pyx_v_x;
-    __pyx_t_11 = __pyx_v_y;
-    __pyx_t_63 = 0;
-    __pyx_v_nextX = (*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_10 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_11 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_63 * __pyx_v_previousPos_view.strides[2]) )));
-
-    /* "MUSCython/AlignmentUtil.pyx":96
- *     while x != 0 and y != 0:
- *         nextX = previousPos_view[x, y, 0]
- *         nextY = previousPos_view[x, y, 1]             # <<<<<<<<<<<<<<
- * 
- *         if nextX == x-1 and nextY == y-1:
- */
-    __pyx_t_19 = __pyx_v_x;
-    __pyx_t_20 = __pyx_v_y;
-    __pyx_t_64 = 1;
-    __pyx_v_nextY = (*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_19 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_20 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_64 * __pyx_v_previousPos_view.strides[2]) )));
+    __pyx_t_72 = ((__pyx_v_y != 0) != 0);
+    __pyx_t_30 = __pyx_t_72;
+    __pyx_L14_bool_binop_done:;
+    if (!__pyx_t_30) break;
 
     /* "MUSCython/AlignmentUtil.pyx":98
- *         nextY = previousPos_view[x, y, 1]
  * 
- *         if nextX == x-1 and nextY == y-1:             # <<<<<<<<<<<<<<
- *             #diagonal
- *             if scoreArray_view[nextX, nextY] == scoreArray_view[x, y]+MATCH:
+ *     while x != 0 or y != 0:
+ *         nc = previousPos_view[x, y, choice]             # <<<<<<<<<<<<<<
+ *         if choice == 0:
+ *             x -= 1
  */
-    __pyx_t_22 = ((__pyx_v_nextX == (__pyx_v_x - 1)) != 0);
-    if (__pyx_t_22) {
-    } else {
-      __pyx_t_21 = __pyx_t_22;
-      goto __pyx_L27_bool_binop_done;
-    }
-    __pyx_t_22 = ((__pyx_v_nextY == (__pyx_v_y - 1)) != 0);
-    __pyx_t_21 = __pyx_t_22;
-    __pyx_L27_bool_binop_done:;
-    if (__pyx_t_21) {
+    __pyx_t_13 = __pyx_v_x;
+    __pyx_t_14 = __pyx_v_y;
+    __pyx_t_28 = __pyx_v_choice;
+    __pyx_v_nc = (*((__pyx_t_5numpy_uint8_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_13 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_14 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_28 * __pyx_v_previousPos_view.strides[2]) )));
+
+    /* "MUSCython/AlignmentUtil.pyx":108
+ *                 currType = MISMATCH_T
+ * 
+ *         elif choice == 1:             # <<<<<<<<<<<<<<
+ *             x -= 1
+ *             currType = DELETION_T
+ */
+    switch (__pyx_v_choice) {
+
+      /* "MUSCython/AlignmentUtil.pyx":99
+ *     while x != 0 or y != 0:
+ *         nc = previousPos_view[x, y, choice]
+ *         if choice == 0:             # <<<<<<<<<<<<<<
+ *             x -= 1
+ *             y -= 1
+ */
+      case 0:
 
       /* "MUSCython/AlignmentUtil.pyx":100
- *         if nextX == x-1 and nextY == y-1:
- *             #diagonal
- *             if scoreArray_view[nextX, nextY] == scoreArray_view[x, y]+MATCH:             # <<<<<<<<<<<<<<
- *                 #match
- *                 currType = MATCH_T
+ *         nc = previousPos_view[x, y, choice]
+ *         if choice == 0:
+ *             x -= 1             # <<<<<<<<<<<<<<
+ *             y -= 1
+ * 
  */
-      __pyx_t_51 = __pyx_v_nextX;
-      __pyx_t_52 = __pyx_v_nextY;
-      __pyx_t_65 = __pyx_v_x;
-      __pyx_t_66 = __pyx_v_y;
-      __pyx_t_21 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_51 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_52 * __pyx_v_scoreArray_view.strides[1]) ))) == ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_65 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_66 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_MATCH)) != 0);
-      if (__pyx_t_21) {
+      __pyx_v_x = (__pyx_v_x - 1);
 
-        /* "MUSCython/AlignmentUtil.pyx":102
- *             if scoreArray_view[nextX, nextY] == scoreArray_view[x, y]+MATCH:
- *                 #match
- *                 currType = MATCH_T             # <<<<<<<<<<<<<<
- *                 currCount = 1
+      /* "MUSCython/AlignmentUtil.pyx":101
+ *         if choice == 0:
+ *             x -= 1
+ *             y -= 1             # <<<<<<<<<<<<<<
+ * 
+ *             if original_view[x] == modified_view[y]:
+ */
+      __pyx_v_y = (__pyx_v_y - 1);
+
+      /* "MUSCython/AlignmentUtil.pyx":103
+ *             y -= 1
+ * 
+ *             if original_view[x] == modified_view[y]:             # <<<<<<<<<<<<<<
+ *                 currType = MATCH_T
  *             else:
+ */
+      __pyx_t_30 = (((__pyx_v_original_view[__pyx_v_x]) == (__pyx_v_modified_view[__pyx_v_y])) != 0);
+      if (__pyx_t_30) {
+
+        /* "MUSCython/AlignmentUtil.pyx":104
+ * 
+ *             if original_view[x] == modified_view[y]:
+ *                 currType = MATCH_T             # <<<<<<<<<<<<<<
+ *             else:
+ *                 currType = MISMATCH_T
  */
         __pyx_v_currType = __pyx_v_MATCH_T;
-
-        /* "MUSCython/AlignmentUtil.pyx":103
- *                 #match
- *                 currType = MATCH_T
- *                 currCount = 1             # <<<<<<<<<<<<<<
- *             else:
- *                 #mismatch
- */
-        __pyx_v_currCount = 1;
-        goto __pyx_L29;
+        goto __pyx_L16;
       }
       /*else*/ {
 
         /* "MUSCython/AlignmentUtil.pyx":106
+ *                 currType = MATCH_T
  *             else:
- *                 #mismatch
  *                 currType = MISMATCH_T             # <<<<<<<<<<<<<<
- *                 currCount = 1
- *         elif nextY == y:
+ * 
+ *         elif choice == 1:
  */
         __pyx_v_currType = __pyx_v_MISMATCH_T;
-
-        /* "MUSCython/AlignmentUtil.pyx":107
- *                 #mismatch
- *                 currType = MISMATCH_T
- *                 currCount = 1             # <<<<<<<<<<<<<<
- *         elif nextY == y:
- *             #deletion to original
- */
-        __pyx_v_currCount = 1;
       }
-      __pyx_L29:;
-      goto __pyx_L26;
-    }
+      __pyx_L16:;
+      break;
 
-    /* "MUSCython/AlignmentUtil.pyx":108
+      /* "MUSCython/AlignmentUtil.pyx":108
  *                 currType = MISMATCH_T
- *                 currCount = 1
- *         elif nextY == y:             # <<<<<<<<<<<<<<
- *             #deletion to original
+ * 
+ *         elif choice == 1:             # <<<<<<<<<<<<<<
+ *             x -= 1
  *             currType = DELETION_T
  */
-    __pyx_t_21 = ((__pyx_v_nextY == __pyx_v_y) != 0);
-    if (__pyx_t_21) {
+      case 1:
+
+      /* "MUSCython/AlignmentUtil.pyx":109
+ * 
+ *         elif choice == 1:
+ *             x -= 1             # <<<<<<<<<<<<<<
+ *             currType = DELETION_T
+ *         else:
+ */
+      __pyx_v_x = (__pyx_v_x - 1);
 
       /* "MUSCython/AlignmentUtil.pyx":110
- *         elif nextY == y:
- *             #deletion to original
+ *         elif choice == 1:
+ *             x -= 1
  *             currType = DELETION_T             # <<<<<<<<<<<<<<
- *             currCount = x-nextX
  *         else:
+ *             y -= 1
  */
       __pyx_v_currType = __pyx_v_DELETION_T;
+      break;
+      default:
 
-      /* "MUSCython/AlignmentUtil.pyx":111
- *             #deletion to original
+      /* "MUSCython/AlignmentUtil.pyx":112
  *             currType = DELETION_T
- *             currCount = x-nextX             # <<<<<<<<<<<<<<
  *         else:
- *             #insertion to the original
- */
-      __pyx_v_currCount = (__pyx_v_x - __pyx_v_nextX);
-      goto __pyx_L26;
-    }
-    /*else*/ {
-
-      /* "MUSCython/AlignmentUtil.pyx":114
- *         else:
- *             #insertion to the original
- *             currType = INSERTION_T             # <<<<<<<<<<<<<<
- *             currCount = y-nextY
+ *             y -= 1             # <<<<<<<<<<<<<<
+ *             currType = INSERTION_T
  * 
+ */
+      __pyx_v_y = (__pyx_v_y - 1);
+
+      /* "MUSCython/AlignmentUtil.pyx":113
+ *         else:
+ *             y -= 1
+ *             currType = INSERTION_T             # <<<<<<<<<<<<<<
+ * 
+ *         if currType == instructionType:
  */
       __pyx_v_currType = __pyx_v_INSERTION_T;
-
-      /* "MUSCython/AlignmentUtil.pyx":115
- *             #insertion to the original
- *             currType = INSERTION_T
- *             currCount = y-nextY             # <<<<<<<<<<<<<<
- * 
- *         if currType == instructionType:
- */
-      __pyx_v_currCount = (__pyx_v_y - __pyx_v_nextY);
+      break;
     }
-    __pyx_L26:;
 
-    /* "MUSCython/AlignmentUtil.pyx":117
- *             currCount = y-nextY
+    /* "MUSCython/AlignmentUtil.pyx":115
+ *             currType = INSERTION_T
  * 
  *         if currType == instructionType:             # <<<<<<<<<<<<<<
- *             instructionCount += currCount
+ *             instructionCount += 1
  *         else:
  */
-    __pyx_t_21 = ((__pyx_v_currType == __pyx_v_instructionType) != 0);
-    if (__pyx_t_21) {
+    __pyx_t_30 = ((__pyx_v_currType == __pyx_v_instructionType) != 0);
+    if (__pyx_t_30) {
 
-      /* "MUSCython/AlignmentUtil.pyx":118
+      /* "MUSCython/AlignmentUtil.pyx":116
  * 
  *         if currType == instructionType:
- *             instructionCount += currCount             # <<<<<<<<<<<<<<
+ *             instructionCount += 1             # <<<<<<<<<<<<<<
  *         else:
- *             cig.append((instructionCount, typeToCig[instructionType]))
+ *             if instructionCount > 0:
  */
-      __pyx_v_instructionCount = (__pyx_v_instructionCount + __pyx_v_currCount);
-      goto __pyx_L30;
+      __pyx_v_instructionCount = (__pyx_v_instructionCount + 1);
+      goto __pyx_L17;
     }
     /*else*/ {
 
+      /* "MUSCython/AlignmentUtil.pyx":118
+ *             instructionCount += 1
+ *         else:
+ *             if instructionCount > 0:             # <<<<<<<<<<<<<<
+ *                 cig.append((instructionCount, typeToCig[instructionType]))
+ *             instructionType = currType
+ */
+      __pyx_t_30 = ((__pyx_v_instructionCount > 0) != 0);
+      if (__pyx_t_30) {
+
+        /* "MUSCython/AlignmentUtil.pyx":119
+ *         else:
+ *             if instructionCount > 0:
+ *                 cig.append((instructionCount, typeToCig[instructionType]))             # <<<<<<<<<<<<<<
+ *             instructionType = currType
+ *             instructionCount = 1
+ */
+        __pyx_t_5 = __Pyx_PyInt_From_unsigned_long(__pyx_v_instructionCount); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 119; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_5);
+        __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 119; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_GOTREF(__pyx_t_4);
+        PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_5);
+        __Pyx_GIVEREF(__pyx_t_5);
+        __Pyx_INCREF(PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
+        PyTuple_SET_ITEM(__pyx_t_4, 1, PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
+        __Pyx_GIVEREF(PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
+        __pyx_t_5 = 0;
+        __pyx_t_73 = __Pyx_PyList_Append(__pyx_v_cig, __pyx_t_4); if (unlikely(__pyx_t_73 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 119; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+        goto __pyx_L18;
+      }
+      __pyx_L18:;
+
       /* "MUSCython/AlignmentUtil.pyx":120
- *             instructionCount += currCount
- *         else:
- *             cig.append((instructionCount, typeToCig[instructionType]))             # <<<<<<<<<<<<<<
- *             instructionCount = currCount
- *             instructionType = currType
- */
-      __pyx_t_4 = __Pyx_PyInt_From_unsigned_long(__pyx_v_instructionCount); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 120; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-      __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_6 = PyTuple_New(2); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 120; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-      __Pyx_GOTREF(__pyx_t_6);
-      PyTuple_SET_ITEM(__pyx_t_6, 0, __pyx_t_4);
-      __Pyx_GIVEREF(__pyx_t_4);
-      __Pyx_INCREF(PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
-      PyTuple_SET_ITEM(__pyx_t_6, 1, PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
-      __Pyx_GIVEREF(PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
-      __pyx_t_4 = 0;
-      __pyx_t_67 = __Pyx_PyList_Append(__pyx_v_cig, __pyx_t_6); if (unlikely(__pyx_t_67 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 120; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-
-      /* "MUSCython/AlignmentUtil.pyx":121
- *         else:
- *             cig.append((instructionCount, typeToCig[instructionType]))
- *             instructionCount = currCount             # <<<<<<<<<<<<<<
- *             instructionType = currType
- * 
- */
-      __pyx_v_instructionCount = __pyx_v_currCount;
-
-      /* "MUSCython/AlignmentUtil.pyx":122
- *             cig.append((instructionCount, typeToCig[instructionType]))
- *             instructionCount = currCount
+ *             if instructionCount > 0:
+ *                 cig.append((instructionCount, typeToCig[instructionType]))
  *             instructionType = currType             # <<<<<<<<<<<<<<
- * 
- *         x = nextX
+ *             instructionCount = 1
+ *         choice = nc
  */
       __pyx_v_instructionType = __pyx_v_currType;
-    }
-    __pyx_L30:;
 
-    /* "MUSCython/AlignmentUtil.pyx":124
+      /* "MUSCython/AlignmentUtil.pyx":121
+ *                 cig.append((instructionCount, typeToCig[instructionType]))
  *             instructionType = currType
- * 
- *         x = nextX             # <<<<<<<<<<<<<<
- *         y = nextY
+ *             instructionCount = 1             # <<<<<<<<<<<<<<
+ *         choice = nc
  * 
  */
-    __pyx_v_x = __pyx_v_nextX;
+      __pyx_v_instructionCount = 1;
+    }
+    __pyx_L17:;
+
+    /* "MUSCython/AlignmentUtil.pyx":122
+ *             instructionType = currType
+ *             instructionCount = 1
+ *         choice = nc             # <<<<<<<<<<<<<<
+ * 
+ *     if instructionCount > 0:
+ */
+    __pyx_v_choice = __pyx_v_nc;
+  }
+
+  /* "MUSCython/AlignmentUtil.pyx":124
+ *         choice = nc
+ * 
+ *     if instructionCount > 0:             # <<<<<<<<<<<<<<
+ *         cig.append((instructionCount, typeToCig[instructionType]))
+ *     cig.reverse()
+ */
+  __pyx_t_30 = ((__pyx_v_instructionCount > 0) != 0);
+  if (__pyx_t_30) {
 
     /* "MUSCython/AlignmentUtil.pyx":125
  * 
- *         x = nextX
- *         y = nextY             # <<<<<<<<<<<<<<
- * 
- *     cig.append((instructionCount, typeToCig[instructionType]))
- */
-    __pyx_v_y = __pyx_v_nextY;
-  }
-
-  /* "MUSCython/AlignmentUtil.pyx":127
- *         y = nextY
- * 
- *     cig.append((instructionCount, typeToCig[instructionType]))             # <<<<<<<<<<<<<<
+ *     if instructionCount > 0:
+ *         cig.append((instructionCount, typeToCig[instructionType]))             # <<<<<<<<<<<<<<
  *     cig.reverse()
- * 
- */
-  __pyx_t_6 = __Pyx_PyInt_From_unsigned_long(__pyx_v_instructionCount); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 127; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 127; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_t_4);
-  PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_6);
-  __Pyx_GIVEREF(__pyx_t_6);
-  __Pyx_INCREF(PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
-  PyTuple_SET_ITEM(__pyx_t_4, 1, PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
-  __Pyx_GIVEREF(PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
-  __pyx_t_6 = 0;
-  __pyx_t_67 = __Pyx_PyList_Append(__pyx_v_cig, __pyx_t_4); if (unlikely(__pyx_t_67 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 127; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-
-  /* "MUSCython/AlignmentUtil.pyx":128
- * 
- *     cig.append((instructionCount, typeToCig[instructionType]))
- *     cig.reverse()             # <<<<<<<<<<<<<<
- * 
  *     return cig
  */
-  __pyx_t_67 = PyList_Reverse(__pyx_v_cig); if (unlikely(__pyx_t_67 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 128; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __pyx_t_4 = __Pyx_PyInt_From_unsigned_long(__pyx_v_instructionCount); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 125; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __Pyx_GOTREF(__pyx_t_4);
+    __pyx_t_5 = PyTuple_New(2); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 125; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __Pyx_GOTREF(__pyx_t_5);
+    PyTuple_SET_ITEM(__pyx_t_5, 0, __pyx_t_4);
+    __Pyx_GIVEREF(__pyx_t_4);
+    __Pyx_INCREF(PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
+    PyTuple_SET_ITEM(__pyx_t_5, 1, PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
+    __Pyx_GIVEREF(PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
+    __pyx_t_4 = 0;
+    __pyx_t_73 = __Pyx_PyList_Append(__pyx_v_cig, __pyx_t_5); if (unlikely(__pyx_t_73 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 125; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    goto __pyx_L19;
+  }
+  __pyx_L19:;
 
-  /* "MUSCython/AlignmentUtil.pyx":130
- *     cig.reverse()
+  /* "MUSCython/AlignmentUtil.pyx":126
+ *     if instructionCount > 0:
+ *         cig.append((instructionCount, typeToCig[instructionType]))
+ *     cig.reverse()             # <<<<<<<<<<<<<<
+ *     return cig
  * 
+ */
+  __pyx_t_73 = PyList_Reverse(__pyx_v_cig); if (unlikely(__pyx_t_73 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 126; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+
+  /* "MUSCython/AlignmentUtil.pyx":127
+ *         cig.append((instructionCount, typeToCig[instructionType]))
+ *     cig.reverse()
  *     return cig             # <<<<<<<<<<<<<<
  * 
  * def fullAlign_noGO(bytes original, bytes modified):
@@ -2990,11 +3291,15 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
   __Pyx_XDECREF(__pyx_t_5);
   __Pyx_XDECREF(__pyx_t_6);
   __PYX_XDEC_MEMVIEW(&__pyx_t_8, 1);
-  __PYX_XDEC_MEMVIEW(&__pyx_t_17, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_t_9, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_t_12, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_t_31, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_t_71, 1);
   { PyObject *__pyx_type, *__pyx_value, *__pyx_tb;
     __Pyx_ErrFetch(&__pyx_type, &__pyx_value, &__pyx_tb);
     __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_previousPos.rcbuffer->pybuffer);
     __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_scoreArray.rcbuffer->pybuffer);
+    __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_scores.rcbuffer->pybuffer);
   __Pyx_ErrRestore(__pyx_type, __pyx_value, __pyx_tb);}
   __Pyx_AddTraceback("MUSCython.AlignmentUtil.fullAlign", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
@@ -3002,11 +3307,13 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
   __pyx_L0:;
   __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_previousPos.rcbuffer->pybuffer);
   __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_scoreArray.rcbuffer->pybuffer);
+  __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_scores.rcbuffer->pybuffer);
   __pyx_L2:;
   __Pyx_XDECREF((PyObject *)__pyx_v_scoreArray);
   __PYX_XDEC_MEMVIEW(&__pyx_v_scoreArray_view, 1);
   __Pyx_XDECREF((PyObject *)__pyx_v_previousPos);
   __PYX_XDEC_MEMVIEW(&__pyx_v_previousPos_view, 1);
+  __Pyx_XDECREF((PyObject *)__pyx_v_scores);
   __Pyx_XDECREF(__pyx_v_typeToCig);
   __Pyx_XDECREF(__pyx_v_cig);
   __Pyx_XGIVEREF(__pyx_r);
@@ -3014,7 +3321,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_fullAlign(CYTHON_UNUSED PyO
   return __pyx_r;
 }
 
-/* "MUSCython/AlignmentUtil.pyx":132
+/* "MUSCython/AlignmentUtil.pyx":129
  *     return cig
  * 
  * def fullAlign_noGO(bytes original, bytes modified):             # <<<<<<<<<<<<<<
@@ -3055,11 +3362,11 @@ static PyObject *__pyx_pw_9MUSCython_13AlignmentUtil_3fullAlign_noGO(PyObject *_
         case  1:
         if (likely((values[1] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_modified)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("fullAlign_noGO", 1, 2, 2, 1); {__pyx_filename = __pyx_f[0]; __pyx_lineno = 132; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
+          __Pyx_RaiseArgtupleInvalid("fullAlign_noGO", 1, 2, 2, 1); {__pyx_filename = __pyx_f[0]; __pyx_lineno = 129; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "fullAlign_noGO") < 0)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 132; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "fullAlign_noGO") < 0)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 129; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
       }
     } else if (PyTuple_GET_SIZE(__pyx_args) != 2) {
       goto __pyx_L5_argtuple_error;
@@ -3072,14 +3379,14 @@ static PyObject *__pyx_pw_9MUSCython_13AlignmentUtil_3fullAlign_noGO(PyObject *_
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("fullAlign_noGO", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); {__pyx_filename = __pyx_f[0]; __pyx_lineno = 132; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
+  __Pyx_RaiseArgtupleInvalid("fullAlign_noGO", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); {__pyx_filename = __pyx_f[0]; __pyx_lineno = 129; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
   __pyx_L3_error:;
   __Pyx_AddTraceback("MUSCython.AlignmentUtil.fullAlign_noGO", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_original), (&PyBytes_Type), 1, "original", 1))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 132; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_modified), (&PyBytes_Type), 1, "modified", 1))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 132; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_original), (&PyBytes_Type), 1, "original", 1))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 129; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_modified), (&PyBytes_Type), 1, "modified", 1))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 129; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_r = __pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(__pyx_self, __pyx_v_original, __pyx_v_modified);
 
   /* function exit code */
@@ -3099,10 +3406,10 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   unsigned long __pyx_v_mLen;
   PyArrayObject *__pyx_v_scoreArray = 0;
   __Pyx_memviewslice __pyx_v_scoreArray_view = { 0, 0, { 0 }, { 0 }, { 0 } };
-  unsigned long __pyx_v_x;
-  unsigned long __pyx_v_y;
   PyArrayObject *__pyx_v_previousPos = 0;
   __Pyx_memviewslice __pyx_v_previousPos_view = { 0, 0, { 0 }, { 0 }, { 0 } };
+  unsigned long __pyx_v_x;
+  unsigned long __pyx_v_y;
   char *__pyx_v_original_view;
   char *__pyx_v_modified_view;
   unsigned long __pyx_v_diagScore;
@@ -3135,64 +3442,70 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   PyArrayObject *__pyx_t_7 = NULL;
   __Pyx_memviewslice __pyx_t_8 = { 0, 0, { 0 }, { 0 }, { 0 } };
   Py_ssize_t __pyx_t_9;
-  unsigned long __pyx_t_10;
-  unsigned long __pyx_t_11;
+  PyArrayObject *__pyx_t_10 = NULL;
+  __Pyx_memviewslice __pyx_t_11 = { 0, 0, { 0 }, { 0 }, { 0 } };
   unsigned long __pyx_t_12;
-  Py_ssize_t __pyx_t_13;
-  Py_ssize_t __pyx_t_14;
-  unsigned long __pyx_t_15;
-  PyArrayObject *__pyx_t_16 = NULL;
-  __Pyx_memviewslice __pyx_t_17 = { 0, 0, { 0 }, { 0 }, { 0 } };
-  char *__pyx_t_18;
-  unsigned long __pyx_t_19;
+  unsigned long __pyx_t_13;
+  unsigned long __pyx_t_14;
+  Py_ssize_t __pyx_t_15;
+  unsigned long __pyx_t_16;
+  Py_ssize_t __pyx_t_17;
+  Py_ssize_t __pyx_t_18;
+  Py_ssize_t __pyx_t_19;
   unsigned long __pyx_t_20;
-  int __pyx_t_21;
-  int __pyx_t_22;
-  unsigned long __pyx_t_23;
-  unsigned long __pyx_t_24;
+  Py_ssize_t __pyx_t_21;
+  unsigned long __pyx_t_22;
+  Py_ssize_t __pyx_t_23;
+  char *__pyx_t_24;
   unsigned long __pyx_t_25;
   unsigned long __pyx_t_26;
-  unsigned long __pyx_t_27;
-  unsigned long __pyx_t_28;
+  int __pyx_t_27;
+  int __pyx_t_28;
   unsigned long __pyx_t_29;
   unsigned long __pyx_t_30;
   unsigned long __pyx_t_31;
   unsigned long __pyx_t_32;
-  Py_ssize_t __pyx_t_33;
+  unsigned long __pyx_t_33;
   unsigned long __pyx_t_34;
   unsigned long __pyx_t_35;
-  Py_ssize_t __pyx_t_36;
+  unsigned long __pyx_t_36;
   unsigned long __pyx_t_37;
   unsigned long __pyx_t_38;
-  unsigned long __pyx_t_39;
+  Py_ssize_t __pyx_t_39;
   unsigned long __pyx_t_40;
   unsigned long __pyx_t_41;
-  unsigned long __pyx_t_42;
+  Py_ssize_t __pyx_t_42;
   unsigned long __pyx_t_43;
   unsigned long __pyx_t_44;
-  Py_ssize_t __pyx_t_45;
+  unsigned long __pyx_t_45;
   unsigned long __pyx_t_46;
   unsigned long __pyx_t_47;
-  Py_ssize_t __pyx_t_48;
+  unsigned long __pyx_t_48;
   unsigned long __pyx_t_49;
   unsigned long __pyx_t_50;
-  unsigned long __pyx_t_51;
+  Py_ssize_t __pyx_t_51;
   unsigned long __pyx_t_52;
   unsigned long __pyx_t_53;
-  unsigned long __pyx_t_54;
+  Py_ssize_t __pyx_t_54;
   unsigned long __pyx_t_55;
   unsigned long __pyx_t_56;
-  Py_ssize_t __pyx_t_57;
+  unsigned long __pyx_t_57;
   unsigned long __pyx_t_58;
   unsigned long __pyx_t_59;
-  Py_ssize_t __pyx_t_60;
-  Py_ssize_t __pyx_t_61;
-  Py_ssize_t __pyx_t_62;
-  unsigned long __pyx_t_63;
+  unsigned long __pyx_t_60;
+  unsigned long __pyx_t_61;
+  unsigned long __pyx_t_62;
+  Py_ssize_t __pyx_t_63;
   unsigned long __pyx_t_64;
   unsigned long __pyx_t_65;
-  unsigned long __pyx_t_66;
-  int __pyx_t_67;
+  Py_ssize_t __pyx_t_66;
+  Py_ssize_t __pyx_t_67;
+  Py_ssize_t __pyx_t_68;
+  unsigned long __pyx_t_69;
+  unsigned long __pyx_t_70;
+  unsigned long __pyx_t_71;
+  unsigned long __pyx_t_72;
+  int __pyx_t_73;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -3206,7 +3519,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   __pyx_pybuffernd_previousPos.data = NULL;
   __pyx_pybuffernd_previousPos.rcbuffer = &__pyx_pybuffer_previousPos;
 
-  /* "MUSCython/AlignmentUtil.pyx":139
+  /* "MUSCython/AlignmentUtil.pyx":136
  *     '''
  *     #default scoring for Bowtie2 for end-to-end alignment
  *     cdef unsigned long MATCH = 0             # <<<<<<<<<<<<<<
@@ -3215,7 +3528,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_MATCH = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":140
+  /* "MUSCython/AlignmentUtil.pyx":137
  *     #default scoring for Bowtie2 for end-to-end alignment
  *     cdef unsigned long MATCH = 0
  *     cdef unsigned long MISMATCH = 1             # <<<<<<<<<<<<<<
@@ -3224,7 +3537,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_MISMATCH = 1;
 
-  /* "MUSCython/AlignmentUtil.pyx":141
+  /* "MUSCython/AlignmentUtil.pyx":138
  *     cdef unsigned long MATCH = 0
  *     cdef unsigned long MISMATCH = 1
  *     cdef unsigned long GAP_EXTEND = 1             # <<<<<<<<<<<<<<
@@ -3233,7 +3546,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_GAP_EXTEND = 1;
 
-  /* "MUSCython/AlignmentUtil.pyx":144
+  /* "MUSCython/AlignmentUtil.pyx":141
  * 
  *     #get the string sizes
  *     cdef unsigned long oLen = len(original)             # <<<<<<<<<<<<<<
@@ -3242,12 +3555,12 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   if (unlikely(__pyx_v_original == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    {__pyx_filename = __pyx_f[0]; __pyx_lineno = 144; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    {__pyx_filename = __pyx_f[0]; __pyx_lineno = 141; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   }
-  __pyx_t_1 = PyBytes_GET_SIZE(__pyx_v_original); if (unlikely(__pyx_t_1 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 144; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = PyBytes_GET_SIZE(__pyx_v_original); if (unlikely(__pyx_t_1 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 141; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_oLen = __pyx_t_1;
 
-  /* "MUSCython/AlignmentUtil.pyx":145
+  /* "MUSCython/AlignmentUtil.pyx":142
  *     #get the string sizes
  *     cdef unsigned long oLen = len(original)
  *     cdef unsigned long mLen = len(modified)             # <<<<<<<<<<<<<<
@@ -3256,31 +3569,31 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   if (unlikely(__pyx_v_modified == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    {__pyx_filename = __pyx_f[0]; __pyx_lineno = 142; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   }
-  __pyx_t_1 = PyBytes_GET_SIZE(__pyx_v_modified); if (unlikely(__pyx_t_1 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = PyBytes_GET_SIZE(__pyx_v_modified); if (unlikely(__pyx_t_1 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 142; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_mLen = __pyx_t_1;
 
-  /* "MUSCython/AlignmentUtil.pyx":148
+  /* "MUSCython/AlignmentUtil.pyx":145
  * 
  *     #initialize the scores
  *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))             # <<<<<<<<<<<<<<
  *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
  *     scoreArray[:] = 0xFFFFFFFF
  */
-  __pyx_t_2 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_empty); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_empty); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyDict_New(); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = PyDict_New(); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_2);
-  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_dtype, __pyx_kp_s_u4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_t_4 = __Pyx_PyInt_From_unsigned_long((__pyx_v_oLen + 1)); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_dtype, __pyx_kp_s_u4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = __Pyx_PyInt_From_unsigned_long((__pyx_v_oLen + 1)); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((__pyx_v_mLen + 1)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((__pyx_v_mLen + 1)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_6 = PyTuple_New(2); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_6 = PyTuple_New(2); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
   PyTuple_SET_ITEM(__pyx_t_6, 0, __pyx_t_4);
   __Pyx_GIVEREF(__pyx_t_4);
@@ -3288,19 +3601,19 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   __Pyx_GIVEREF(__pyx_t_5);
   __pyx_t_4 = 0;
   __pyx_t_5 = 0;
-  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_shape, __pyx_t_6) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_2, __pyx_n_s_shape, __pyx_t_6) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_empty_tuple, __pyx_t_2); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_empty_tuple, __pyx_t_2); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  if (!(likely(((__pyx_t_6) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_6, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (!(likely(((__pyx_t_6) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_6, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_t_7 = ((PyArrayObject *)__pyx_t_6);
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
     if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_scoreArray.rcbuffer->pybuffer, (PyObject*)__pyx_t_7, &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, PyBUF_FORMAT| PyBUF_C_CONTIGUOUS, 2, 0, __pyx_stack) == -1)) {
       __pyx_v_scoreArray = ((PyArrayObject *)Py_None); __Pyx_INCREF(Py_None); __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.buf = NULL;
-      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 148; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     } else {__pyx_pybuffernd_scoreArray.diminfo[0].strides = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_scoreArray.diminfo[0].shape = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.shape[0]; __pyx_pybuffernd_scoreArray.diminfo[1].strides = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.strides[1]; __pyx_pybuffernd_scoreArray.diminfo[1].shape = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.shape[1];
     }
   }
@@ -3308,7 +3621,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   __pyx_v_scoreArray = ((PyArrayObject *)__pyx_t_6);
   __pyx_t_6 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":149
+  /* "MUSCython/AlignmentUtil.pyx":146
  *     #initialize the scores
  *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
  *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray             # <<<<<<<<<<<<<<
@@ -3316,97 +3629,51 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  *     scoreArray_view[0, 0] = 0
  */
   __pyx_t_8 = __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint32_t(((PyObject *)__pyx_v_scoreArray));
-  if (unlikely(!__pyx_t_8.memview)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 149; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (unlikely(!__pyx_t_8.memview)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 146; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_scoreArray_view = __pyx_t_8;
   __pyx_t_8.memview = NULL;
   __pyx_t_8.data = NULL;
 
-  /* "MUSCython/AlignmentUtil.pyx":150
+  /* "MUSCython/AlignmentUtil.pyx":147
  *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
  *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
  *     scoreArray[:] = 0xFFFFFFFF             # <<<<<<<<<<<<<<
  *     scoreArray_view[0, 0] = 0
  * 
  */
-  if (__Pyx_PyObject_SetSlice(((PyObject *)__pyx_v_scoreArray), __pyx_int_4294967295, 0, 0, NULL, NULL, &__pyx_slice__3, 0, 0, 0) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 150; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (__Pyx_PyObject_SetSlice(((PyObject *)__pyx_v_scoreArray), __pyx_int_4294967295, 0, 0, NULL, NULL, &__pyx_slice__7, 0, 0, 0) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 147; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
-  /* "MUSCython/AlignmentUtil.pyx":151
+  /* "MUSCython/AlignmentUtil.pyx":148
  *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
  *     scoreArray[:] = 0xFFFFFFFF
  *     scoreArray_view[0, 0] = 0             # <<<<<<<<<<<<<<
  * 
- *     cdef unsigned long x, y, z
+ *     #initialize the jumpers
  */
   __pyx_t_1 = 0;
   __pyx_t_9 = 0;
   *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_1 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_9 * __pyx_v_scoreArray_view.strides[1]) )) = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":154
- * 
- *     cdef unsigned long x, y, z
- *     for x in range(1, oLen+1):             # <<<<<<<<<<<<<<
- *         scoreArray_view[x, 0] = x*GAP_EXTEND
- *     for x in range(1, mLen+1):
- */
-  __pyx_t_10 = (__pyx_v_oLen + 1);
-  for (__pyx_t_11 = 1; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
-    __pyx_v_x = __pyx_t_11;
-
-    /* "MUSCython/AlignmentUtil.pyx":155
- *     cdef unsigned long x, y, z
- *     for x in range(1, oLen+1):
- *         scoreArray_view[x, 0] = x*GAP_EXTEND             # <<<<<<<<<<<<<<
- *     for x in range(1, mLen+1):
- *         scoreArray_view[0, x] = x*GAP_EXTEND
- */
-    __pyx_t_12 = __pyx_v_x;
-    __pyx_t_13 = 0;
-    *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_12 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_13 * __pyx_v_scoreArray_view.strides[1]) )) = (__pyx_v_x * __pyx_v_GAP_EXTEND);
-  }
-
-  /* "MUSCython/AlignmentUtil.pyx":156
- *     for x in range(1, oLen+1):
- *         scoreArray_view[x, 0] = x*GAP_EXTEND
- *     for x in range(1, mLen+1):             # <<<<<<<<<<<<<<
- *         scoreArray_view[0, x] = x*GAP_EXTEND
- * 
- */
-  __pyx_t_10 = (__pyx_v_mLen + 1);
-  for (__pyx_t_11 = 1; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
-    __pyx_v_x = __pyx_t_11;
-
-    /* "MUSCython/AlignmentUtil.pyx":157
- *         scoreArray_view[x, 0] = x*GAP_EXTEND
- *     for x in range(1, mLen+1):
- *         scoreArray_view[0, x] = x*GAP_EXTEND             # <<<<<<<<<<<<<<
- * 
- *     #initialize the jumpers
- */
-    __pyx_t_14 = 0;
-    __pyx_t_15 = __pyx_v_x;
-    *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_14 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_15 * __pyx_v_scoreArray_view.strides[1]) )) = (__pyx_v_x * __pyx_v_GAP_EXTEND);
-  }
-
-  /* "MUSCython/AlignmentUtil.pyx":160
+  /* "MUSCython/AlignmentUtil.pyx":151
  * 
  *     #initialize the jumpers
  *     cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] previousPos = np.zeros(dtype='<u4', shape=(oLen+1, mLen+1, 2))             # <<<<<<<<<<<<<<
  *     cdef np.uint32_t [:, :, :] previousPos_view = previousPos
  * 
  */
-  __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_zeros); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_zeros); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_6 = PyDict_New(); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_6 = PyDict_New(); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
-  if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_dtype, __pyx_kp_s_u4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_t_3 = __Pyx_PyInt_From_unsigned_long((__pyx_v_oLen + 1)); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_dtype, __pyx_kp_s_u4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_3 = __Pyx_PyInt_From_unsigned_long((__pyx_v_oLen + 1)); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((__pyx_v_mLen + 1)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((__pyx_v_mLen + 1)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_4 = PyTuple_New(3); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = PyTuple_New(3); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_4);
   PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_3);
   __Pyx_GIVEREF(__pyx_t_3);
@@ -3417,182 +3684,252 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   __Pyx_GIVEREF(__pyx_int_2);
   __pyx_t_3 = 0;
   __pyx_t_5 = 0;
-  if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_shape, __pyx_t_4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_shape, __pyx_t_4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_empty_tuple, __pyx_t_6); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_empty_tuple, __pyx_t_6); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_t_16 = ((PyArrayObject *)__pyx_t_4);
+  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_10 = ((PyArrayObject *)__pyx_t_4);
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
-    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_previousPos.rcbuffer->pybuffer, (PyObject*)__pyx_t_16, &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, PyBUF_FORMAT| PyBUF_C_CONTIGUOUS, 3, 0, __pyx_stack) == -1)) {
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_previousPos.rcbuffer->pybuffer, (PyObject*)__pyx_t_10, &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, PyBUF_FORMAT| PyBUF_C_CONTIGUOUS, 3, 0, __pyx_stack) == -1)) {
       __pyx_v_previousPos = ((PyArrayObject *)Py_None); __Pyx_INCREF(Py_None); __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.buf = NULL;
-      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 160; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 151; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     } else {__pyx_pybuffernd_previousPos.diminfo[0].strides = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_previousPos.diminfo[0].shape = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.shape[0]; __pyx_pybuffernd_previousPos.diminfo[1].strides = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.strides[1]; __pyx_pybuffernd_previousPos.diminfo[1].shape = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.shape[1]; __pyx_pybuffernd_previousPos.diminfo[2].strides = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.strides[2]; __pyx_pybuffernd_previousPos.diminfo[2].shape = __pyx_pybuffernd_previousPos.rcbuffer->pybuffer.shape[2];
     }
   }
-  __pyx_t_16 = 0;
+  __pyx_t_10 = 0;
   __pyx_v_previousPos = ((PyArrayObject *)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":161
+  /* "MUSCython/AlignmentUtil.pyx":152
  *     #initialize the jumpers
  *     cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] previousPos = np.zeros(dtype='<u4', shape=(oLen+1, mLen+1, 2))
  *     cdef np.uint32_t [:, :, :] previousPos_view = previousPos             # <<<<<<<<<<<<<<
  * 
+ *     cdef unsigned long x, y, z
+ */
+  __pyx_t_11 = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_uint32_t(((PyObject *)__pyx_v_previousPos));
+  if (unlikely(!__pyx_t_11.memview)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 152; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_v_previousPos_view = __pyx_t_11;
+  __pyx_t_11.memview = NULL;
+  __pyx_t_11.data = NULL;
+
+  /* "MUSCython/AlignmentUtil.pyx":155
+ * 
+ *     cdef unsigned long x, y, z
+ *     for x in range(1, oLen+1):             # <<<<<<<<<<<<<<
+ *         scoreArray_view[x, 0] = x*GAP_EXTEND
+ *         previousPos_view[x, 0, 0] = x-1
+ */
+  __pyx_t_12 = (__pyx_v_oLen + 1);
+  for (__pyx_t_13 = 1; __pyx_t_13 < __pyx_t_12; __pyx_t_13+=1) {
+    __pyx_v_x = __pyx_t_13;
+
+    /* "MUSCython/AlignmentUtil.pyx":156
+ *     cdef unsigned long x, y, z
+ *     for x in range(1, oLen+1):
+ *         scoreArray_view[x, 0] = x*GAP_EXTEND             # <<<<<<<<<<<<<<
+ *         previousPos_view[x, 0, 0] = x-1
+ *     for x in range(1, mLen+1):
+ */
+    __pyx_t_14 = __pyx_v_x;
+    __pyx_t_15 = 0;
+    *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_14 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_15 * __pyx_v_scoreArray_view.strides[1]) )) = (__pyx_v_x * __pyx_v_GAP_EXTEND);
+
+    /* "MUSCython/AlignmentUtil.pyx":157
+ *     for x in range(1, oLen+1):
+ *         scoreArray_view[x, 0] = x*GAP_EXTEND
+ *         previousPos_view[x, 0, 0] = x-1             # <<<<<<<<<<<<<<
+ *     for x in range(1, mLen+1):
+ *         scoreArray_view[0, x] = x*GAP_EXTEND
+ */
+    __pyx_t_16 = __pyx_v_x;
+    __pyx_t_17 = 0;
+    __pyx_t_18 = 0;
+    *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_16 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_17 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_18 * __pyx_v_previousPos_view.strides[2]) )) = (__pyx_v_x - 1);
+  }
+
+  /* "MUSCython/AlignmentUtil.pyx":158
+ *         scoreArray_view[x, 0] = x*GAP_EXTEND
+ *         previousPos_view[x, 0, 0] = x-1
+ *     for x in range(1, mLen+1):             # <<<<<<<<<<<<<<
+ *         scoreArray_view[0, x] = x*GAP_EXTEND
+ *         previousPos_view[0, x, 1] = x-1
+ */
+  __pyx_t_12 = (__pyx_v_mLen + 1);
+  for (__pyx_t_13 = 1; __pyx_t_13 < __pyx_t_12; __pyx_t_13+=1) {
+    __pyx_v_x = __pyx_t_13;
+
+    /* "MUSCython/AlignmentUtil.pyx":159
+ *         previousPos_view[x, 0, 0] = x-1
+ *     for x in range(1, mLen+1):
+ *         scoreArray_view[0, x] = x*GAP_EXTEND             # <<<<<<<<<<<<<<
+ *         previousPos_view[0, x, 1] = x-1
+ * 
+ */
+    __pyx_t_19 = 0;
+    __pyx_t_20 = __pyx_v_x;
+    *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_19 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_20 * __pyx_v_scoreArray_view.strides[1]) )) = (__pyx_v_x * __pyx_v_GAP_EXTEND);
+
+    /* "MUSCython/AlignmentUtil.pyx":160
+ *     for x in range(1, mLen+1):
+ *         scoreArray_view[0, x] = x*GAP_EXTEND
+ *         previousPos_view[0, x, 1] = x-1             # <<<<<<<<<<<<<<
+ * 
  *     cdef char * original_view = original
  */
-  __pyx_t_17 = __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_uint32_t(((PyObject *)__pyx_v_previousPos));
-  if (unlikely(!__pyx_t_17.memview)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 161; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_v_previousPos_view = __pyx_t_17;
-  __pyx_t_17.memview = NULL;
-  __pyx_t_17.data = NULL;
+    __pyx_t_21 = 0;
+    __pyx_t_22 = __pyx_v_x;
+    __pyx_t_23 = 1;
+    *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_21 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_22 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_23 * __pyx_v_previousPos_view.strides[2]) )) = (__pyx_v_x - 1);
+  }
 
-  /* "MUSCython/AlignmentUtil.pyx":163
- *     cdef np.uint32_t [:, :, :] previousPos_view = previousPos
+  /* "MUSCython/AlignmentUtil.pyx":162
+ *         previousPos_view[0, x, 1] = x-1
  * 
  *     cdef char * original_view = original             # <<<<<<<<<<<<<<
  *     cdef char * modified_view = modified
  *     cdef unsigned long diagScore, jumpScore
  */
-  __pyx_t_18 = __Pyx_PyObject_AsString(__pyx_v_original); if (unlikely((!__pyx_t_18) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 163; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_v_original_view = __pyx_t_18;
+  __pyx_t_24 = __Pyx_PyObject_AsString(__pyx_v_original); if (unlikely((!__pyx_t_24) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 162; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_v_original_view = __pyx_t_24;
 
-  /* "MUSCython/AlignmentUtil.pyx":164
+  /* "MUSCython/AlignmentUtil.pyx":163
  * 
  *     cdef char * original_view = original
  *     cdef char * modified_view = modified             # <<<<<<<<<<<<<<
  *     cdef unsigned long diagScore, jumpScore
  * 
  */
-  __pyx_t_18 = __Pyx_PyObject_AsString(__pyx_v_modified); if (unlikely((!__pyx_t_18) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 164; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_v_modified_view = __pyx_t_18;
+  __pyx_t_24 = __Pyx_PyObject_AsString(__pyx_v_modified); if (unlikely((!__pyx_t_24) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 163; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_v_modified_view = __pyx_t_24;
 
-  /* "MUSCython/AlignmentUtil.pyx":167
+  /* "MUSCython/AlignmentUtil.pyx":166
  *     cdef unsigned long diagScore, jumpScore
  * 
  *     for x in range(0, oLen+1):             # <<<<<<<<<<<<<<
  *         for y in range(0, mLen+1):
  *             #make sure there is a diagonal before trying to handle it
  */
-  __pyx_t_10 = (__pyx_v_oLen + 1);
-  for (__pyx_t_11 = 0; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
-    __pyx_v_x = __pyx_t_11;
+  __pyx_t_12 = (__pyx_v_oLen + 1);
+  for (__pyx_t_13 = 0; __pyx_t_13 < __pyx_t_12; __pyx_t_13+=1) {
+    __pyx_v_x = __pyx_t_13;
 
-    /* "MUSCython/AlignmentUtil.pyx":168
+    /* "MUSCython/AlignmentUtil.pyx":167
  * 
  *     for x in range(0, oLen+1):
  *         for y in range(0, mLen+1):             # <<<<<<<<<<<<<<
  *             #make sure there is a diagonal before trying to handle it
  *             if x < oLen and y < mLen:
  */
-    __pyx_t_19 = (__pyx_v_mLen + 1);
-    for (__pyx_t_20 = 0; __pyx_t_20 < __pyx_t_19; __pyx_t_20+=1) {
-      __pyx_v_y = __pyx_t_20;
+    __pyx_t_25 = (__pyx_v_mLen + 1);
+    for (__pyx_t_26 = 0; __pyx_t_26 < __pyx_t_25; __pyx_t_26+=1) {
+      __pyx_v_y = __pyx_t_26;
 
-      /* "MUSCython/AlignmentUtil.pyx":170
+      /* "MUSCython/AlignmentUtil.pyx":169
  *         for y in range(0, mLen+1):
  *             #make sure there is a diagonal before trying to handle it
  *             if x < oLen and y < mLen:             # <<<<<<<<<<<<<<
  *                 #first, handle the diagonal
  *                 if original_view[x] == modified_view[y]:
  */
-      __pyx_t_22 = ((__pyx_v_x < __pyx_v_oLen) != 0);
-      if (__pyx_t_22) {
+      __pyx_t_28 = ((__pyx_v_x < __pyx_v_oLen) != 0);
+      if (__pyx_t_28) {
       } else {
-        __pyx_t_21 = __pyx_t_22;
+        __pyx_t_27 = __pyx_t_28;
         goto __pyx_L12_bool_binop_done;
       }
-      __pyx_t_22 = ((__pyx_v_y < __pyx_v_mLen) != 0);
-      __pyx_t_21 = __pyx_t_22;
+      __pyx_t_28 = ((__pyx_v_y < __pyx_v_mLen) != 0);
+      __pyx_t_27 = __pyx_t_28;
       __pyx_L12_bool_binop_done:;
-      if (__pyx_t_21) {
+      if (__pyx_t_27) {
 
-        /* "MUSCython/AlignmentUtil.pyx":172
+        /* "MUSCython/AlignmentUtil.pyx":171
  *             if x < oLen and y < mLen:
  *                 #first, handle the diagonal
  *                 if original_view[x] == modified_view[y]:             # <<<<<<<<<<<<<<
  *                     diagScore = scoreArray_view[x, y]+MATCH
  *                 else:
  */
-        __pyx_t_21 = (((__pyx_v_original_view[__pyx_v_x]) == (__pyx_v_modified_view[__pyx_v_y])) != 0);
-        if (__pyx_t_21) {
+        __pyx_t_27 = (((__pyx_v_original_view[__pyx_v_x]) == (__pyx_v_modified_view[__pyx_v_y])) != 0);
+        if (__pyx_t_27) {
 
-          /* "MUSCython/AlignmentUtil.pyx":173
+          /* "MUSCython/AlignmentUtil.pyx":172
  *                 #first, handle the diagonal
  *                 if original_view[x] == modified_view[y]:
  *                     diagScore = scoreArray_view[x, y]+MATCH             # <<<<<<<<<<<<<<
  *                 else:
  *                     diagScore = scoreArray_view[x, y]+MISMATCH
  */
-          __pyx_t_23 = __pyx_v_x;
-          __pyx_t_24 = __pyx_v_y;
-          __pyx_v_diagScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_23 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_24 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_MATCH);
+          __pyx_t_29 = __pyx_v_x;
+          __pyx_t_30 = __pyx_v_y;
+          __pyx_v_diagScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_29 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_30 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_MATCH);
           goto __pyx_L14;
         }
         /*else*/ {
 
-          /* "MUSCython/AlignmentUtil.pyx":175
+          /* "MUSCython/AlignmentUtil.pyx":174
  *                     diagScore = scoreArray_view[x, y]+MATCH
  *                 else:
  *                     diagScore = scoreArray_view[x, y]+MISMATCH             # <<<<<<<<<<<<<<
  *                 if scoreArray_view[x+1, y+1] > diagScore:
  *                     scoreArray_view[x+1, y+1] = diagScore
  */
-          __pyx_t_25 = __pyx_v_x;
-          __pyx_t_26 = __pyx_v_y;
-          __pyx_v_diagScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_25 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_26 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_MISMATCH);
+          __pyx_t_31 = __pyx_v_x;
+          __pyx_t_32 = __pyx_v_y;
+          __pyx_v_diagScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_31 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_32 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_MISMATCH);
         }
         __pyx_L14:;
 
-        /* "MUSCython/AlignmentUtil.pyx":176
+        /* "MUSCython/AlignmentUtil.pyx":175
  *                 else:
  *                     diagScore = scoreArray_view[x, y]+MISMATCH
  *                 if scoreArray_view[x+1, y+1] > diagScore:             # <<<<<<<<<<<<<<
  *                     scoreArray_view[x+1, y+1] = diagScore
  *                     previousPos_view[x+1, y+1, 0] = x
  */
-        __pyx_t_27 = (__pyx_v_x + 1);
-        __pyx_t_28 = (__pyx_v_y + 1);
-        __pyx_t_21 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_27 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_28 * __pyx_v_scoreArray_view.strides[1]) ))) > __pyx_v_diagScore) != 0);
-        if (__pyx_t_21) {
+        __pyx_t_33 = (__pyx_v_x + 1);
+        __pyx_t_34 = (__pyx_v_y + 1);
+        __pyx_t_27 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_33 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_34 * __pyx_v_scoreArray_view.strides[1]) ))) > __pyx_v_diagScore) != 0);
+        if (__pyx_t_27) {
 
-          /* "MUSCython/AlignmentUtil.pyx":177
+          /* "MUSCython/AlignmentUtil.pyx":176
  *                     diagScore = scoreArray_view[x, y]+MISMATCH
  *                 if scoreArray_view[x+1, y+1] > diagScore:
  *                     scoreArray_view[x+1, y+1] = diagScore             # <<<<<<<<<<<<<<
  *                     previousPos_view[x+1, y+1, 0] = x
  *                     previousPos_view[x+1, y+1, 1] = y
  */
-          __pyx_t_29 = (__pyx_v_x + 1);
-          __pyx_t_30 = (__pyx_v_y + 1);
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_29 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_30 * __pyx_v_scoreArray_view.strides[1]) )) = __pyx_v_diagScore;
+          __pyx_t_35 = (__pyx_v_x + 1);
+          __pyx_t_36 = (__pyx_v_y + 1);
+          *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_35 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_36 * __pyx_v_scoreArray_view.strides[1]) )) = __pyx_v_diagScore;
 
-          /* "MUSCython/AlignmentUtil.pyx":178
+          /* "MUSCython/AlignmentUtil.pyx":177
  *                 if scoreArray_view[x+1, y+1] > diagScore:
  *                     scoreArray_view[x+1, y+1] = diagScore
  *                     previousPos_view[x+1, y+1, 0] = x             # <<<<<<<<<<<<<<
  *                     previousPos_view[x+1, y+1, 1] = y
  * 
  */
-          __pyx_t_31 = (__pyx_v_x + 1);
-          __pyx_t_32 = (__pyx_v_y + 1);
-          __pyx_t_33 = 0;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_31 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_32 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_33 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_x;
+          __pyx_t_37 = (__pyx_v_x + 1);
+          __pyx_t_38 = (__pyx_v_y + 1);
+          __pyx_t_39 = 0;
+          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_37 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_38 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_39 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_x;
 
-          /* "MUSCython/AlignmentUtil.pyx":179
+          /* "MUSCython/AlignmentUtil.pyx":178
  *                     scoreArray_view[x+1, y+1] = diagScore
  *                     previousPos_view[x+1, y+1, 0] = x
  *                     previousPos_view[x+1, y+1, 1] = y             # <<<<<<<<<<<<<<
  * 
  *             #now handle deletions to the original
  */
-          __pyx_t_34 = (__pyx_v_x + 1);
-          __pyx_t_35 = (__pyx_v_y + 1);
-          __pyx_t_36 = 1;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_34 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_35 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_36 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_y;
+          __pyx_t_40 = (__pyx_v_x + 1);
+          __pyx_t_41 = (__pyx_v_y + 1);
+          __pyx_t_42 = 1;
+          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_40 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_41 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_42 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_y;
           goto __pyx_L15;
         }
         __pyx_L15:;
@@ -3600,73 +3937,73 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
       }
       __pyx_L11:;
 
-      /* "MUSCython/AlignmentUtil.pyx":191
+      /* "MUSCython/AlignmentUtil.pyx":190
  *                     previousPos_view[z, y, 1] = y
  *             '''
  *             if x < oLen:             # <<<<<<<<<<<<<<
  *                 jumpScore = scoreArray_view[x, y]+GAP_EXTEND
  *                 if scoreArray_view[x+1, y] > jumpScore:
  */
-      __pyx_t_21 = ((__pyx_v_x < __pyx_v_oLen) != 0);
-      if (__pyx_t_21) {
+      __pyx_t_27 = ((__pyx_v_x < __pyx_v_oLen) != 0);
+      if (__pyx_t_27) {
 
-        /* "MUSCython/AlignmentUtil.pyx":192
+        /* "MUSCython/AlignmentUtil.pyx":191
  *             '''
  *             if x < oLen:
  *                 jumpScore = scoreArray_view[x, y]+GAP_EXTEND             # <<<<<<<<<<<<<<
  *                 if scoreArray_view[x+1, y] > jumpScore:
  *                     scoreArray_view[x+1, y] = jumpScore
  */
-        __pyx_t_37 = __pyx_v_x;
-        __pyx_t_38 = __pyx_v_y;
-        __pyx_v_jumpScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_37 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_38 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_GAP_EXTEND);
+        __pyx_t_43 = __pyx_v_x;
+        __pyx_t_44 = __pyx_v_y;
+        __pyx_v_jumpScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_43 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_44 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_GAP_EXTEND);
 
-        /* "MUSCython/AlignmentUtil.pyx":193
+        /* "MUSCython/AlignmentUtil.pyx":192
  *             if x < oLen:
  *                 jumpScore = scoreArray_view[x, y]+GAP_EXTEND
  *                 if scoreArray_view[x+1, y] > jumpScore:             # <<<<<<<<<<<<<<
  *                     scoreArray_view[x+1, y] = jumpScore
  *                     previousPos_view[x+1, y, 0] = x
  */
-        __pyx_t_39 = (__pyx_v_x + 1);
-        __pyx_t_40 = __pyx_v_y;
-        __pyx_t_21 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_39 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_40 * __pyx_v_scoreArray_view.strides[1]) ))) > __pyx_v_jumpScore) != 0);
-        if (__pyx_t_21) {
+        __pyx_t_45 = (__pyx_v_x + 1);
+        __pyx_t_46 = __pyx_v_y;
+        __pyx_t_27 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_45 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_46 * __pyx_v_scoreArray_view.strides[1]) ))) > __pyx_v_jumpScore) != 0);
+        if (__pyx_t_27) {
 
-          /* "MUSCython/AlignmentUtil.pyx":194
+          /* "MUSCython/AlignmentUtil.pyx":193
  *                 jumpScore = scoreArray_view[x, y]+GAP_EXTEND
  *                 if scoreArray_view[x+1, y] > jumpScore:
  *                     scoreArray_view[x+1, y] = jumpScore             # <<<<<<<<<<<<<<
  *                     previousPos_view[x+1, y, 0] = x
  *                     previousPos_view[x+1, y, 1] = y
  */
-          __pyx_t_41 = (__pyx_v_x + 1);
-          __pyx_t_42 = __pyx_v_y;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_41 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_42 * __pyx_v_scoreArray_view.strides[1]) )) = __pyx_v_jumpScore;
+          __pyx_t_47 = (__pyx_v_x + 1);
+          __pyx_t_48 = __pyx_v_y;
+          *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_47 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_48 * __pyx_v_scoreArray_view.strides[1]) )) = __pyx_v_jumpScore;
 
-          /* "MUSCython/AlignmentUtil.pyx":195
+          /* "MUSCython/AlignmentUtil.pyx":194
  *                 if scoreArray_view[x+1, y] > jumpScore:
  *                     scoreArray_view[x+1, y] = jumpScore
  *                     previousPos_view[x+1, y, 0] = x             # <<<<<<<<<<<<<<
  *                     previousPos_view[x+1, y, 1] = y
  * 
  */
-          __pyx_t_43 = (__pyx_v_x + 1);
-          __pyx_t_44 = __pyx_v_y;
-          __pyx_t_45 = 0;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_43 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_44 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_45 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_x;
+          __pyx_t_49 = (__pyx_v_x + 1);
+          __pyx_t_50 = __pyx_v_y;
+          __pyx_t_51 = 0;
+          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_49 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_50 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_51 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_x;
 
-          /* "MUSCython/AlignmentUtil.pyx":196
+          /* "MUSCython/AlignmentUtil.pyx":195
  *                     scoreArray_view[x+1, y] = jumpScore
  *                     previousPos_view[x+1, y, 0] = x
  *                     previousPos_view[x+1, y, 1] = y             # <<<<<<<<<<<<<<
  * 
  * 
  */
-          __pyx_t_46 = (__pyx_v_x + 1);
-          __pyx_t_47 = __pyx_v_y;
-          __pyx_t_48 = 1;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_46 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_47 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_48 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_y;
+          __pyx_t_52 = (__pyx_v_x + 1);
+          __pyx_t_53 = __pyx_v_y;
+          __pyx_t_54 = 1;
+          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_52 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_53 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_54 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_y;
           goto __pyx_L17;
         }
         __pyx_L17:;
@@ -3674,73 +4011,73 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
       }
       __pyx_L16:;
 
-      /* "MUSCython/AlignmentUtil.pyx":209
+      /* "MUSCython/AlignmentUtil.pyx":208
  *                     previousPos_view[x, z, 1] = y
  *             '''
  *             if y < mLen:             # <<<<<<<<<<<<<<
  *                 jumpScore = scoreArray_view[x, y]+GAP_EXTEND
  *                 if scoreArray_view[x, y+1] > jumpScore:
  */
-      __pyx_t_21 = ((__pyx_v_y < __pyx_v_mLen) != 0);
-      if (__pyx_t_21) {
+      __pyx_t_27 = ((__pyx_v_y < __pyx_v_mLen) != 0);
+      if (__pyx_t_27) {
 
-        /* "MUSCython/AlignmentUtil.pyx":210
+        /* "MUSCython/AlignmentUtil.pyx":209
  *             '''
  *             if y < mLen:
  *                 jumpScore = scoreArray_view[x, y]+GAP_EXTEND             # <<<<<<<<<<<<<<
  *                 if scoreArray_view[x, y+1] > jumpScore:
  *                     scoreArray_view[x, y+1] = jumpScore
  */
-        __pyx_t_49 = __pyx_v_x;
-        __pyx_t_50 = __pyx_v_y;
-        __pyx_v_jumpScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_49 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_50 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_GAP_EXTEND);
+        __pyx_t_55 = __pyx_v_x;
+        __pyx_t_56 = __pyx_v_y;
+        __pyx_v_jumpScore = ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_55 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_56 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_GAP_EXTEND);
 
-        /* "MUSCython/AlignmentUtil.pyx":211
+        /* "MUSCython/AlignmentUtil.pyx":210
  *             if y < mLen:
  *                 jumpScore = scoreArray_view[x, y]+GAP_EXTEND
  *                 if scoreArray_view[x, y+1] > jumpScore:             # <<<<<<<<<<<<<<
  *                     scoreArray_view[x, y+1] = jumpScore
  *                     previousPos_view[x, y+1, 0] = x
  */
-        __pyx_t_51 = __pyx_v_x;
-        __pyx_t_52 = (__pyx_v_y + 1);
-        __pyx_t_21 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_51 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_52 * __pyx_v_scoreArray_view.strides[1]) ))) > __pyx_v_jumpScore) != 0);
-        if (__pyx_t_21) {
+        __pyx_t_57 = __pyx_v_x;
+        __pyx_t_58 = (__pyx_v_y + 1);
+        __pyx_t_27 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_57 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_58 * __pyx_v_scoreArray_view.strides[1]) ))) > __pyx_v_jumpScore) != 0);
+        if (__pyx_t_27) {
 
-          /* "MUSCython/AlignmentUtil.pyx":212
+          /* "MUSCython/AlignmentUtil.pyx":211
  *                 jumpScore = scoreArray_view[x, y]+GAP_EXTEND
  *                 if scoreArray_view[x, y+1] > jumpScore:
  *                     scoreArray_view[x, y+1] = jumpScore             # <<<<<<<<<<<<<<
  *                     previousPos_view[x, y+1, 0] = x
  *                     previousPos_view[x, y+1, 1] = y
  */
-          __pyx_t_53 = __pyx_v_x;
-          __pyx_t_54 = (__pyx_v_y + 1);
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_53 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_54 * __pyx_v_scoreArray_view.strides[1]) )) = __pyx_v_jumpScore;
+          __pyx_t_59 = __pyx_v_x;
+          __pyx_t_60 = (__pyx_v_y + 1);
+          *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_59 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_60 * __pyx_v_scoreArray_view.strides[1]) )) = __pyx_v_jumpScore;
 
-          /* "MUSCython/AlignmentUtil.pyx":213
+          /* "MUSCython/AlignmentUtil.pyx":212
  *                 if scoreArray_view[x, y+1] > jumpScore:
  *                     scoreArray_view[x, y+1] = jumpScore
  *                     previousPos_view[x, y+1, 0] = x             # <<<<<<<<<<<<<<
  *                     previousPos_view[x, y+1, 1] = y
  * 
  */
-          __pyx_t_55 = __pyx_v_x;
-          __pyx_t_56 = (__pyx_v_y + 1);
-          __pyx_t_57 = 0;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_55 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_56 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_57 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_x;
+          __pyx_t_61 = __pyx_v_x;
+          __pyx_t_62 = (__pyx_v_y + 1);
+          __pyx_t_63 = 0;
+          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_61 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_62 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_63 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_x;
 
-          /* "MUSCython/AlignmentUtil.pyx":214
+          /* "MUSCython/AlignmentUtil.pyx":213
  *                     scoreArray_view[x, y+1] = jumpScore
  *                     previousPos_view[x, y+1, 0] = x
  *                     previousPos_view[x, y+1, 1] = y             # <<<<<<<<<<<<<<
  * 
  *     cdef unsigned long MATCH_T = 0
  */
-          __pyx_t_58 = __pyx_v_x;
-          __pyx_t_59 = (__pyx_v_y + 1);
-          __pyx_t_60 = 1;
-          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_58 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_59 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_60 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_y;
+          __pyx_t_64 = __pyx_v_x;
+          __pyx_t_65 = (__pyx_v_y + 1);
+          __pyx_t_66 = 1;
+          *((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_64 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_65 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_66 * __pyx_v_previousPos_view.strides[2]) )) = __pyx_v_y;
           goto __pyx_L19;
         }
         __pyx_L19:;
@@ -3750,7 +4087,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
     }
   }
 
-  /* "MUSCython/AlignmentUtil.pyx":216
+  /* "MUSCython/AlignmentUtil.pyx":215
  *                     previousPos_view[x, y+1, 1] = y
  * 
  *     cdef unsigned long MATCH_T = 0             # <<<<<<<<<<<<<<
@@ -3759,7 +4096,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_MATCH_T = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":217
+  /* "MUSCython/AlignmentUtil.pyx":216
  * 
  *     cdef unsigned long MATCH_T = 0
  *     cdef unsigned long MISMATCH_T = 1             # <<<<<<<<<<<<<<
@@ -3768,7 +4105,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_MISMATCH_T = 1;
 
-  /* "MUSCython/AlignmentUtil.pyx":218
+  /* "MUSCython/AlignmentUtil.pyx":217
  *     cdef unsigned long MATCH_T = 0
  *     cdef unsigned long MISMATCH_T = 1
  *     cdef unsigned long INSERTION_T = 2             # <<<<<<<<<<<<<<
@@ -3777,7 +4114,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_INSERTION_T = 2;
 
-  /* "MUSCython/AlignmentUtil.pyx":219
+  /* "MUSCython/AlignmentUtil.pyx":218
  *     cdef unsigned long MISMATCH_T = 1
  *     cdef unsigned long INSERTION_T = 2
  *     cdef unsigned long DELETION_T = 3             # <<<<<<<<<<<<<<
@@ -3786,18 +4123,18 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_DELETION_T = 3;
 
-  /* "MUSCython/AlignmentUtil.pyx":221
+  /* "MUSCython/AlignmentUtil.pyx":220
  *     cdef unsigned long DELETION_T = 3
  * 
  *     cdef list typeToCig = ['=', 'X', 'I', 'D']             # <<<<<<<<<<<<<<
  * 
  *     cdef unsigned long numMatches = 0
  */
-  __pyx_t_4 = PyList_New(4); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 221; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = PyList_New(4); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 220; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_4);
-  __Pyx_INCREF(__pyx_kp_s__2);
-  PyList_SET_ITEM(__pyx_t_4, 0, __pyx_kp_s__2);
-  __Pyx_GIVEREF(__pyx_kp_s__2);
+  __Pyx_INCREF(__pyx_kp_s__6);
+  PyList_SET_ITEM(__pyx_t_4, 0, __pyx_kp_s__6);
+  __Pyx_GIVEREF(__pyx_kp_s__6);
   __Pyx_INCREF(__pyx_n_s_X);
   PyList_SET_ITEM(__pyx_t_4, 1, __pyx_n_s_X);
   __Pyx_GIVEREF(__pyx_n_s_X);
@@ -3810,7 +4147,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   __pyx_v_typeToCig = ((PyObject*)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":223
+  /* "MUSCython/AlignmentUtil.pyx":222
  *     cdef list typeToCig = ['=', 'X', 'I', 'D']
  * 
  *     cdef unsigned long numMatches = 0             # <<<<<<<<<<<<<<
@@ -3819,19 +4156,19 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_numMatches = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":224
+  /* "MUSCython/AlignmentUtil.pyx":223
  * 
  *     cdef unsigned long numMatches = 0
  *     cdef list cig = []             # <<<<<<<<<<<<<<
  *     cdef unsigned long nextX, nextY
  *     cdef unsigned long instructionType = MATCH_T
  */
-  __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 224; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = PyList_New(0); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 223; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_4);
   __pyx_v_cig = ((PyObject*)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":226
+  /* "MUSCython/AlignmentUtil.pyx":225
  *     cdef list cig = []
  *     cdef unsigned long nextX, nextY
  *     cdef unsigned long instructionType = MATCH_T             # <<<<<<<<<<<<<<
@@ -3840,7 +4177,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_instructionType = __pyx_v_MATCH_T;
 
-  /* "MUSCython/AlignmentUtil.pyx":227
+  /* "MUSCython/AlignmentUtil.pyx":226
  *     cdef unsigned long nextX, nextY
  *     cdef unsigned long instructionType = MATCH_T
  *     cdef unsigned long instructionCount = 0             # <<<<<<<<<<<<<<
@@ -3849,7 +4186,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_instructionCount = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":231
+  /* "MUSCython/AlignmentUtil.pyx":230
  *     cdef unsigned long currCount
  * 
  *     x = oLen             # <<<<<<<<<<<<<<
@@ -3858,91 +4195,91 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
   __pyx_v_x = __pyx_v_oLen;
 
-  /* "MUSCython/AlignmentUtil.pyx":232
+  /* "MUSCython/AlignmentUtil.pyx":231
  * 
  *     x = oLen
  *     y = mLen             # <<<<<<<<<<<<<<
  * 
- *     while x != 0 and y != 0:
+ *     while x != 0 or y != 0:
  */
   __pyx_v_y = __pyx_v_mLen;
 
-  /* "MUSCython/AlignmentUtil.pyx":234
+  /* "MUSCython/AlignmentUtil.pyx":233
  *     y = mLen
  * 
- *     while x != 0 and y != 0:             # <<<<<<<<<<<<<<
+ *     while x != 0 or y != 0:             # <<<<<<<<<<<<<<
  *         nextX = previousPos_view[x, y, 0]
  *         nextY = previousPos_view[x, y, 1]
  */
   while (1) {
-    __pyx_t_22 = ((__pyx_v_x != 0) != 0);
-    if (__pyx_t_22) {
+    __pyx_t_28 = ((__pyx_v_x != 0) != 0);
+    if (!__pyx_t_28) {
     } else {
-      __pyx_t_21 = __pyx_t_22;
+      __pyx_t_27 = __pyx_t_28;
       goto __pyx_L22_bool_binop_done;
     }
-    __pyx_t_22 = ((__pyx_v_y != 0) != 0);
-    __pyx_t_21 = __pyx_t_22;
+    __pyx_t_28 = ((__pyx_v_y != 0) != 0);
+    __pyx_t_27 = __pyx_t_28;
     __pyx_L22_bool_binop_done:;
-    if (!__pyx_t_21) break;
+    if (!__pyx_t_27) break;
 
-    /* "MUSCython/AlignmentUtil.pyx":235
+    /* "MUSCython/AlignmentUtil.pyx":234
  * 
- *     while x != 0 and y != 0:
+ *     while x != 0 or y != 0:
  *         nextX = previousPos_view[x, y, 0]             # <<<<<<<<<<<<<<
  *         nextY = previousPos_view[x, y, 1]
  * 
  */
-    __pyx_t_10 = __pyx_v_x;
-    __pyx_t_11 = __pyx_v_y;
-    __pyx_t_61 = 0;
-    __pyx_v_nextX = (*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_10 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_11 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_61 * __pyx_v_previousPos_view.strides[2]) )));
+    __pyx_t_12 = __pyx_v_x;
+    __pyx_t_13 = __pyx_v_y;
+    __pyx_t_67 = 0;
+    __pyx_v_nextX = (*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_12 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_13 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_67 * __pyx_v_previousPos_view.strides[2]) )));
 
-    /* "MUSCython/AlignmentUtil.pyx":236
- *     while x != 0 and y != 0:
+    /* "MUSCython/AlignmentUtil.pyx":235
+ *     while x != 0 or y != 0:
  *         nextX = previousPos_view[x, y, 0]
  *         nextY = previousPos_view[x, y, 1]             # <<<<<<<<<<<<<<
  * 
  *         if nextX == x-1 and nextY == y-1:
  */
-    __pyx_t_19 = __pyx_v_x;
-    __pyx_t_20 = __pyx_v_y;
-    __pyx_t_62 = 1;
-    __pyx_v_nextY = (*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_19 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_20 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_62 * __pyx_v_previousPos_view.strides[2]) )));
+    __pyx_t_25 = __pyx_v_x;
+    __pyx_t_26 = __pyx_v_y;
+    __pyx_t_68 = 1;
+    __pyx_v_nextY = (*((__pyx_t_5numpy_uint32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_previousPos_view.data + __pyx_t_25 * __pyx_v_previousPos_view.strides[0]) ) + __pyx_t_26 * __pyx_v_previousPos_view.strides[1]) ) + __pyx_t_68 * __pyx_v_previousPos_view.strides[2]) )));
 
-    /* "MUSCython/AlignmentUtil.pyx":238
+    /* "MUSCython/AlignmentUtil.pyx":237
  *         nextY = previousPos_view[x, y, 1]
  * 
  *         if nextX == x-1 and nextY == y-1:             # <<<<<<<<<<<<<<
  *             #diagonal
  *             if scoreArray_view[nextX, nextY] == scoreArray_view[x, y]+MATCH:
  */
-    __pyx_t_22 = ((__pyx_v_nextX == (__pyx_v_x - 1)) != 0);
-    if (__pyx_t_22) {
+    __pyx_t_28 = ((__pyx_v_nextX == (__pyx_v_x - 1)) != 0);
+    if (__pyx_t_28) {
     } else {
-      __pyx_t_21 = __pyx_t_22;
+      __pyx_t_27 = __pyx_t_28;
       goto __pyx_L25_bool_binop_done;
     }
-    __pyx_t_22 = ((__pyx_v_nextY == (__pyx_v_y - 1)) != 0);
-    __pyx_t_21 = __pyx_t_22;
+    __pyx_t_28 = ((__pyx_v_nextY == (__pyx_v_y - 1)) != 0);
+    __pyx_t_27 = __pyx_t_28;
     __pyx_L25_bool_binop_done:;
-    if (__pyx_t_21) {
+    if (__pyx_t_27) {
 
-      /* "MUSCython/AlignmentUtil.pyx":240
+      /* "MUSCython/AlignmentUtil.pyx":239
  *         if nextX == x-1 and nextY == y-1:
  *             #diagonal
  *             if scoreArray_view[nextX, nextY] == scoreArray_view[x, y]+MATCH:             # <<<<<<<<<<<<<<
  *                 #match
  *                 currType = MATCH_T
  */
-      __pyx_t_63 = __pyx_v_nextX;
-      __pyx_t_64 = __pyx_v_nextY;
-      __pyx_t_65 = __pyx_v_x;
-      __pyx_t_66 = __pyx_v_y;
-      __pyx_t_21 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_63 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_64 * __pyx_v_scoreArray_view.strides[1]) ))) == ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_65 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_66 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_MATCH)) != 0);
-      if (__pyx_t_21) {
+      __pyx_t_69 = __pyx_v_nextX;
+      __pyx_t_70 = __pyx_v_nextY;
+      __pyx_t_71 = __pyx_v_x;
+      __pyx_t_72 = __pyx_v_y;
+      __pyx_t_27 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_69 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_70 * __pyx_v_scoreArray_view.strides[1]) ))) == ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_71 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_72 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_MATCH)) != 0);
+      if (__pyx_t_27) {
 
-        /* "MUSCython/AlignmentUtil.pyx":242
+        /* "MUSCython/AlignmentUtil.pyx":241
  *             if scoreArray_view[nextX, nextY] == scoreArray_view[x, y]+MATCH:
  *                 #match
  *                 currType = MATCH_T             # <<<<<<<<<<<<<<
@@ -3951,7 +4288,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
         __pyx_v_currType = __pyx_v_MATCH_T;
 
-        /* "MUSCython/AlignmentUtil.pyx":243
+        /* "MUSCython/AlignmentUtil.pyx":242
  *                 #match
  *                 currType = MATCH_T
  *                 currCount = 1             # <<<<<<<<<<<<<<
@@ -3963,7 +4300,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
       }
       /*else*/ {
 
-        /* "MUSCython/AlignmentUtil.pyx":246
+        /* "MUSCython/AlignmentUtil.pyx":245
  *             else:
  *                 #mismatch
  *                 currType = MISMATCH_T             # <<<<<<<<<<<<<<
@@ -3972,7 +4309,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
         __pyx_v_currType = __pyx_v_MISMATCH_T;
 
-        /* "MUSCython/AlignmentUtil.pyx":247
+        /* "MUSCython/AlignmentUtil.pyx":246
  *                 #mismatch
  *                 currType = MISMATCH_T
  *                 currCount = 1             # <<<<<<<<<<<<<<
@@ -3985,17 +4322,17 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
       goto __pyx_L24;
     }
 
-    /* "MUSCython/AlignmentUtil.pyx":248
+    /* "MUSCython/AlignmentUtil.pyx":247
  *                 currType = MISMATCH_T
  *                 currCount = 1
  *         elif nextY == y:             # <<<<<<<<<<<<<<
  *             #deletion to original
  *             currType = DELETION_T
  */
-    __pyx_t_21 = ((__pyx_v_nextY == __pyx_v_y) != 0);
-    if (__pyx_t_21) {
+    __pyx_t_27 = ((__pyx_v_nextY == __pyx_v_y) != 0);
+    if (__pyx_t_27) {
 
-      /* "MUSCython/AlignmentUtil.pyx":250
+      /* "MUSCython/AlignmentUtil.pyx":249
  *         elif nextY == y:
  *             #deletion to original
  *             currType = DELETION_T             # <<<<<<<<<<<<<<
@@ -4004,7 +4341,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
       __pyx_v_currType = __pyx_v_DELETION_T;
 
-      /* "MUSCython/AlignmentUtil.pyx":251
+      /* "MUSCython/AlignmentUtil.pyx":250
  *             #deletion to original
  *             currType = DELETION_T
  *             currCount = x-nextX             # <<<<<<<<<<<<<<
@@ -4016,7 +4353,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
     }
     /*else*/ {
 
-      /* "MUSCython/AlignmentUtil.pyx":254
+      /* "MUSCython/AlignmentUtil.pyx":253
  *         else:
  *             #insertion to the original
  *             currType = INSERTION_T             # <<<<<<<<<<<<<<
@@ -4025,7 +4362,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
       __pyx_v_currType = __pyx_v_INSERTION_T;
 
-      /* "MUSCython/AlignmentUtil.pyx":255
+      /* "MUSCython/AlignmentUtil.pyx":254
  *             #insertion to the original
  *             currType = INSERTION_T
  *             currCount = y-nextY             # <<<<<<<<<<<<<<
@@ -4036,17 +4373,17 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
     }
     __pyx_L24:;
 
-    /* "MUSCython/AlignmentUtil.pyx":257
+    /* "MUSCython/AlignmentUtil.pyx":256
  *             currCount = y-nextY
  * 
  *         if currType == instructionType:             # <<<<<<<<<<<<<<
  *             instructionCount += currCount
  *         else:
  */
-    __pyx_t_21 = ((__pyx_v_currType == __pyx_v_instructionType) != 0);
-    if (__pyx_t_21) {
+    __pyx_t_27 = ((__pyx_v_currType == __pyx_v_instructionType) != 0);
+    if (__pyx_t_27) {
 
-      /* "MUSCython/AlignmentUtil.pyx":258
+      /* "MUSCython/AlignmentUtil.pyx":257
  * 
  *         if currType == instructionType:
  *             instructionCount += currCount             # <<<<<<<<<<<<<<
@@ -4058,16 +4395,16 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
     }
     /*else*/ {
 
-      /* "MUSCython/AlignmentUtil.pyx":260
+      /* "MUSCython/AlignmentUtil.pyx":259
  *             instructionCount += currCount
  *         else:
  *             cig.append((instructionCount, typeToCig[instructionType]))             # <<<<<<<<<<<<<<
  *             instructionCount = currCount
  *             instructionType = currType
  */
-      __pyx_t_4 = __Pyx_PyInt_From_unsigned_long(__pyx_v_instructionCount); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 260; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __pyx_t_4 = __Pyx_PyInt_From_unsigned_long(__pyx_v_instructionCount); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 259; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
       __Pyx_GOTREF(__pyx_t_4);
-      __pyx_t_6 = PyTuple_New(2); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 260; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __pyx_t_6 = PyTuple_New(2); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 259; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
       __Pyx_GOTREF(__pyx_t_6);
       PyTuple_SET_ITEM(__pyx_t_6, 0, __pyx_t_4);
       __Pyx_GIVEREF(__pyx_t_4);
@@ -4075,10 +4412,10 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
       PyTuple_SET_ITEM(__pyx_t_6, 1, PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
       __Pyx_GIVEREF(PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
       __pyx_t_4 = 0;
-      __pyx_t_67 = __Pyx_PyList_Append(__pyx_v_cig, __pyx_t_6); if (unlikely(__pyx_t_67 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 260; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __pyx_t_73 = __Pyx_PyList_Append(__pyx_v_cig, __pyx_t_6); if (unlikely(__pyx_t_73 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 259; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
 
-      /* "MUSCython/AlignmentUtil.pyx":261
+      /* "MUSCython/AlignmentUtil.pyx":260
  *         else:
  *             cig.append((instructionCount, typeToCig[instructionType]))
  *             instructionCount = currCount             # <<<<<<<<<<<<<<
@@ -4087,7 +4424,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
       __pyx_v_instructionCount = __pyx_v_currCount;
 
-      /* "MUSCython/AlignmentUtil.pyx":262
+      /* "MUSCython/AlignmentUtil.pyx":261
  *             cig.append((instructionCount, typeToCig[instructionType]))
  *             instructionCount = currCount
  *             instructionType = currType             # <<<<<<<<<<<<<<
@@ -4098,7 +4435,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
     }
     __pyx_L28:;
 
-    /* "MUSCython/AlignmentUtil.pyx":264
+    /* "MUSCython/AlignmentUtil.pyx":263
  *             instructionType = currType
  * 
  *         x = nextX             # <<<<<<<<<<<<<<
@@ -4107,7 +4444,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
  */
     __pyx_v_x = __pyx_v_nextX;
 
-    /* "MUSCython/AlignmentUtil.pyx":265
+    /* "MUSCython/AlignmentUtil.pyx":264
  * 
  *         x = nextX
  *         y = nextY             # <<<<<<<<<<<<<<
@@ -4117,16 +4454,16 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
     __pyx_v_y = __pyx_v_nextY;
   }
 
-  /* "MUSCython/AlignmentUtil.pyx":267
+  /* "MUSCython/AlignmentUtil.pyx":266
  *         y = nextY
  * 
  *     cig.append((instructionCount, typeToCig[instructionType]))             # <<<<<<<<<<<<<<
  *     cig.reverse()
  * 
  */
-  __pyx_t_6 = __Pyx_PyInt_From_unsigned_long(__pyx_v_instructionCount); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 267; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_6 = __Pyx_PyInt_From_unsigned_long(__pyx_v_instructionCount); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 266; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 267; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 266; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_4);
   PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_6);
   __Pyx_GIVEREF(__pyx_t_6);
@@ -4134,19 +4471,19 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   PyTuple_SET_ITEM(__pyx_t_4, 1, PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
   __Pyx_GIVEREF(PyList_GET_ITEM(__pyx_v_typeToCig, __pyx_v_instructionType));
   __pyx_t_6 = 0;
-  __pyx_t_67 = __Pyx_PyList_Append(__pyx_v_cig, __pyx_t_4); if (unlikely(__pyx_t_67 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 267; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_73 = __Pyx_PyList_Append(__pyx_v_cig, __pyx_t_4); if (unlikely(__pyx_t_73 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 266; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":268
+  /* "MUSCython/AlignmentUtil.pyx":267
  * 
  *     cig.append((instructionCount, typeToCig[instructionType]))
  *     cig.reverse()             # <<<<<<<<<<<<<<
  * 
  *     return cig
  */
-  __pyx_t_67 = PyList_Reverse(__pyx_v_cig); if (unlikely(__pyx_t_67 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 268; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_73 = PyList_Reverse(__pyx_v_cig); if (unlikely(__pyx_t_73 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 267; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
-  /* "MUSCython/AlignmentUtil.pyx":270
+  /* "MUSCython/AlignmentUtil.pyx":269
  *     cig.reverse()
  * 
  *     return cig             # <<<<<<<<<<<<<<
@@ -4158,7 +4495,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   __pyx_r = __pyx_v_cig;
   goto __pyx_L0;
 
-  /* "MUSCython/AlignmentUtil.pyx":132
+  /* "MUSCython/AlignmentUtil.pyx":129
  *     return cig
  * 
  * def fullAlign_noGO(bytes original, bytes modified):             # <<<<<<<<<<<<<<
@@ -4174,7 +4511,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   __Pyx_XDECREF(__pyx_t_5);
   __Pyx_XDECREF(__pyx_t_6);
   __PYX_XDEC_MEMVIEW(&__pyx_t_8, 1);
-  __PYX_XDEC_MEMVIEW(&__pyx_t_17, 1);
+  __PYX_XDEC_MEMVIEW(&__pyx_t_11, 1);
   { PyObject *__pyx_type, *__pyx_value, *__pyx_tb;
     __Pyx_ErrFetch(&__pyx_type, &__pyx_value, &__pyx_tb);
     __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_previousPos.rcbuffer->pybuffer);
@@ -4198,7 +4535,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_2fullAlign_noGO(CYTHON_UNUS
   return __pyx_r;
 }
 
-/* "MUSCython/AlignmentUtil.pyx":272
+/* "MUSCython/AlignmentUtil.pyx":271
  *     return cig
  * 
  * cpdef unsigned long alignChanges(bytes original, bytes modified):             # <<<<<<<<<<<<<<
@@ -4276,7 +4613,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
   __pyx_pybuffernd_scoreArray.data = NULL;
   __pyx_pybuffernd_scoreArray.rcbuffer = &__pyx_pybuffer_scoreArray;
 
-  /* "MUSCython/AlignmentUtil.pyx":283
+  /* "MUSCython/AlignmentUtil.pyx":282
  *     '''
  *     #scoring when we only care about the number of bases that don't match
  *     cdef unsigned long MATCH = 0             # <<<<<<<<<<<<<<
@@ -4285,7 +4622,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
  */
   __pyx_v_MATCH = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":284
+  /* "MUSCython/AlignmentUtil.pyx":283
  *     #scoring when we only care about the number of bases that don't match
  *     cdef unsigned long MATCH = 0
  *     cdef unsigned long MISMATCH = 1             # <<<<<<<<<<<<<<
@@ -4294,7 +4631,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
  */
   __pyx_v_MISMATCH = 1;
 
-  /* "MUSCython/AlignmentUtil.pyx":286
+  /* "MUSCython/AlignmentUtil.pyx":285
  *     cdef unsigned long MISMATCH = 1
  *     #cdef unsigned long GAP_OPEN = 0
  *     cdef unsigned long GAP_EXTEND = 1             # <<<<<<<<<<<<<<
@@ -4303,7 +4640,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
  */
   __pyx_v_GAP_EXTEND = 1;
 
-  /* "MUSCython/AlignmentUtil.pyx":289
+  /* "MUSCython/AlignmentUtil.pyx":288
  * 
  *     #get the string sizes
  *     cdef unsigned long oLen = len(original)             # <<<<<<<<<<<<<<
@@ -4312,12 +4649,12 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
  */
   if (unlikely(__pyx_v_original == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    {__pyx_filename = __pyx_f[0]; __pyx_lineno = 289; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    {__pyx_filename = __pyx_f[0]; __pyx_lineno = 288; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   }
-  __pyx_t_1 = PyBytes_GET_SIZE(__pyx_v_original); if (unlikely(__pyx_t_1 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 289; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = PyBytes_GET_SIZE(__pyx_v_original); if (unlikely(__pyx_t_1 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 288; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_oLen = __pyx_t_1;
 
-  /* "MUSCython/AlignmentUtil.pyx":290
+  /* "MUSCython/AlignmentUtil.pyx":289
  *     #get the string sizes
  *     cdef unsigned long oLen = len(original)
  *     cdef unsigned long mLen = len(modified)             # <<<<<<<<<<<<<<
@@ -4326,12 +4663,12 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
  */
   if (unlikely(__pyx_v_modified == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-    {__pyx_filename = __pyx_f[0]; __pyx_lineno = 290; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    {__pyx_filename = __pyx_f[0]; __pyx_lineno = 289; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   }
-  __pyx_t_1 = PyBytes_GET_SIZE(__pyx_v_modified); if (unlikely(__pyx_t_1 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 290; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = PyBytes_GET_SIZE(__pyx_v_modified); if (unlikely(__pyx_t_1 == -1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 289; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_mLen = __pyx_t_1;
 
-  /* "MUSCython/AlignmentUtil.pyx":292
+  /* "MUSCython/AlignmentUtil.pyx":291
  *     cdef unsigned long mLen = len(modified)
  * 
  *     if oLen != mLen:             # <<<<<<<<<<<<<<
@@ -4341,40 +4678,40 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
   __pyx_t_2 = ((__pyx_v_oLen != __pyx_v_mLen) != 0);
   if (__pyx_t_2) {
 
-    /* "MUSCython/AlignmentUtil.pyx":293
+    /* "MUSCython/AlignmentUtil.pyx":292
  * 
  *     if oLen != mLen:
  *         raise Exception("Indels not handled right now")             # <<<<<<<<<<<<<<
  * 
  *     #initialize the scores
  */
-    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_Exception, __pyx_tuple__4, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 293; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_Exception, __pyx_tuple__8, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 292; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    {__pyx_filename = __pyx_f[0]; __pyx_lineno = 293; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    {__pyx_filename = __pyx_f[0]; __pyx_lineno = 292; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   }
 
-  /* "MUSCython/AlignmentUtil.pyx":296
+  /* "MUSCython/AlignmentUtil.pyx":295
  * 
  *     #initialize the scores
  *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))             # <<<<<<<<<<<<<<
  *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
  *     scoreArray[:] = 0xFFFFFFFF
  */
-  __pyx_t_3 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_3 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_n_s_empty); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_n_s_empty); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_3 = PyDict_New(); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_3 = PyDict_New(); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_3);
-  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_dtype, __pyx_kp_s_u4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((__pyx_v_oLen + 1)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_dtype, __pyx_kp_s_u4) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_5 = __Pyx_PyInt_From_unsigned_long((__pyx_v_oLen + 1)); if (unlikely(!__pyx_t_5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_6 = __Pyx_PyInt_From_unsigned_long((__pyx_v_mLen + 1)); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_6 = __Pyx_PyInt_From_unsigned_long((__pyx_v_mLen + 1)); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_7 = PyTuple_New(2); if (unlikely(!__pyx_t_7)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_7 = PyTuple_New(2); if (unlikely(!__pyx_t_7)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_7);
   PyTuple_SET_ITEM(__pyx_t_7, 0, __pyx_t_5);
   __Pyx_GIVEREF(__pyx_t_5);
@@ -4382,19 +4719,19 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
   __Pyx_GIVEREF(__pyx_t_6);
   __pyx_t_5 = 0;
   __pyx_t_6 = 0;
-  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_shape, __pyx_t_7) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_shape, __pyx_t_7) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-  __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_4, __pyx_empty_tuple, __pyx_t_3); if (unlikely(!__pyx_t_7)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_4, __pyx_empty_tuple, __pyx_t_3); if (unlikely(!__pyx_t_7)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  if (!(likely(((__pyx_t_7) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_7, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (!(likely(((__pyx_t_7) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_7, __pyx_ptype_5numpy_ndarray))))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_t_8 = ((PyArrayObject *)__pyx_t_7);
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
     if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_scoreArray.rcbuffer->pybuffer, (PyObject*)__pyx_t_8, &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, PyBUF_FORMAT| PyBUF_C_CONTIGUOUS, 2, 0, __pyx_stack) == -1)) {
       __pyx_v_scoreArray = ((PyArrayObject *)Py_None); __Pyx_INCREF(Py_None); __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.buf = NULL;
-      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      {__pyx_filename = __pyx_f[0]; __pyx_lineno = 295; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     } else {__pyx_pybuffernd_scoreArray.diminfo[0].strides = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_scoreArray.diminfo[0].shape = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.shape[0]; __pyx_pybuffernd_scoreArray.diminfo[1].strides = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.strides[1]; __pyx_pybuffernd_scoreArray.diminfo[1].shape = __pyx_pybuffernd_scoreArray.rcbuffer->pybuffer.shape[1];
     }
   }
@@ -4402,7 +4739,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
   __pyx_v_scoreArray = ((PyArrayObject *)__pyx_t_7);
   __pyx_t_7 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":297
+  /* "MUSCython/AlignmentUtil.pyx":296
  *     #initialize the scores
  *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
  *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray             # <<<<<<<<<<<<<<
@@ -4410,21 +4747,21 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
  *     scoreArray_view[0, 0] = 0
  */
   __pyx_t_9 = __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint32_t(((PyObject *)__pyx_v_scoreArray));
-  if (unlikely(!__pyx_t_9.memview)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 297; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (unlikely(!__pyx_t_9.memview)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 296; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_scoreArray_view = __pyx_t_9;
   __pyx_t_9.memview = NULL;
   __pyx_t_9.data = NULL;
 
-  /* "MUSCython/AlignmentUtil.pyx":298
+  /* "MUSCython/AlignmentUtil.pyx":297
  *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
  *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
  *     scoreArray[:] = 0xFFFFFFFF             # <<<<<<<<<<<<<<
  *     scoreArray_view[0, 0] = 0
  * 
  */
-  if (__Pyx_PyObject_SetSlice(((PyObject *)__pyx_v_scoreArray), __pyx_int_4294967295, 0, 0, NULL, NULL, &__pyx_slice__5, 0, 0, 0) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 298; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (__Pyx_PyObject_SetSlice(((PyObject *)__pyx_v_scoreArray), __pyx_int_4294967295, 0, 0, NULL, NULL, &__pyx_slice__9, 0, 0, 0) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 297; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
-  /* "MUSCython/AlignmentUtil.pyx":299
+  /* "MUSCython/AlignmentUtil.pyx":298
  *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
  *     scoreArray[:] = 0xFFFFFFFF
  *     scoreArray_view[0, 0] = 0             # <<<<<<<<<<<<<<
@@ -4435,7 +4772,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
   __pyx_t_10 = 0;
   *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_1 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_10 * __pyx_v_scoreArray_view.strides[1]) )) = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":302
+  /* "MUSCython/AlignmentUtil.pyx":301
  * 
  *     cdef unsigned long x, y, z
  *     for x in range(1, oLen+1):             # <<<<<<<<<<<<<<
@@ -4446,7 +4783,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
   for (__pyx_t_12 = 1; __pyx_t_12 < __pyx_t_11; __pyx_t_12+=1) {
     __pyx_v_x = __pyx_t_12;
 
-    /* "MUSCython/AlignmentUtil.pyx":303
+    /* "MUSCython/AlignmentUtil.pyx":302
  *     cdef unsigned long x, y, z
  *     for x in range(1, oLen+1):
  *         scoreArray_view[x, 0] = x*GAP_EXTEND             # <<<<<<<<<<<<<<
@@ -4458,7 +4795,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
     *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_13 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_14 * __pyx_v_scoreArray_view.strides[1]) )) = (__pyx_v_x * __pyx_v_GAP_EXTEND);
   }
 
-  /* "MUSCython/AlignmentUtil.pyx":304
+  /* "MUSCython/AlignmentUtil.pyx":303
  *     for x in range(1, oLen+1):
  *         scoreArray_view[x, 0] = x*GAP_EXTEND
  *     for x in range(1, mLen+1):             # <<<<<<<<<<<<<<
@@ -4469,7 +4806,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
   for (__pyx_t_12 = 1; __pyx_t_12 < __pyx_t_11; __pyx_t_12+=1) {
     __pyx_v_x = __pyx_t_12;
 
-    /* "MUSCython/AlignmentUtil.pyx":305
+    /* "MUSCython/AlignmentUtil.pyx":304
  *         scoreArray_view[x, 0] = x*GAP_EXTEND
  *     for x in range(1, mLen+1):
  *         scoreArray_view[0, x] = x*GAP_EXTEND             # <<<<<<<<<<<<<<
@@ -4481,27 +4818,27 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
     *((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_15 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_16 * __pyx_v_scoreArray_view.strides[1]) )) = (__pyx_v_x * __pyx_v_GAP_EXTEND);
   }
 
-  /* "MUSCython/AlignmentUtil.pyx":307
+  /* "MUSCython/AlignmentUtil.pyx":306
  *         scoreArray_view[0, x] = x*GAP_EXTEND
  * 
  *     cdef char * original_view = original             # <<<<<<<<<<<<<<
  *     cdef char * modified_view = modified
  *     cdef unsigned long diagScore, jumpScore
  */
-  __pyx_t_17 = __Pyx_PyObject_AsString(__pyx_v_original); if (unlikely((!__pyx_t_17) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 307; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_17 = __Pyx_PyObject_AsString(__pyx_v_original); if (unlikely((!__pyx_t_17) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 306; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_original_view = __pyx_t_17;
 
-  /* "MUSCython/AlignmentUtil.pyx":308
+  /* "MUSCython/AlignmentUtil.pyx":307
  * 
  *     cdef char * original_view = original
  *     cdef char * modified_view = modified             # <<<<<<<<<<<<<<
  *     cdef unsigned long diagScore, jumpScore
  * 
  */
-  __pyx_t_17 = __Pyx_PyObject_AsString(__pyx_v_modified); if (unlikely((!__pyx_t_17) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 308; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_17 = __Pyx_PyObject_AsString(__pyx_v_modified); if (unlikely((!__pyx_t_17) && PyErr_Occurred())) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 307; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_v_modified_view = __pyx_t_17;
 
-  /* "MUSCython/AlignmentUtil.pyx":311
+  /* "MUSCython/AlignmentUtil.pyx":310
  *     cdef unsigned long diagScore, jumpScore
  * 
  *     for x in range(0, oLen):             # <<<<<<<<<<<<<<
@@ -4512,7 +4849,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
   for (__pyx_t_12 = 0; __pyx_t_12 < __pyx_t_11; __pyx_t_12+=1) {
     __pyx_v_x = __pyx_t_12;
 
-    /* "MUSCython/AlignmentUtil.pyx":312
+    /* "MUSCython/AlignmentUtil.pyx":311
  * 
  *     for x in range(0, oLen):
  *         for y in range(0, mLen):             # <<<<<<<<<<<<<<
@@ -4523,7 +4860,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
     for (__pyx_t_19 = 0; __pyx_t_19 < __pyx_t_18; __pyx_t_19+=1) {
       __pyx_v_y = __pyx_t_19;
 
-      /* "MUSCython/AlignmentUtil.pyx":314
+      /* "MUSCython/AlignmentUtil.pyx":313
  *         for y in range(0, mLen):
  *             #first, handle the diagonal
  *             if original_view[x] == modified_view[y]:             # <<<<<<<<<<<<<<
@@ -4533,7 +4870,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
       __pyx_t_2 = (((__pyx_v_original_view[__pyx_v_x]) == (__pyx_v_modified_view[__pyx_v_y])) != 0);
       if (__pyx_t_2) {
 
-        /* "MUSCython/AlignmentUtil.pyx":315
+        /* "MUSCython/AlignmentUtil.pyx":314
  *             #first, handle the diagonal
  *             if original_view[x] == modified_view[y]:
  *                 diagScore = scoreArray_view[x, y]+MATCH             # <<<<<<<<<<<<<<
@@ -4547,7 +4884,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
       }
       /*else*/ {
 
-        /* "MUSCython/AlignmentUtil.pyx":317
+        /* "MUSCython/AlignmentUtil.pyx":316
  *                 diagScore = scoreArray_view[x, y]+MATCH
  *             else:
  *                 diagScore = scoreArray_view[x, y]+MISMATCH             # <<<<<<<<<<<<<<
@@ -4560,7 +4897,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
       }
       __pyx_L12:;
 
-      /* "MUSCython/AlignmentUtil.pyx":320
+      /* "MUSCython/AlignmentUtil.pyx":319
  * 
  *             #now see if that's better
  *             if scoreArray_view[x+1, y+1] > diagScore:             # <<<<<<<<<<<<<<
@@ -4572,7 +4909,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
       __pyx_t_2 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_24 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_25 * __pyx_v_scoreArray_view.strides[1]) ))) > __pyx_v_diagScore) != 0);
       if (__pyx_t_2) {
 
-        /* "MUSCython/AlignmentUtil.pyx":321
+        /* "MUSCython/AlignmentUtil.pyx":320
  *             #now see if that's better
  *             if scoreArray_view[x+1, y+1] > diagScore:
  *                 scoreArray_view[x+1, y+1] = diagScore             # <<<<<<<<<<<<<<
@@ -4586,7 +4923,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
       }
       __pyx_L13:;
 
-      /* "MUSCython/AlignmentUtil.pyx":324
+      /* "MUSCython/AlignmentUtil.pyx":323
  * 
  *             #deletions to the original
  *             if scoreArray_view[x+1, y] > scoreArray_view[x, y]+GAP_EXTEND:             # <<<<<<<<<<<<<<
@@ -4600,7 +4937,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
       __pyx_t_2 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_28 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_29 * __pyx_v_scoreArray_view.strides[1]) ))) > ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_30 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_31 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_GAP_EXTEND)) != 0);
       if (__pyx_t_2) {
 
-        /* "MUSCython/AlignmentUtil.pyx":325
+        /* "MUSCython/AlignmentUtil.pyx":324
  *             #deletions to the original
  *             if scoreArray_view[x+1, y] > scoreArray_view[x, y]+GAP_EXTEND:
  *                 scoreArray_view[x+1, y] = scoreArray_view[x, y]+GAP_EXTEND             # <<<<<<<<<<<<<<
@@ -4616,7 +4953,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
       }
       __pyx_L14:;
 
-      /* "MUSCython/AlignmentUtil.pyx":328
+      /* "MUSCython/AlignmentUtil.pyx":327
  * 
  *             #insertions to the original
  *             if scoreArray_view[x, y+1] > scoreArray_view[x, y]+GAP_EXTEND:             # <<<<<<<<<<<<<<
@@ -4630,7 +4967,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
       __pyx_t_2 = (((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_36 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_37 * __pyx_v_scoreArray_view.strides[1]) ))) > ((*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_38 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_39 * __pyx_v_scoreArray_view.strides[1]) ))) + __pyx_v_GAP_EXTEND)) != 0);
       if (__pyx_t_2) {
 
-        /* "MUSCython/AlignmentUtil.pyx":329
+        /* "MUSCython/AlignmentUtil.pyx":328
  *             #insertions to the original
  *             if scoreArray_view[x, y+1] > scoreArray_view[x, y]+GAP_EXTEND:
  *                 scoreArray_view[x, y+1] = scoreArray_view[x, y]+GAP_EXTEND             # <<<<<<<<<<<<<<
@@ -4648,7 +4985,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
     }
   }
 
-  /* "MUSCython/AlignmentUtil.pyx":348
+  /* "MUSCython/AlignmentUtil.pyx":347
  * 
  *     #just return the final number
  *     return scoreArray_view[oLen, mLen]             # <<<<<<<<<<<<<<
@@ -4658,7 +4995,7 @@ static unsigned long __pyx_f_9MUSCython_13AlignmentUtil_alignChanges(PyObject *_
   __pyx_r = (*((__pyx_t_5numpy_uint32_t *) ( /* dim=1 */ (( /* dim=0 */ (__pyx_v_scoreArray_view.data + __pyx_t_11 * __pyx_v_scoreArray_view.strides[0]) ) + __pyx_t_12 * __pyx_v_scoreArray_view.strides[1]) )));
   goto __pyx_L0;
 
-  /* "MUSCython/AlignmentUtil.pyx":272
+  /* "MUSCython/AlignmentUtil.pyx":271
  *     return cig
  * 
  * cpdef unsigned long alignChanges(bytes original, bytes modified):             # <<<<<<<<<<<<<<
@@ -4722,11 +5059,11 @@ static PyObject *__pyx_pw_9MUSCython_13AlignmentUtil_5alignChanges(PyObject *__p
         case  1:
         if (likely((values[1] = PyDict_GetItem(__pyx_kwds, __pyx_n_s_modified)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("alignChanges", 1, 2, 2, 1); {__pyx_filename = __pyx_f[0]; __pyx_lineno = 272; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
+          __Pyx_RaiseArgtupleInvalid("alignChanges", 1, 2, 2, 1); {__pyx_filename = __pyx_f[0]; __pyx_lineno = 271; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "alignChanges") < 0)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 272; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "alignChanges") < 0)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 271; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
       }
     } else if (PyTuple_GET_SIZE(__pyx_args) != 2) {
       goto __pyx_L5_argtuple_error;
@@ -4739,14 +5076,14 @@ static PyObject *__pyx_pw_9MUSCython_13AlignmentUtil_5alignChanges(PyObject *__p
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("alignChanges", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); {__pyx_filename = __pyx_f[0]; __pyx_lineno = 272; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
+  __Pyx_RaiseArgtupleInvalid("alignChanges", 1, 2, 2, PyTuple_GET_SIZE(__pyx_args)); {__pyx_filename = __pyx_f[0]; __pyx_lineno = 271; __pyx_clineno = __LINE__; goto __pyx_L3_error;}
   __pyx_L3_error:;
   __Pyx_AddTraceback("MUSCython.AlignmentUtil.alignChanges", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_original), (&PyBytes_Type), 1, "original", 1))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 272; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_modified), (&PyBytes_Type), 1, "modified", 1))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 272; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_original), (&PyBytes_Type), 1, "original", 1))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 271; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_modified), (&PyBytes_Type), 1, "modified", 1))) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 271; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_r = __pyx_pf_9MUSCython_13AlignmentUtil_4alignChanges(__pyx_self, __pyx_v_original, __pyx_v_modified);
 
   /* function exit code */
@@ -4767,7 +5104,7 @@ static PyObject *__pyx_pf_9MUSCython_13AlignmentUtil_4alignChanges(CYTHON_UNUSED
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("alignChanges", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyInt_From_unsigned_long(__pyx_f_9MUSCython_13AlignmentUtil_alignChanges(__pyx_v_original, __pyx_v_modified, 0)); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 272; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = __Pyx_PyInt_From_unsigned_long(__pyx_f_9MUSCython_13AlignmentUtil_alignChanges(__pyx_v_original, __pyx_v_modified, 0)); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 271; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -4940,7 +5277,7 @@ static int __pyx_pf_5numpy_7ndarray___getbuffer__(PyArrayObject *__pyx_v_self, P
  * 
  *             if ((flags & pybuf.PyBUF_F_CONTIGUOUS == pybuf.PyBUF_F_CONTIGUOUS)
  */
-    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__6, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 215; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__10, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 215; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -4980,7 +5317,7 @@ static int __pyx_pf_5numpy_7ndarray___getbuffer__(PyArrayObject *__pyx_v_self, P
  * 
  *             info.buf = PyArray_DATA(self)
  */
-    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__7, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 219; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__11, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 219; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -5257,7 +5594,7 @@ static int __pyx_pf_5numpy_7ndarray___getbuffer__(PyArrayObject *__pyx_v_self, P
  *                 if   t == NPY_BYTE:        f = "b"
  *                 elif t == NPY_UBYTE:       f = "B"
  */
-      __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__8, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 257; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__12, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 257; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_Raise(__pyx_t_3, 0, 0, 0);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -6065,7 +6402,7 @@ static CYTHON_INLINE char *__pyx_f_5numpy__util_dtypestring(PyArray_Descr *__pyx
  * 
  *         if ((child.byteorder == c'>' and little_endian) or
  */
-      __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_RuntimeError, __pyx_tuple__9, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 799; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_RuntimeError, __pyx_tuple__13, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 799; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_Raise(__pyx_t_3, 0, 0, 0);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -6117,7 +6454,7 @@ static CYTHON_INLINE char *__pyx_f_5numpy__util_dtypestring(PyArray_Descr *__pyx
  *             # One could encode it in the format string and have Cython
  *             # complain instead, BUT: < and > in format strings also imply
  */
-      __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__10, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 803; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__14, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 803; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_Raise(__pyx_t_3, 0, 0, 0);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -6218,7 +6555,7 @@ static CYTHON_INLINE char *__pyx_f_5numpy__util_dtypestring(PyArray_Descr *__pyx
  * 
  *             # Until ticket #99 is fixed, use integers to avoid warnings
  */
-        __pyx_t_4 = __Pyx_PyObject_Call(__pyx_builtin_RuntimeError, __pyx_tuple__11, NULL); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 823; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __pyx_t_4 = __Pyx_PyObject_Call(__pyx_builtin_RuntimeError, __pyx_tuple__15, NULL); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 823; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
         __Pyx_GOTREF(__pyx_t_4);
         __Pyx_Raise(__pyx_t_4, 0, 0, 0);
         __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
@@ -6973,7 +7310,7 @@ static int __pyx_array_MemoryView_5array___cinit__(struct __pyx_array_obj *__pyx
  * 
  *         if itemsize <= 0:
  */
-    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__12, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 127; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__16, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 127; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -6997,7 +7334,7 @@ static int __pyx_array_MemoryView_5array___cinit__(struct __pyx_array_obj *__pyx
  * 
  *         if isinstance(format, unicode):
  */
-    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__13, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 130; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__17, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 130; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -7095,7 +7432,7 @@ static int __pyx_array_MemoryView_5array___cinit__(struct __pyx_array_obj *__pyx
  * 
  * 
  */
-    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_MemoryError, __pyx_tuple__14, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 142; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_MemoryError, __pyx_tuple__18, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 142; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -7346,7 +7683,7 @@ static int __pyx_array_MemoryView_5array___cinit__(struct __pyx_array_obj *__pyx
  * 
  *             if self.dtype_is_object:
  */
-      __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_MemoryError, __pyx_tuple__15, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 170; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_MemoryError, __pyx_tuple__19, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 170; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_Raise(__pyx_t_3, 0, 0, 0);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -7564,7 +7901,7 @@ static int __pyx_array_getbuffer_MemoryView_5array_2__getbuffer__(struct __pyx_a
  *         info.buf = self.data
  *         info.len = self.len
  */
-    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__16, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 186; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __pyx_t_3 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__20, NULL); if (unlikely(!__pyx_t_3)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 186; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -10157,7 +10494,7 @@ static PyObject *__pyx_memoryview_convert_item_to_object(struct __pyx_memoryview
  *         else:
  *             if len(self.view.format) == 1:
  */
-      __pyx_t_6 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__17, NULL); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 445; __pyx_clineno = __LINE__; goto __pyx_L5_except_error;}
+      __pyx_t_6 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__21, NULL); if (unlikely(!__pyx_t_6)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 445; __pyx_clineno = __LINE__; goto __pyx_L5_except_error;}
       __Pyx_GOTREF(__pyx_t_6);
       __Pyx_Raise(__pyx_t_6, 0, 0, 0);
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
@@ -10936,7 +11273,7 @@ static PyObject *__pyx_memoryview_get_strides_MemoryView_10memoryview_7strides__
  * 
  *             return tuple([self.view.strides[i] for i in xrange(self.view.ndim)])
  */
-    __pyx_t_2 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__18, NULL); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 521; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+    __pyx_t_2 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__22, NULL); if (unlikely(!__pyx_t_2)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 521; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
     __Pyx_GOTREF(__pyx_t_2);
     __Pyx_Raise(__pyx_t_2, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
@@ -12399,9 +12736,9 @@ static PyObject *_unellipsify(PyObject *__pyx_v_index, int __pyx_v_ndim) {
         __Pyx_GOTREF(__pyx_t_7);
         { Py_ssize_t __pyx_temp;
           for (__pyx_temp=0; __pyx_temp < ((__pyx_v_ndim - __pyx_t_8) + 1); __pyx_temp++) {
-            __Pyx_INCREF(__pyx_slice__19);
-            PyList_SET_ITEM(__pyx_t_7, __pyx_temp, __pyx_slice__19);
-            __Pyx_GIVEREF(__pyx_slice__19);
+            __Pyx_INCREF(__pyx_slice__23);
+            PyList_SET_ITEM(__pyx_t_7, __pyx_temp, __pyx_slice__23);
+            __Pyx_GIVEREF(__pyx_slice__23);
           }
         }
         __pyx_t_9 = __Pyx_PyList_Extend(__pyx_v_result, __pyx_t_7); if (unlikely(__pyx_t_9 == -1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 638; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -12426,7 +12763,7 @@ static PyObject *_unellipsify(PyObject *__pyx_v_index, int __pyx_v_ndim) {
  *             have_slices = True
  *         else:
  */
-        __pyx_t_9 = __Pyx_PyList_Append(__pyx_v_result, __pyx_slice__20); if (unlikely(__pyx_t_9 == -1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 641; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+        __pyx_t_9 = __Pyx_PyList_Append(__pyx_v_result, __pyx_slice__24); if (unlikely(__pyx_t_9 == -1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 641; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
       }
       __pyx_L7:;
 
@@ -12555,9 +12892,9 @@ static PyObject *_unellipsify(PyObject *__pyx_v_index, int __pyx_v_ndim) {
     __Pyx_GOTREF(__pyx_t_3);
     { Py_ssize_t __pyx_temp;
       for (__pyx_temp=0; __pyx_temp < __pyx_v_nslices; __pyx_temp++) {
-        __Pyx_INCREF(__pyx_slice__21);
-        PyList_SET_ITEM(__pyx_t_3, __pyx_temp, __pyx_slice__21);
-        __Pyx_GIVEREF(__pyx_slice__21);
+        __Pyx_INCREF(__pyx_slice__25);
+        PyList_SET_ITEM(__pyx_t_3, __pyx_temp, __pyx_slice__25);
+        __Pyx_GIVEREF(__pyx_slice__25);
       }
     }
     __pyx_t_9 = __Pyx_PyList_Extend(__pyx_v_result, __pyx_t_3); if (unlikely(__pyx_t_9 == -1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 652; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
@@ -12676,7 +13013,7 @@ static PyObject *assert_direct_dimensions(Py_ssize_t *__pyx_v_suboffsets, int __
  * 
  * 
  */
-      __pyx_t_4 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__22, NULL); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 660; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+      __pyx_t_4 = __Pyx_PyObject_Call(__pyx_builtin_ValueError, __pyx_tuple__26, NULL); if (unlikely(!__pyx_t_4)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 660; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_Raise(__pyx_t_4, 0, 0, 0);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
@@ -18131,11 +18468,13 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_s_Users_Matt_Documents_workspace, __pyx_k_Users_Matt_Documents_workspace, sizeof(__pyx_k_Users_Matt_Documents_workspace), 0, 0, 1, 0},
   {&__pyx_n_s_ValueError, __pyx_k_ValueError, sizeof(__pyx_k_ValueError), 0, 0, 1, 1},
   {&__pyx_n_s_X, __pyx_k_X, sizeof(__pyx_k_X), 0, 0, 1, 1},
-  {&__pyx_kp_s__2, __pyx_k__2, sizeof(__pyx_k__2), 0, 0, 1, 0},
+  {&__pyx_kp_s__6, __pyx_k__6, sizeof(__pyx_k__6), 0, 0, 1, 0},
   {&__pyx_n_s_allocate_buffer, __pyx_k_allocate_buffer, sizeof(__pyx_k_allocate_buffer), 0, 0, 1, 1},
+  {&__pyx_n_s_argmin, __pyx_k_argmin, sizeof(__pyx_k_argmin), 0, 0, 1, 1},
   {&__pyx_n_s_base, __pyx_k_base, sizeof(__pyx_k_base), 0, 0, 1, 1},
   {&__pyx_n_s_c, __pyx_k_c, sizeof(__pyx_k_c), 0, 0, 1, 1},
   {&__pyx_n_u_c, __pyx_k_c, sizeof(__pyx_k_c), 0, 1, 0, 1},
+  {&__pyx_n_s_choice, __pyx_k_choice, sizeof(__pyx_k_choice), 0, 0, 1, 1},
   {&__pyx_n_s_cig, __pyx_k_cig, sizeof(__pyx_k_cig), 0, 0, 1, 1},
   {&__pyx_n_s_class, __pyx_k_class, sizeof(__pyx_k_class), 0, 0, 1, 1},
   {&__pyx_kp_s_contiguous_and_direct, __pyx_k_contiguous_and_direct, sizeof(__pyx_k_contiguous_and_direct), 0, 0, 1, 0},
@@ -18170,6 +18509,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_modified_view, __pyx_k_modified_view, sizeof(__pyx_k_modified_view), 0, 0, 1, 1},
   {&__pyx_n_s_name, __pyx_k_name, sizeof(__pyx_k_name), 0, 0, 1, 1},
   {&__pyx_n_s_name_2, __pyx_k_name_2, sizeof(__pyx_k_name_2), 0, 0, 1, 1},
+  {&__pyx_n_s_nc, __pyx_k_nc, sizeof(__pyx_k_nc), 0, 0, 1, 1},
   {&__pyx_kp_u_ndarray_is_not_C_contiguous, __pyx_k_ndarray_is_not_C_contiguous, sizeof(__pyx_k_ndarray_is_not_C_contiguous), 0, 1, 0, 0},
   {&__pyx_kp_u_ndarray_is_not_Fortran_contiguou, __pyx_k_ndarray_is_not_Fortran_contiguou, sizeof(__pyx_k_ndarray_is_not_Fortran_contiguou), 0, 1, 0, 0},
   {&__pyx_n_s_ndim, __pyx_k_ndim, sizeof(__pyx_k_ndim), 0, 0, 1, 1},
@@ -18190,6 +18530,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_range, __pyx_k_range, sizeof(__pyx_k_range), 0, 0, 1, 1},
   {&__pyx_n_s_scoreArray, __pyx_k_scoreArray, sizeof(__pyx_k_scoreArray), 0, 0, 1, 1},
   {&__pyx_n_s_scoreArray_view, __pyx_k_scoreArray_view, sizeof(__pyx_k_scoreArray_view), 0, 0, 1, 1},
+  {&__pyx_n_s_scores, __pyx_k_scores, sizeof(__pyx_k_scores), 0, 0, 1, 1},
   {&__pyx_n_s_shape, __pyx_k_shape, sizeof(__pyx_k_shape), 0, 0, 1, 1},
   {&__pyx_n_s_size, __pyx_k_size, sizeof(__pyx_k_size), 0, 0, 1, 1},
   {&__pyx_n_s_start, __pyx_k_start, sizeof(__pyx_k_start), 0, 0, 1, 1},
@@ -18201,6 +18542,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_struct, __pyx_k_struct, sizeof(__pyx_k_struct), 0, 0, 1, 1},
   {&__pyx_n_s_test, __pyx_k_test, sizeof(__pyx_k_test), 0, 0, 1, 1},
   {&__pyx_n_s_typeToCig, __pyx_k_typeToCig, sizeof(__pyx_k_typeToCig), 0, 0, 1, 1},
+  {&__pyx_kp_s_u1, __pyx_k_u1, sizeof(__pyx_k_u1), 0, 0, 1, 0},
   {&__pyx_kp_s_u4, __pyx_k_u4, sizeof(__pyx_k_u4), 0, 0, 1, 0},
   {&__pyx_kp_s_unable_to_allocate_array_data, __pyx_k_unable_to_allocate_array_data, sizeof(__pyx_k_unable_to_allocate_array_data), 0, 0, 1, 0},
   {&__pyx_kp_s_unable_to_allocate_shape_and_str, __pyx_k_unable_to_allocate_shape_and_str, sizeof(__pyx_k_unable_to_allocate_shape_and_str), 0, 0, 1, 0},
@@ -18214,19 +18556,19 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {0, 0, 0, 0, 0, 0, 0}
 };
 static int __Pyx_InitCachedBuiltins(void) {
-  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 31; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  #if PY_MAJOR_VERSION >= 3
-  __pyx_builtin_xrange = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_xrange) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 60; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  #else
-  __pyx_builtin_xrange = __Pyx_GetBuiltinName(__pyx_n_s_xrange); if (!__pyx_builtin_xrange) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 60; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  #endif
-  __pyx_builtin_Exception = __Pyx_GetBuiltinName(__pyx_n_s_Exception); if (!__pyx_builtin_Exception) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 293; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 40; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_builtin_Exception = __Pyx_GetBuiltinName(__pyx_n_s_Exception); if (!__pyx_builtin_Exception) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 292; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_ValueError = __Pyx_GetBuiltinName(__pyx_n_s_ValueError); if (!__pyx_builtin_ValueError) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 215; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_RuntimeError = __Pyx_GetBuiltinName(__pyx_n_s_RuntimeError); if (!__pyx_builtin_RuntimeError) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 799; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_MemoryError = __Pyx_GetBuiltinName(__pyx_n_s_MemoryError); if (!__pyx_builtin_MemoryError) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 142; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_enumerate = __Pyx_GetBuiltinName(__pyx_n_s_enumerate); if (!__pyx_builtin_enumerate) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 145; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_Ellipsis = __Pyx_GetBuiltinName(__pyx_n_s_Ellipsis); if (!__pyx_builtin_Ellipsis) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 357; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_TypeError = __Pyx_GetBuiltinName(__pyx_n_s_TypeError); if (!__pyx_builtin_TypeError) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 386; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  #if PY_MAJOR_VERSION >= 3
+  __pyx_builtin_xrange = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_xrange) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 514; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  #else
+  __pyx_builtin_xrange = __Pyx_GetBuiltinName(__pyx_n_s_xrange); if (!__pyx_builtin_xrange) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 514; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  #endif
   __pyx_builtin_id = __Pyx_GetBuiltinName(__pyx_n_s_id); if (!__pyx_builtin_id) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 569; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_builtin_IndexError = __Pyx_GetBuiltinName(__pyx_n_s_IndexError); if (!__pyx_builtin_IndexError) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 789; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   return 0;
@@ -18238,49 +18580,93 @@ static int __Pyx_InitCachedConstants(void) {
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__Pyx_InitCachedConstants", 0);
 
-  /* "MUSCython/AlignmentUtil.pyx":27
- *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
- *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
- *     scoreArray[:] = 0xFFFFFFFF             # <<<<<<<<<<<<<<
- *     scoreArray_view[0, 0] = 0
+  /* "MUSCython/AlignmentUtil.pyx":32
+ *     cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1, 3))
+ *     cdef np.uint32_t [:, :, :] scoreArray_view = scoreArray
+ *     scoreArray[:] = 0x7FFFFFFF             # <<<<<<<<<<<<<<
+ *     scoreArray_view[0, 0, :] = 0
  * 
  */
-  __pyx_slice_ = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice_)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 27; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_slice_ = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice_)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 32; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_slice_);
   __Pyx_GIVEREF(__pyx_slice_);
 
-  /* "MUSCython/AlignmentUtil.pyx":150
+  /* "MUSCython/AlignmentUtil.pyx":51
+ *     cdef unsigned long diagScore, jumpScore
+ * 
+ *     cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] scores = np.zeros(dtype='<u4', shape=(3, ))             # <<<<<<<<<<<<<<
+ *     cdef unsigned long choice, nc
+ * 
+ */
+  __pyx_tuple__2 = PyTuple_Pack(1, __pyx_int_3); if (unlikely(!__pyx_tuple__2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 51; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__2);
+  __Pyx_GIVEREF(__pyx_tuple__2);
+
+  /* "MUSCython/AlignmentUtil.pyx":61
+ *             else:
+ *                 diagScore = MISMATCH
+ *             scores[:] = scoreArray_view[x-1, y-1, :]             # <<<<<<<<<<<<<<
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 0] = diagScore+scores[choice]
+ */
+  __pyx_slice__3 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 61; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_slice__3);
+  __Pyx_GIVEREF(__pyx_slice__3);
+
+  /* "MUSCython/AlignmentUtil.pyx":67
+ * 
+ *             #the "X" matrix
+ *             scores[:] = (scoreArray_view[x-1, y, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x-1, y, 1]+GAP_EXTEND, scoreArray_view[x-1, y, 2]+GAP_OPEN+GAP_EXTEND)             # <<<<<<<<<<<<<<
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 1] = scores[choice]
+ */
+  __pyx_slice__4 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 67; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_slice__4);
+  __Pyx_GIVEREF(__pyx_slice__4);
+
+  /* "MUSCython/AlignmentUtil.pyx":73
+ * 
+ *             #the "Y" matrix
+ *             scores[:] = (scoreArray_view[x, y-1, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 1]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 2]+GAP_EXTEND)             # <<<<<<<<<<<<<<
+ *             choice = np.argmin(scores)
+ *             scoreArray_view[x, y, 2] = scores[choice]
+ */
+  __pyx_slice__5 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 73; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_slice__5);
+  __Pyx_GIVEREF(__pyx_slice__5);
+
+  /* "MUSCython/AlignmentUtil.pyx":147
  *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
  *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
  *     scoreArray[:] = 0xFFFFFFFF             # <<<<<<<<<<<<<<
  *     scoreArray_view[0, 0] = 0
  * 
  */
-  __pyx_slice__3 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 150; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_slice__3);
-  __Pyx_GIVEREF(__pyx_slice__3);
+  __pyx_slice__7 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__7)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 147; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_slice__7);
+  __Pyx_GIVEREF(__pyx_slice__7);
 
-  /* "MUSCython/AlignmentUtil.pyx":293
+  /* "MUSCython/AlignmentUtil.pyx":292
  * 
  *     if oLen != mLen:
  *         raise Exception("Indels not handled right now")             # <<<<<<<<<<<<<<
  * 
  *     #initialize the scores
  */
-  __pyx_tuple__4 = PyTuple_Pack(1, __pyx_kp_s_Indels_not_handled_right_now); if (unlikely(!__pyx_tuple__4)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 293; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__4);
-  __Pyx_GIVEREF(__pyx_tuple__4);
+  __pyx_tuple__8 = PyTuple_Pack(1, __pyx_kp_s_Indels_not_handled_right_now); if (unlikely(!__pyx_tuple__8)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 292; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__8);
+  __Pyx_GIVEREF(__pyx_tuple__8);
 
-  /* "MUSCython/AlignmentUtil.pyx":298
+  /* "MUSCython/AlignmentUtil.pyx":297
  *     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
  *     cdef np.uint32_t [:, :] scoreArray_view = scoreArray
  *     scoreArray[:] = 0xFFFFFFFF             # <<<<<<<<<<<<<<
  *     scoreArray_view[0, 0] = 0
  * 
  */
-  __pyx_slice__5 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__5)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 298; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_slice__5);
-  __Pyx_GIVEREF(__pyx_slice__5);
+  __pyx_slice__9 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__9)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 297; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_slice__9);
+  __Pyx_GIVEREF(__pyx_slice__9);
 
   /* "../../../../../Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/Cython-0.20.1-py2.7-macosx-10.6-x86_64.egg/Cython/Includes/numpy/__init__.pxd":215
  *             if ((flags & pybuf.PyBUF_C_CONTIGUOUS == pybuf.PyBUF_C_CONTIGUOUS)
@@ -18289,9 +18675,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  *             if ((flags & pybuf.PyBUF_F_CONTIGUOUS == pybuf.PyBUF_F_CONTIGUOUS)
  */
-  __pyx_tuple__6 = PyTuple_Pack(1, __pyx_kp_u_ndarray_is_not_C_contiguous); if (unlikely(!__pyx_tuple__6)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 215; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__6);
-  __Pyx_GIVEREF(__pyx_tuple__6);
+  __pyx_tuple__10 = PyTuple_Pack(1, __pyx_kp_u_ndarray_is_not_C_contiguous); if (unlikely(!__pyx_tuple__10)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 215; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__10);
+  __Pyx_GIVEREF(__pyx_tuple__10);
 
   /* "../../../../../Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/Cython-0.20.1-py2.7-macosx-10.6-x86_64.egg/Cython/Includes/numpy/__init__.pxd":219
  *             if ((flags & pybuf.PyBUF_F_CONTIGUOUS == pybuf.PyBUF_F_CONTIGUOUS)
@@ -18300,9 +18686,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  *             info.buf = PyArray_DATA(self)
  */
-  __pyx_tuple__7 = PyTuple_Pack(1, __pyx_kp_u_ndarray_is_not_Fortran_contiguou); if (unlikely(!__pyx_tuple__7)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 219; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__7);
-  __Pyx_GIVEREF(__pyx_tuple__7);
+  __pyx_tuple__11 = PyTuple_Pack(1, __pyx_kp_u_ndarray_is_not_Fortran_contiguou); if (unlikely(!__pyx_tuple__11)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 219; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__11);
+  __Pyx_GIVEREF(__pyx_tuple__11);
 
   /* "../../../../../Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/Cython-0.20.1-py2.7-macosx-10.6-x86_64.egg/Cython/Includes/numpy/__init__.pxd":257
  *                 if ((descr.byteorder == c'>' and little_endian) or
@@ -18311,9 +18697,9 @@ static int __Pyx_InitCachedConstants(void) {
  *                 if   t == NPY_BYTE:        f = "b"
  *                 elif t == NPY_UBYTE:       f = "B"
  */
-  __pyx_tuple__8 = PyTuple_Pack(1, __pyx_kp_u_Non_native_byte_order_not_suppor); if (unlikely(!__pyx_tuple__8)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 257; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__8);
-  __Pyx_GIVEREF(__pyx_tuple__8);
+  __pyx_tuple__12 = PyTuple_Pack(1, __pyx_kp_u_Non_native_byte_order_not_suppor); if (unlikely(!__pyx_tuple__12)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 257; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__12);
+  __Pyx_GIVEREF(__pyx_tuple__12);
 
   /* "../../../../../Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/Cython-0.20.1-py2.7-macosx-10.6-x86_64.egg/Cython/Includes/numpy/__init__.pxd":799
  * 
@@ -18322,9 +18708,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  *         if ((child.byteorder == c'>' and little_endian) or
  */
-  __pyx_tuple__9 = PyTuple_Pack(1, __pyx_kp_u_Format_string_allocated_too_shor); if (unlikely(!__pyx_tuple__9)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 799; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__9);
-  __Pyx_GIVEREF(__pyx_tuple__9);
+  __pyx_tuple__13 = PyTuple_Pack(1, __pyx_kp_u_Format_string_allocated_too_shor); if (unlikely(!__pyx_tuple__13)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 799; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__13);
+  __Pyx_GIVEREF(__pyx_tuple__13);
 
   /* "../../../../../Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/Cython-0.20.1-py2.7-macosx-10.6-x86_64.egg/Cython/Includes/numpy/__init__.pxd":803
  *         if ((child.byteorder == c'>' and little_endian) or
@@ -18333,9 +18719,9 @@ static int __Pyx_InitCachedConstants(void) {
  *             # One could encode it in the format string and have Cython
  *             # complain instead, BUT: < and > in format strings also imply
  */
-  __pyx_tuple__10 = PyTuple_Pack(1, __pyx_kp_u_Non_native_byte_order_not_suppor); if (unlikely(!__pyx_tuple__10)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 803; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__10);
-  __Pyx_GIVEREF(__pyx_tuple__10);
+  __pyx_tuple__14 = PyTuple_Pack(1, __pyx_kp_u_Non_native_byte_order_not_suppor); if (unlikely(!__pyx_tuple__14)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 803; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__14);
+  __Pyx_GIVEREF(__pyx_tuple__14);
 
   /* "../../../../../Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages/Cython-0.20.1-py2.7-macosx-10.6-x86_64.egg/Cython/Includes/numpy/__init__.pxd":823
  *             t = child.type_num
@@ -18344,9 +18730,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  *             # Until ticket #99 is fixed, use integers to avoid warnings
  */
-  __pyx_tuple__11 = PyTuple_Pack(1, __pyx_kp_u_Format_string_allocated_too_shor_2); if (unlikely(!__pyx_tuple__11)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 823; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__11);
-  __Pyx_GIVEREF(__pyx_tuple__11);
+  __pyx_tuple__15 = PyTuple_Pack(1, __pyx_kp_u_Format_string_allocated_too_shor_2); if (unlikely(!__pyx_tuple__15)) {__pyx_filename = __pyx_f[1]; __pyx_lineno = 823; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__15);
+  __Pyx_GIVEREF(__pyx_tuple__15);
 
   /* "View.MemoryView":127
  * 
@@ -18355,9 +18741,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  *         if itemsize <= 0:
  */
-  __pyx_tuple__12 = PyTuple_Pack(1, __pyx_kp_s_Empty_shape_tuple_for_cython_arr); if (unlikely(!__pyx_tuple__12)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 127; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__12);
-  __Pyx_GIVEREF(__pyx_tuple__12);
+  __pyx_tuple__16 = PyTuple_Pack(1, __pyx_kp_s_Empty_shape_tuple_for_cython_arr); if (unlikely(!__pyx_tuple__16)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 127; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__16);
+  __Pyx_GIVEREF(__pyx_tuple__16);
 
   /* "View.MemoryView":130
  * 
@@ -18366,9 +18752,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  *         if isinstance(format, unicode):
  */
-  __pyx_tuple__13 = PyTuple_Pack(1, __pyx_kp_s_itemsize_0_for_cython_array); if (unlikely(!__pyx_tuple__13)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 130; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__13);
-  __Pyx_GIVEREF(__pyx_tuple__13);
+  __pyx_tuple__17 = PyTuple_Pack(1, __pyx_kp_s_itemsize_0_for_cython_array); if (unlikely(!__pyx_tuple__17)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 130; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__17);
+  __Pyx_GIVEREF(__pyx_tuple__17);
 
   /* "View.MemoryView":142
  * 
@@ -18377,9 +18763,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  * 
  */
-  __pyx_tuple__14 = PyTuple_Pack(1, __pyx_kp_s_unable_to_allocate_shape_and_str); if (unlikely(!__pyx_tuple__14)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 142; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__14);
-  __Pyx_GIVEREF(__pyx_tuple__14);
+  __pyx_tuple__18 = PyTuple_Pack(1, __pyx_kp_s_unable_to_allocate_shape_and_str); if (unlikely(!__pyx_tuple__18)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 142; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__18);
+  __Pyx_GIVEREF(__pyx_tuple__18);
 
   /* "View.MemoryView":170
  *             self.data = <char *>malloc(self.len)
@@ -18388,9 +18774,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  *             if self.dtype_is_object:
  */
-  __pyx_tuple__15 = PyTuple_Pack(1, __pyx_kp_s_unable_to_allocate_array_data); if (unlikely(!__pyx_tuple__15)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 170; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__15);
-  __Pyx_GIVEREF(__pyx_tuple__15);
+  __pyx_tuple__19 = PyTuple_Pack(1, __pyx_kp_s_unable_to_allocate_array_data); if (unlikely(!__pyx_tuple__19)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 170; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__19);
+  __Pyx_GIVEREF(__pyx_tuple__19);
 
   /* "View.MemoryView":186
  *             bufmode = PyBUF_F_CONTIGUOUS | PyBUF_ANY_CONTIGUOUS
@@ -18399,9 +18785,9 @@ static int __Pyx_InitCachedConstants(void) {
  *         info.buf = self.data
  *         info.len = self.len
  */
-  __pyx_tuple__16 = PyTuple_Pack(1, __pyx_kp_s_Can_only_create_a_buffer_that_is); if (unlikely(!__pyx_tuple__16)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 186; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__16);
-  __Pyx_GIVEREF(__pyx_tuple__16);
+  __pyx_tuple__20 = PyTuple_Pack(1, __pyx_kp_s_Can_only_create_a_buffer_that_is); if (unlikely(!__pyx_tuple__20)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 186; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__20);
+  __Pyx_GIVEREF(__pyx_tuple__20);
 
   /* "View.MemoryView":445
  *             result = struct.unpack(self.view.format, bytesitem)
@@ -18410,9 +18796,9 @@ static int __Pyx_InitCachedConstants(void) {
  *         else:
  *             if len(self.view.format) == 1:
  */
-  __pyx_tuple__17 = PyTuple_Pack(1, __pyx_kp_s_Unable_to_convert_item_to_object); if (unlikely(!__pyx_tuple__17)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 445; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__17);
-  __Pyx_GIVEREF(__pyx_tuple__17);
+  __pyx_tuple__21 = PyTuple_Pack(1, __pyx_kp_s_Unable_to_convert_item_to_object); if (unlikely(!__pyx_tuple__21)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 445; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__21);
+  __Pyx_GIVEREF(__pyx_tuple__21);
 
   /* "View.MemoryView":521
  *             if self.view.strides == NULL:
@@ -18421,9 +18807,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  *             return tuple([self.view.strides[i] for i in xrange(self.view.ndim)])
  */
-  __pyx_tuple__18 = PyTuple_Pack(1, __pyx_kp_s_Buffer_view_does_not_expose_stri); if (unlikely(!__pyx_tuple__18)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 521; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__18);
-  __Pyx_GIVEREF(__pyx_tuple__18);
+  __pyx_tuple__22 = PyTuple_Pack(1, __pyx_kp_s_Buffer_view_does_not_expose_stri); if (unlikely(!__pyx_tuple__22)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 521; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__22);
+  __Pyx_GIVEREF(__pyx_tuple__22);
 
   /* "View.MemoryView":638
  *         if item is Ellipsis:
@@ -18432,9 +18818,9 @@ static int __Pyx_InitCachedConstants(void) {
  *                 seen_ellipsis = True
  *             else:
  */
-  __pyx_slice__19 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__19)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 638; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_slice__19);
-  __Pyx_GIVEREF(__pyx_slice__19);
+  __pyx_slice__23 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__23)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 638; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_slice__23);
+  __Pyx_GIVEREF(__pyx_slice__23);
 
   /* "View.MemoryView":641
  *                 seen_ellipsis = True
@@ -18443,9 +18829,9 @@ static int __Pyx_InitCachedConstants(void) {
  *             have_slices = True
  *         else:
  */
-  __pyx_slice__20 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__20)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 641; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_slice__20);
-  __Pyx_GIVEREF(__pyx_slice__20);
+  __pyx_slice__24 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__24)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 641; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_slice__24);
+  __Pyx_GIVEREF(__pyx_slice__24);
 
   /* "View.MemoryView":652
  *     nslices = ndim - len(result)
@@ -18454,9 +18840,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  *     return have_slices or nslices, tuple(result)
  */
-  __pyx_slice__21 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__21)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 652; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_slice__21);
-  __Pyx_GIVEREF(__pyx_slice__21);
+  __pyx_slice__25 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__25)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 652; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_slice__25);
+  __Pyx_GIVEREF(__pyx_slice__25);
 
   /* "View.MemoryView":660
  *     for i in range(ndim):
@@ -18465,9 +18851,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  * 
  */
-  __pyx_tuple__22 = PyTuple_Pack(1, __pyx_kp_s_Indirect_dimensions_not_supporte); if (unlikely(!__pyx_tuple__22)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 660; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__22);
-  __Pyx_GIVEREF(__pyx_tuple__22);
+  __pyx_tuple__26 = PyTuple_Pack(1, __pyx_kp_s_Indirect_dimensions_not_supporte); if (unlikely(!__pyx_tuple__26)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 660; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__26);
+  __Pyx_GIVEREF(__pyx_tuple__26);
 
   /* "MUSCython/AlignmentUtil.pyx":9
  * cimport numpy as np
@@ -18476,22 +18862,22 @@ static int __Pyx_InitCachedConstants(void) {
  *     '''
  *     This version checks for matches, mismatches, and indels with a GAP_OPEN cost; as a result, it's an n^3 algorithm
  */
-  __pyx_tuple__23 = PyTuple_Pack(32, __pyx_n_s_original, __pyx_n_s_modified, __pyx_n_s_MATCH, __pyx_n_s_MISMATCH, __pyx_n_s_GAP_OPEN, __pyx_n_s_GAP_EXTEND, __pyx_n_s_oLen, __pyx_n_s_mLen, __pyx_n_s_scoreArray, __pyx_n_s_scoreArray_view, __pyx_n_s_x, __pyx_n_s_y, __pyx_n_s_z, __pyx_n_s_previousPos, __pyx_n_s_previousPos_view, __pyx_n_s_original_view, __pyx_n_s_modified_view, __pyx_n_s_diagScore, __pyx_n_s_jumpScore, __pyx_n_s_MATCH_T, __pyx_n_s_MISMATCH_T, __pyx_n_s_INSERTION_T, __pyx_n_s_DELETION_T, __pyx_n_s_typeToCig, __pyx_n_s_numMatches, __pyx_n_s_cig, __pyx_n_s_nextX, __pyx_n_s_nextY, __pyx_n_s_instructionType, __pyx_n_s_instructionCount, __pyx_n_s_currType, __pyx_n_s_currCount); if (unlikely(!__pyx_tuple__23)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 9; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__23);
-  __Pyx_GIVEREF(__pyx_tuple__23);
-  __pyx_codeobj__24 = (PyObject*)__Pyx_PyCode_New(2, 0, 32, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__23, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_Users_Matt_Documents_workspace, __pyx_n_s_fullAlign, 9, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__24)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 9; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_tuple__27 = PyTuple_Pack(35, __pyx_n_s_original, __pyx_n_s_modified, __pyx_n_s_MATCH, __pyx_n_s_MISMATCH, __pyx_n_s_GAP_OPEN, __pyx_n_s_GAP_EXTEND, __pyx_n_s_oLen, __pyx_n_s_mLen, __pyx_n_s_scoreArray, __pyx_n_s_scoreArray_view, __pyx_n_s_previousPos, __pyx_n_s_previousPos_view, __pyx_n_s_x, __pyx_n_s_y, __pyx_n_s_z, __pyx_n_s_original_view, __pyx_n_s_modified_view, __pyx_n_s_diagScore, __pyx_n_s_jumpScore, __pyx_n_s_scores, __pyx_n_s_choice, __pyx_n_s_nc, __pyx_n_s_MATCH_T, __pyx_n_s_MISMATCH_T, __pyx_n_s_INSERTION_T, __pyx_n_s_DELETION_T, __pyx_n_s_typeToCig, __pyx_n_s_numMatches, __pyx_n_s_cig, __pyx_n_s_nextX, __pyx_n_s_nextY, __pyx_n_s_instructionType, __pyx_n_s_instructionCount, __pyx_n_s_currType, __pyx_n_s_currCount); if (unlikely(!__pyx_tuple__27)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 9; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__27);
+  __Pyx_GIVEREF(__pyx_tuple__27);
+  __pyx_codeobj__28 = (PyObject*)__Pyx_PyCode_New(2, 0, 35, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__27, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_Users_Matt_Documents_workspace, __pyx_n_s_fullAlign, 9, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__28)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 9; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
-  /* "MUSCython/AlignmentUtil.pyx":132
+  /* "MUSCython/AlignmentUtil.pyx":129
  *     return cig
  * 
  * def fullAlign_noGO(bytes original, bytes modified):             # <<<<<<<<<<<<<<
  *     '''
  *     This version checks for matches, mismatches, and indels with a constant cost for a single base indel;
  */
-  __pyx_tuple__25 = PyTuple_Pack(31, __pyx_n_s_original, __pyx_n_s_modified, __pyx_n_s_MATCH, __pyx_n_s_MISMATCH, __pyx_n_s_GAP_EXTEND, __pyx_n_s_oLen, __pyx_n_s_mLen, __pyx_n_s_scoreArray, __pyx_n_s_scoreArray_view, __pyx_n_s_x, __pyx_n_s_y, __pyx_n_s_z, __pyx_n_s_previousPos, __pyx_n_s_previousPos_view, __pyx_n_s_original_view, __pyx_n_s_modified_view, __pyx_n_s_diagScore, __pyx_n_s_jumpScore, __pyx_n_s_MATCH_T, __pyx_n_s_MISMATCH_T, __pyx_n_s_INSERTION_T, __pyx_n_s_DELETION_T, __pyx_n_s_typeToCig, __pyx_n_s_numMatches, __pyx_n_s_cig, __pyx_n_s_nextX, __pyx_n_s_nextY, __pyx_n_s_instructionType, __pyx_n_s_instructionCount, __pyx_n_s_currType, __pyx_n_s_currCount); if (unlikely(!__pyx_tuple__25)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 132; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__25);
-  __Pyx_GIVEREF(__pyx_tuple__25);
-  __pyx_codeobj__26 = (PyObject*)__Pyx_PyCode_New(2, 0, 31, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__25, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_Users_Matt_Documents_workspace, __pyx_n_s_fullAlign_noGO, 132, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__26)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 132; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_tuple__29 = PyTuple_Pack(31, __pyx_n_s_original, __pyx_n_s_modified, __pyx_n_s_MATCH, __pyx_n_s_MISMATCH, __pyx_n_s_GAP_EXTEND, __pyx_n_s_oLen, __pyx_n_s_mLen, __pyx_n_s_scoreArray, __pyx_n_s_scoreArray_view, __pyx_n_s_previousPos, __pyx_n_s_previousPos_view, __pyx_n_s_x, __pyx_n_s_y, __pyx_n_s_z, __pyx_n_s_original_view, __pyx_n_s_modified_view, __pyx_n_s_diagScore, __pyx_n_s_jumpScore, __pyx_n_s_MATCH_T, __pyx_n_s_MISMATCH_T, __pyx_n_s_INSERTION_T, __pyx_n_s_DELETION_T, __pyx_n_s_typeToCig, __pyx_n_s_numMatches, __pyx_n_s_cig, __pyx_n_s_nextX, __pyx_n_s_nextY, __pyx_n_s_instructionType, __pyx_n_s_instructionCount, __pyx_n_s_currType, __pyx_n_s_currCount); if (unlikely(!__pyx_tuple__29)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 129; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__29);
+  __Pyx_GIVEREF(__pyx_tuple__29);
+  __pyx_codeobj__30 = (PyObject*)__Pyx_PyCode_New(2, 0, 31, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__29, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_Users_Matt_Documents_workspace, __pyx_n_s_fullAlign_noGO, 129, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__30)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 129; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
 
   /* "View.MemoryView":276
  *         return self.name
@@ -18500,9 +18886,9 @@ static int __Pyx_InitCachedConstants(void) {
  * cdef strided = Enum("<strided and direct>") # default
  * cdef indirect = Enum("<strided and indirect>")
  */
-  __pyx_tuple__27 = PyTuple_Pack(1, __pyx_kp_s_strided_and_direct_or_indirect); if (unlikely(!__pyx_tuple__27)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 276; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__27);
-  __Pyx_GIVEREF(__pyx_tuple__27);
+  __pyx_tuple__31 = PyTuple_Pack(1, __pyx_kp_s_strided_and_direct_or_indirect); if (unlikely(!__pyx_tuple__31)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 276; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__31);
+  __Pyx_GIVEREF(__pyx_tuple__31);
 
   /* "View.MemoryView":277
  * 
@@ -18511,9 +18897,9 @@ static int __Pyx_InitCachedConstants(void) {
  * cdef indirect = Enum("<strided and indirect>")
  * 
  */
-  __pyx_tuple__28 = PyTuple_Pack(1, __pyx_kp_s_strided_and_direct); if (unlikely(!__pyx_tuple__28)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 277; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__28);
-  __Pyx_GIVEREF(__pyx_tuple__28);
+  __pyx_tuple__32 = PyTuple_Pack(1, __pyx_kp_s_strided_and_direct); if (unlikely(!__pyx_tuple__32)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 277; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__32);
+  __Pyx_GIVEREF(__pyx_tuple__32);
 
   /* "View.MemoryView":278
  * cdef generic = Enum("<strided and direct or indirect>")
@@ -18522,9 +18908,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  * 
  */
-  __pyx_tuple__29 = PyTuple_Pack(1, __pyx_kp_s_strided_and_indirect); if (unlikely(!__pyx_tuple__29)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 278; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__29);
-  __Pyx_GIVEREF(__pyx_tuple__29);
+  __pyx_tuple__33 = PyTuple_Pack(1, __pyx_kp_s_strided_and_indirect); if (unlikely(!__pyx_tuple__33)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 278; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__33);
+  __Pyx_GIVEREF(__pyx_tuple__33);
 
   /* "View.MemoryView":281
  * 
@@ -18533,9 +18919,9 @@ static int __Pyx_InitCachedConstants(void) {
  * cdef indirect_contiguous = Enum("<contiguous and indirect>")
  * 
  */
-  __pyx_tuple__30 = PyTuple_Pack(1, __pyx_kp_s_contiguous_and_direct); if (unlikely(!__pyx_tuple__30)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 281; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__30);
-  __Pyx_GIVEREF(__pyx_tuple__30);
+  __pyx_tuple__34 = PyTuple_Pack(1, __pyx_kp_s_contiguous_and_direct); if (unlikely(!__pyx_tuple__34)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 281; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__34);
+  __Pyx_GIVEREF(__pyx_tuple__34);
 
   /* "View.MemoryView":282
  * 
@@ -18544,9 +18930,9 @@ static int __Pyx_InitCachedConstants(void) {
  * 
  * 
  */
-  __pyx_tuple__31 = PyTuple_Pack(1, __pyx_kp_s_contiguous_and_indirect); if (unlikely(!__pyx_tuple__31)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 282; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
-  __Pyx_GOTREF(__pyx_tuple__31);
-  __Pyx_GIVEREF(__pyx_tuple__31);
+  __pyx_tuple__35 = PyTuple_Pack(1, __pyx_kp_s_contiguous_and_indirect); if (unlikely(!__pyx_tuple__35)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 282; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __Pyx_GOTREF(__pyx_tuple__35);
+  __Pyx_GIVEREF(__pyx_tuple__35);
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -18559,6 +18945,8 @@ static int __Pyx_InitGlobals(void) {
   __pyx_int_0 = PyInt_FromLong(0); if (unlikely(!__pyx_int_0)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 1; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_int_1 = PyInt_FromLong(1); if (unlikely(!__pyx_int_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 1; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_int_2 = PyInt_FromLong(2); if (unlikely(!__pyx_int_2)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 1; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_int_3 = PyInt_FromLong(3); if (unlikely(!__pyx_int_3)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 1; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_int_2147483647 = PyInt_FromLong(2147483647L); if (unlikely(!__pyx_int_2147483647)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 1; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_int_4294967295 = PyInt_FromString((char *)"4294967295", 0, 0); if (unlikely(!__pyx_int_4294967295)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 1; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __pyx_int_neg_1 = PyInt_FromLong(-1); if (unlikely(!__pyx_int_neg_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 1; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   return 0;
@@ -18719,16 +19107,16 @@ PyMODINIT_FUNC PyInit_AlignmentUtil(void)
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_fullAlign, __pyx_t_1) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 9; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "MUSCython/AlignmentUtil.pyx":132
+  /* "MUSCython/AlignmentUtil.pyx":129
  *     return cig
  * 
  * def fullAlign_noGO(bytes original, bytes modified):             # <<<<<<<<<<<<<<
  *     '''
  *     This version checks for matches, mismatches, and indels with a constant cost for a single base indel;
  */
-  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_9MUSCython_13AlignmentUtil_3fullAlign_noGO, NULL, __pyx_n_s_MUSCython_AlignmentUtil); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 132; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_9MUSCython_13AlignmentUtil_3fullAlign_noGO, NULL, __pyx_n_s_MUSCython_AlignmentUtil); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 129; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_fullAlign_noGO, __pyx_t_1) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 132; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_fullAlign_noGO, __pyx_t_1) < 0) {__pyx_filename = __pyx_f[0]; __pyx_lineno = 129; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
   /* "MUSCython/AlignmentUtil.pyx":1
@@ -18761,7 +19149,7 @@ PyMODINIT_FUNC PyInit_AlignmentUtil(void)
  * cdef strided = Enum("<strided and direct>") # default
  * cdef indirect = Enum("<strided and indirect>")
  */
-  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)((PyObject *)__pyx_MemviewEnum_type)), __pyx_tuple__27, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 276; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)((PyObject *)__pyx_MemviewEnum_type)), __pyx_tuple__31, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 276; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_XGOTREF(generic);
   __Pyx_DECREF_SET(generic, __pyx_t_1);
@@ -18775,7 +19163,7 @@ PyMODINIT_FUNC PyInit_AlignmentUtil(void)
  * cdef indirect = Enum("<strided and indirect>")
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)((PyObject *)__pyx_MemviewEnum_type)), __pyx_tuple__28, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 277; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)((PyObject *)__pyx_MemviewEnum_type)), __pyx_tuple__32, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 277; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_XGOTREF(strided);
   __Pyx_DECREF_SET(strided, __pyx_t_1);
@@ -18789,7 +19177,7 @@ PyMODINIT_FUNC PyInit_AlignmentUtil(void)
  * 
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)((PyObject *)__pyx_MemviewEnum_type)), __pyx_tuple__29, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 278; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)((PyObject *)__pyx_MemviewEnum_type)), __pyx_tuple__33, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 278; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_XGOTREF(indirect);
   __Pyx_DECREF_SET(indirect, __pyx_t_1);
@@ -18803,7 +19191,7 @@ PyMODINIT_FUNC PyInit_AlignmentUtil(void)
  * cdef indirect_contiguous = Enum("<contiguous and indirect>")
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)((PyObject *)__pyx_MemviewEnum_type)), __pyx_tuple__30, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 281; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)((PyObject *)__pyx_MemviewEnum_type)), __pyx_tuple__34, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 281; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_XGOTREF(contiguous);
   __Pyx_DECREF_SET(contiguous, __pyx_t_1);
@@ -18817,7 +19205,7 @@ PyMODINIT_FUNC PyInit_AlignmentUtil(void)
  * 
  * 
  */
-  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)((PyObject *)__pyx_MemviewEnum_type)), __pyx_tuple__31, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 282; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
+  __pyx_t_1 = __Pyx_PyObject_Call(((PyObject *)((PyObject *)__pyx_MemviewEnum_type)), __pyx_tuple__35, NULL); if (unlikely(!__pyx_t_1)) {__pyx_filename = __pyx_f[2]; __pyx_lineno = 282; __pyx_clineno = __LINE__; goto __pyx_L1_error;}
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_XGOTREF(indirect_contiguous);
   __Pyx_DECREF_SET(indirect_contiguous, __pyx_t_1);
@@ -19905,6 +20293,55 @@ static CYTHON_INLINE void __Pyx_XDEC_MEMVIEW(__Pyx_memviewslice *memslice,
     }
 }
 
+#if CYTHON_COMPILING_IN_CPYTHON
+static CYTHON_INLINE PyObject* __Pyx_PyObject_CallMethO(PyObject *func, PyObject *arg) {
+    PyObject *self, *result;
+    PyCFunction cfunc;
+    cfunc = PyCFunction_GET_FUNCTION(func);
+    self = PyCFunction_GET_SELF(func);
+    if (unlikely(Py_EnterRecursiveCall((char*)" while calling a Python object")))
+        return NULL;
+    result = cfunc(self, arg);
+    Py_LeaveRecursiveCall();
+    if (unlikely(!result) && unlikely(!PyErr_Occurred())) {
+        PyErr_SetString(
+            PyExc_SystemError,
+            "NULL result without error in PyObject_Call");
+    }
+    return result;
+}
+#endif
+
+#if CYTHON_COMPILING_IN_CPYTHON
+static PyObject* __Pyx__PyObject_CallOneArg(PyObject *func, PyObject *arg) {
+    PyObject *result;
+    PyObject *args = PyTuple_New(1);
+    if (unlikely(!args)) return NULL;
+    Py_INCREF(arg);
+    PyTuple_SET_ITEM(args, 0, arg);
+    result = __Pyx_PyObject_Call(func, args, NULL);
+    Py_DECREF(args);
+    return result;
+}
+static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg) {
+#ifdef __Pyx_CyFunction_USED
+    if (likely(PyCFunction_Check(func) || PyObject_TypeCheck(func, __pyx_CyFunctionType))) {
+#else
+    if (likely(PyCFunction_Check(func))) {
+#endif
+        if (likely(PyCFunction_GET_FLAGS(func) & METH_O)) {
+            return __Pyx_PyObject_CallMethO(func, arg);
+        }
+    }
+    return __Pyx__PyObject_CallOneArg(func, arg);
+}
+#else
+static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg) {
+    PyObject* args = PyTuple_Pack(1, arg);
+    return (likely(args)) ? __Pyx_PyObject_Call(func, args, NULL) : NULL;
+}
+#endif
+
 static CYTHON_INLINE void __Pyx_ErrRestore(PyObject *type, PyObject *value, PyObject *tb) {
 #if CYTHON_COMPILING_IN_CPYTHON
     PyObject *tmp_type, *tmp_value, *tmp_tb;
@@ -20496,55 +20933,6 @@ static CYTHON_INLINE long __Pyx_div_long(long a, long b) {
     return q;
 }
 
-#if CYTHON_COMPILING_IN_CPYTHON
-static CYTHON_INLINE PyObject* __Pyx_PyObject_CallMethO(PyObject *func, PyObject *arg) {
-    PyObject *self, *result;
-    PyCFunction cfunc;
-    cfunc = PyCFunction_GET_FUNCTION(func);
-    self = PyCFunction_GET_SELF(func);
-    if (unlikely(Py_EnterRecursiveCall((char*)" while calling a Python object")))
-        return NULL;
-    result = cfunc(self, arg);
-    Py_LeaveRecursiveCall();
-    if (unlikely(!result) && unlikely(!PyErr_Occurred())) {
-        PyErr_SetString(
-            PyExc_SystemError,
-            "NULL result without error in PyObject_Call");
-    }
-    return result;
-}
-#endif
-
-#if CYTHON_COMPILING_IN_CPYTHON
-static PyObject* __Pyx__PyObject_CallOneArg(PyObject *func, PyObject *arg) {
-    PyObject *result;
-    PyObject *args = PyTuple_New(1);
-    if (unlikely(!args)) return NULL;
-    Py_INCREF(arg);
-    PyTuple_SET_ITEM(args, 0, arg);
-    result = __Pyx_PyObject_Call(func, args, NULL);
-    Py_DECREF(args);
-    return result;
-}
-static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg) {
-#ifdef __Pyx_CyFunction_USED
-    if (likely(PyCFunction_Check(func) || PyObject_TypeCheck(func, __pyx_CyFunctionType))) {
-#else
-    if (likely(PyCFunction_Check(func))) {
-#endif
-        if (likely(PyCFunction_GET_FLAGS(func) & METH_O)) {
-            return __Pyx_PyObject_CallMethO(func, arg);
-        }
-    }
-    return __Pyx__PyObject_CallOneArg(func, arg);
-}
-#else
-static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObject *arg) {
-    PyObject* args = PyTuple_Pack(1, arg);
-    return (likely(args)) ? __Pyx_PyObject_Call(func, args, NULL) : NULL;
-}
-#endif
-
 static int __Pyx_SetVtable(PyObject *dict, void *vtable) {
 #if PY_VERSION_HEX >= 0x02070000
     PyObject *ob = PyCapsule_New(vtable, 0, 0);
@@ -20957,6 +21345,138 @@ raise_neg_overflow:
     PyErr_SetString(PyExc_OverflowError,
         "can't convert negative value to unsigned long");
     return (unsigned long) -1;
+}
+
+static CYTHON_INLINE PyObject* __Pyx_PyInt_From_npy_uint32(npy_uint32 value) {
+    const npy_uint32 neg_one = (npy_uint32) -1, const_zero = 0;
+    const int is_unsigned = neg_one > const_zero;
+    if (is_unsigned) {
+        if (sizeof(npy_uint32) < sizeof(long)) {
+            return PyInt_FromLong((long) value);
+        } else if (sizeof(npy_uint32) <= sizeof(unsigned long)) {
+            return PyLong_FromUnsignedLong((unsigned long) value);
+        } else if (sizeof(npy_uint32) <= sizeof(unsigned long long)) {
+            return PyLong_FromUnsignedLongLong((unsigned long long) value);
+        }
+    } else {
+        if (sizeof(npy_uint32) <= sizeof(long)) {
+            return PyInt_FromLong((long) value);
+        } else if (sizeof(npy_uint32) <= sizeof(long long)) {
+            return PyLong_FromLongLong((long long) value);
+        }
+    }
+    {
+        int one = 1; int little = (int)*(unsigned char *)&one;
+        unsigned char *bytes = (unsigned char *)&value;
+        return _PyLong_FromByteArray(bytes, sizeof(npy_uint32),
+                                     little, !is_unsigned);
+    }
+}
+
+static CYTHON_INLINE npy_uint32 __Pyx_PyInt_As_npy_uint32(PyObject *x) {
+    const npy_uint32 neg_one = (npy_uint32) -1, const_zero = 0;
+    const int is_unsigned = neg_one > const_zero;
+#if PY_MAJOR_VERSION < 3
+    if (likely(PyInt_Check(x))) {
+        if (sizeof(npy_uint32) < sizeof(long)) {
+            __PYX_VERIFY_RETURN_INT(npy_uint32, long, PyInt_AS_LONG(x))
+        } else {
+            long val = PyInt_AS_LONG(x);
+            if (is_unsigned && unlikely(val < 0)) {
+                goto raise_neg_overflow;
+            }
+            return (npy_uint32) val;
+        }
+    } else
+#endif
+    if (likely(PyLong_Check(x))) {
+        if (is_unsigned) {
+#if CYTHON_COMPILING_IN_CPYTHON && PY_MAJOR_VERSION >= 3
+ #if CYTHON_USE_PYLONG_INTERNALS
+            switch (Py_SIZE(x)) {
+                case  0: return 0;
+                case  1: __PYX_VERIFY_RETURN_INT(npy_uint32, digit, ((PyLongObject*)x)->ob_digit[0]);
+            }
+ #endif
+#endif
+            if (unlikely(Py_SIZE(x) < 0)) {
+                goto raise_neg_overflow;
+            }
+            if (sizeof(npy_uint32) <= sizeof(unsigned long)) {
+                __PYX_VERIFY_RETURN_INT(npy_uint32, unsigned long, PyLong_AsUnsignedLong(x))
+            } else if (sizeof(npy_uint32) <= sizeof(unsigned long long)) {
+                __PYX_VERIFY_RETURN_INT(npy_uint32, unsigned long long, PyLong_AsUnsignedLongLong(x))
+            }
+        } else {
+#if CYTHON_COMPILING_IN_CPYTHON && PY_MAJOR_VERSION >= 3
+ #if CYTHON_USE_PYLONG_INTERNALS
+            switch (Py_SIZE(x)) {
+                case  0: return 0;
+                case  1: __PYX_VERIFY_RETURN_INT(npy_uint32,  digit, +(((PyLongObject*)x)->ob_digit[0]));
+                case -1: __PYX_VERIFY_RETURN_INT(npy_uint32, sdigit, -(sdigit) ((PyLongObject*)x)->ob_digit[0]);
+            }
+ #endif
+#endif
+            if (sizeof(npy_uint32) <= sizeof(long)) {
+                __PYX_VERIFY_RETURN_INT(npy_uint32, long, PyLong_AsLong(x))
+            } else if (sizeof(npy_uint32) <= sizeof(long long)) {
+                __PYX_VERIFY_RETURN_INT(npy_uint32, long long, PyLong_AsLongLong(x))
+            }
+        }
+        {
+#if CYTHON_COMPILING_IN_PYPY && !defined(_PyLong_AsByteArray)
+            PyErr_SetString(PyExc_RuntimeError,
+                            "_PyLong_AsByteArray() not available in PyPy, cannot convert large numbers");
+#else
+            npy_uint32 val;
+            PyObject *v = __Pyx_PyNumber_Int(x);
+ #if PY_MAJOR_VERSION < 3
+            if (likely(v) && !PyLong_Check(v)) {
+                PyObject *tmp = v;
+                v = PyNumber_Long(tmp);
+                Py_DECREF(tmp);
+            }
+ #endif
+            if (likely(v)) {
+                int one = 1; int is_little = (int)*(unsigned char *)&one;
+                unsigned char *bytes = (unsigned char *)&val;
+                int ret = _PyLong_AsByteArray((PyLongObject *)v,
+                                              bytes, sizeof(val),
+                                              is_little, !is_unsigned);
+                Py_DECREF(v);
+                if (likely(!ret))
+                    return val;
+            }
+#endif
+            return (npy_uint32) -1;
+        }
+    } else {
+        npy_uint32 val;
+        PyObject *tmp = __Pyx_PyNumber_Int(x);
+        if (!tmp) return (npy_uint32) -1;
+        val = __Pyx_PyInt_As_npy_uint32(tmp);
+        Py_DECREF(tmp);
+        return val;
+    }
+raise_overflow:
+    PyErr_SetString(PyExc_OverflowError,
+        "value too large to convert to npy_uint32");
+    return (npy_uint32) -1;
+raise_neg_overflow:
+    PyErr_SetString(PyExc_OverflowError,
+        "can't convert negative value to npy_uint32");
+    return (npy_uint32) -1;
+}
+
+static PyObject *__pyx_memview_get_nn___pyx_t_5numpy_uint32_t(const char *itemp) {
+    return (PyObject *) __Pyx_PyInt_From_npy_uint32(*(__pyx_t_5numpy_uint32_t *) itemp);
+}
+static int __pyx_memview_set_nn___pyx_t_5numpy_uint32_t(const char *itemp, PyObject *obj) {
+    __pyx_t_5numpy_uint32_t value = __Pyx_PyInt_As_npy_uint32(obj);
+    if ((value == (npy_uint32)-1) && PyErr_Occurred())
+        return 0;
+    *(__pyx_t_5numpy_uint32_t *) itemp = value;
+    return 1;
 }
 
 #if CYTHON_CCOMPLEX
@@ -21892,28 +22412,6 @@ no_fail:
     return retval;
 }
 
-static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint32_t(PyObject *obj) {
-    __Pyx_memviewslice result = { 0, 0, { 0 }, { 0 }, { 0 } };
-    __Pyx_BufFmt_StackElem stack[1];
-    int axes_specs[] = { (__Pyx_MEMVIEW_DIRECT | __Pyx_MEMVIEW_STRIDED), (__Pyx_MEMVIEW_DIRECT | __Pyx_MEMVIEW_STRIDED) };
-    int retcode;
-    if (obj == Py_None) {
-        result.memview = (struct __pyx_memoryview_obj *) Py_None;
-        return result;
-    }
-    retcode = __Pyx_ValidateAndInit_memviewslice(axes_specs, 0,
-                                                 PyBUF_RECORDS, 2,
-                                                 &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, stack,
-                                                 &result, obj);
-    if (unlikely(retcode == -1))
-        goto __pyx_fail;
-    return result;
-__pyx_fail:
-    result.memview = NULL;
-    result.data = NULL;
-    return result;
-}
-
 static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_uint32_t(PyObject *obj) {
     __Pyx_memviewslice result = { 0, 0, { 0 }, { 0 }, { 0 } };
     __Pyx_BufFmt_StackElem stack[1];
@@ -21925,6 +22423,50 @@ static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsdsds
     }
     retcode = __Pyx_ValidateAndInit_memviewslice(axes_specs, 0,
                                                  PyBUF_RECORDS, 3,
+                                                 &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, stack,
+                                                 &result, obj);
+    if (unlikely(retcode == -1))
+        goto __pyx_fail;
+    return result;
+__pyx_fail:
+    result.memview = NULL;
+    result.data = NULL;
+    return result;
+}
+
+static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsdsds_nn___pyx_t_5numpy_uint8_t(PyObject *obj) {
+    __Pyx_memviewslice result = { 0, 0, { 0 }, { 0 }, { 0 } };
+    __Pyx_BufFmt_StackElem stack[1];
+    int axes_specs[] = { (__Pyx_MEMVIEW_DIRECT | __Pyx_MEMVIEW_STRIDED), (__Pyx_MEMVIEW_DIRECT | __Pyx_MEMVIEW_STRIDED), (__Pyx_MEMVIEW_DIRECT | __Pyx_MEMVIEW_STRIDED) };
+    int retcode;
+    if (obj == Py_None) {
+        result.memview = (struct __pyx_memoryview_obj *) Py_None;
+        return result;
+    }
+    retcode = __Pyx_ValidateAndInit_memviewslice(axes_specs, 0,
+                                                 PyBUF_RECORDS, 3,
+                                                 &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint8_t, stack,
+                                                 &result, obj);
+    if (unlikely(retcode == -1))
+        goto __pyx_fail;
+    return result;
+__pyx_fail:
+    result.memview = NULL;
+    result.data = NULL;
+    return result;
+}
+
+static CYTHON_INLINE __Pyx_memviewslice __Pyx_PyObject_to_MemoryviewSlice_dsds_nn___pyx_t_5numpy_uint32_t(PyObject *obj) {
+    __Pyx_memviewslice result = { 0, 0, { 0 }, { 0 }, { 0 } };
+    __Pyx_BufFmt_StackElem stack[1];
+    int axes_specs[] = { (__Pyx_MEMVIEW_DIRECT | __Pyx_MEMVIEW_STRIDED), (__Pyx_MEMVIEW_DIRECT | __Pyx_MEMVIEW_STRIDED) };
+    int retcode;
+    if (obj == Py_None) {
+        result.memview = (struct __pyx_memoryview_obj *) Py_None;
+        return result;
+    }
+    retcode = __Pyx_ValidateAndInit_memviewslice(axes_specs, 0,
+                                                 PyBUF_RECORDS, 2,
                                                  &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint32_t, stack,
                                                  &result, obj);
     if (unlikely(retcode == -1))

@@ -21,57 +21,59 @@ def fullAlign(bytes original, bytes modified):
     cdef unsigned long oLen = len(original)
     cdef unsigned long mLen = len(modified)
     
-    #initialize the scores
-    cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
-    cdef np.uint32_t [:, :] scoreArray_view = scoreArray
-    scoreArray[:] = 0xFFFFFFFF
-    scoreArray_view[0, 0] = 0
+    '''
+    initialize the scores
+    [x, y, 0] corresponds to match/mismatch original
+    [x, y, 1] corresponds to deletion from original
+    [x, y, 2] corresponds to insertion to original
+    '''
+    cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1, 3))
+    cdef np.uint32_t [:, :, :] scoreArray_view = scoreArray
+    scoreArray[:] = 0x7FFFFFFF
+    scoreArray_view[0, 0, :] = 0
+    
+    #initialize the jumpers: 0 coming from M, 1 coming from X, 2 coming from Y
+    cdef np.ndarray[np.uint8_t, ndim=3, mode='c'] previousPos = np.zeros(dtype='<u1', shape=(oLen+1, mLen+1, 3))
+    cdef np.uint8_t [:, :, :] previousPos_view = previousPos
     
     cdef unsigned long x, y, z
     for x in range(1, oLen+1):
-        scoreArray_view[x, 0] = GAP_OPEN+x*GAP_EXTEND
+        scoreArray_view[x, 0, 1] = GAP_OPEN+x*GAP_EXTEND
+        previousPos_view[x, 0, 1] = 1
     for x in range(1, mLen+1):
-        scoreArray_view[0, x] = GAP_OPEN+x*GAP_EXTEND
-    
-    #initialize the jumpers
-    cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] previousPos = np.zeros(dtype='<u4', shape=(oLen+1, mLen+1, 2))
-    cdef np.uint32_t [:, :, :] previousPos_view = previousPos
+        scoreArray_view[0, x, 2] = GAP_OPEN+x*GAP_EXTEND
+        previousPos_view[0, x, 2] = 2
     
     cdef char * original_view = original
     cdef char * modified_view = modified
     cdef unsigned long diagScore, jumpScore
     
-    for x in range(0, oLen+1):
-        for y in range(0, mLen+1):
-            #make sure there is a diagonal before trying to handle it
-            if x < oLen and y < mLen:
-                #first, handle the diagonal
-                if original_view[x] == modified_view[y]:
-                    diagScore = scoreArray_view[x, y]+MATCH
-                else:
-                    diagScore = scoreArray_view[x, y]+MISMATCH
-                if scoreArray_view[x+1, y+1] > diagScore:
-                    scoreArray_view[x+1, y+1] = diagScore
-                    previousPos_view[x+1, y+1, 0] = x
-                    previousPos_view[x+1, y+1, 1] = y
+    cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] scores = np.zeros(dtype='<u4', shape=(3, ))
+    cdef unsigned long choice, nc
+    
+    for x in range(1, oLen+1):
+        for y in range(1, mLen+1):
+            #the "M" matrix
+            if original_view[x-1] == modified_view[y-1]:
+                diagScore = MATCH
+            else:
+                diagScore = MISMATCH
+            scores[:] = scoreArray_view[x-1, y-1, :]
+            choice = np.argmin(scores)
+            scoreArray_view[x, y, 0] = diagScore+scores[choice]
+            previousPos_view[x, y, 0] = choice
             
-            #now handle deletions to the original
-            jumpScore = scoreArray_view[x, y]+GAP_OPEN
-            for z in xrange(x+1, oLen+1):
-                jumpScore += GAP_EXTEND
-                if scoreArray_view[z, y] > jumpScore:
-                    scoreArray_view[z, y] = jumpScore
-                    previousPos_view[z, y, 0] = x
-                    previousPos_view[z, y, 1] = y
+            #the "X" matrix
+            scores[:] = (scoreArray_view[x-1, y, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x-1, y, 1]+GAP_EXTEND, scoreArray_view[x-1, y, 2]+GAP_OPEN+GAP_EXTEND)
+            choice = np.argmin(scores)
+            scoreArray_view[x, y, 1] = scores[choice]
+            previousPos_view[x, y, 1] = choice
             
-            #now handle insertions to the original
-            jumpScore = scoreArray_view[x, y]+GAP_OPEN
-            for z in xrange(y+1, mLen+1):
-                jumpScore += GAP_EXTEND
-                if scoreArray_view[x, z] > jumpScore:
-                    scoreArray_view[x, z] = jumpScore
-                    previousPos_view[x, z, 0] = x
-                    previousPos_view[x, z, 1] = y
+            #the "Y" matrix
+            scores[:] = (scoreArray_view[x, y-1, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 1]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 2]+GAP_EXTEND)
+            choice = np.argmin(scores)
+            scoreArray_view[x, y, 2] = scores[choice]
+            previousPos_view[x, y, 2] = choice
     
     cdef unsigned long MATCH_T = 0
     cdef unsigned long MISMATCH_T = 1
@@ -90,43 +92,38 @@ def fullAlign(bytes original, bytes modified):
     
     x = oLen
     y = mLen
+    choice = np.argmin(scoreArray_view[x, y])
     
-    while x != 0 and y != 0:
-        nextX = previousPos_view[x, y, 0]
-        nextY = previousPos_view[x, y, 1]
-        
-        if nextX == x-1 and nextY == y-1:
-            #diagonal
-            if scoreArray_view[nextX, nextY] == scoreArray_view[x, y]+MATCH:
-                #match
+    while x != 0 or y != 0:
+        nc = previousPos_view[x, y, choice]
+        if choice == 0:
+            x -= 1
+            y -= 1
+            
+            if original_view[x] == modified_view[y]:
                 currType = MATCH_T
-                currCount = 1
             else:
-                #mismatch
                 currType = MISMATCH_T
-                currCount = 1
-        elif nextY == y:
-            #deletion to original
+            
+        elif choice == 1:
+            x -= 1
             currType = DELETION_T
-            currCount = x-nextX
         else:
-            #insertion to the original
+            y -= 1
             currType = INSERTION_T
-            currCount = y-nextY
         
         if currType == instructionType:
-            instructionCount += currCount
+            instructionCount += 1
         else:
-            cig.append((instructionCount, typeToCig[instructionType]))
-            instructionCount = currCount
+            if instructionCount > 0:
+                cig.append((instructionCount, typeToCig[instructionType]))
             instructionType = currType
-            
-        x = nextX
-        y = nextY
+            instructionCount = 1
+        choice = nc
     
-    cig.append((instructionCount, typeToCig[instructionType]))
+    if instructionCount > 0:
+        cig.append((instructionCount, typeToCig[instructionType]))
     cig.reverse()
-    
     return cig
 
 def fullAlign_noGO(bytes original, bytes modified):
@@ -150,15 +147,17 @@ def fullAlign_noGO(bytes original, bytes modified):
     scoreArray[:] = 0xFFFFFFFF
     scoreArray_view[0, 0] = 0
     
-    cdef unsigned long x, y, z
-    for x in range(1, oLen+1):
-        scoreArray_view[x, 0] = x*GAP_EXTEND
-    for x in range(1, mLen+1):
-        scoreArray_view[0, x] = x*GAP_EXTEND
-    
     #initialize the jumpers
     cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] previousPos = np.zeros(dtype='<u4', shape=(oLen+1, mLen+1, 2))
     cdef np.uint32_t [:, :, :] previousPos_view = previousPos
+    
+    cdef unsigned long x, y, z
+    for x in range(1, oLen+1):
+        scoreArray_view[x, 0] = x*GAP_EXTEND
+        previousPos_view[x, 0, 0] = x-1
+    for x in range(1, mLen+1):
+        scoreArray_view[0, x] = x*GAP_EXTEND
+        previousPos_view[0, x, 1] = x-1
     
     cdef char * original_view = original
     cdef char * modified_view = modified
@@ -231,7 +230,7 @@ def fullAlign_noGO(bytes original, bytes modified):
     x = oLen
     y = mLen
     
-    while x != 0 and y != 0:
+    while x != 0 or y != 0:
         nextX = previousPos_view[x, y, 0]
         nextY = previousPos_view[x, y, 1]
         
