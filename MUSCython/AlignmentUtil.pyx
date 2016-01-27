@@ -29,8 +29,10 @@ def fullAlign(bytes original, bytes modified):
     '''
     cdef np.ndarray[np.uint32_t, ndim=3, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1, 3))
     cdef np.uint32_t [:, :, :] scoreArray_view = scoreArray
-    scoreArray[:] = 0x7FFFFFFF
-    scoreArray_view[0, 0, :] = 0
+    scoreArray_view[:, :, :] = 0x7FFFFFFF
+    scoreArray_view[0, 0, 0] = 0
+    scoreArray_view[0, 0, 1] = 0
+    scoreArray_view[0, 0, 2] = 0
     
     #initialize the jumpers: 0 coming from M, 1 coming from X, 2 coming from Y
     cdef np.ndarray[np.uint8_t, ndim=3, mode='c'] previousPos = np.zeros(dtype='<u1', shape=(oLen+1, mLen+1, 3))
@@ -49,6 +51,7 @@ def fullAlign(bytes original, bytes modified):
     cdef unsigned long diagScore, jumpScore
     
     cdef np.ndarray[np.uint32_t, ndim=1, mode='c'] scores = np.zeros(dtype='<u4', shape=(3, ))
+    cdef np.uint32_t [:] scores_view = scores
     cdef unsigned long choice, nc
     
     for x in range(1, oLen+1):
@@ -58,21 +61,47 @@ def fullAlign(bytes original, bytes modified):
                 diagScore = MATCH
             else:
                 diagScore = MISMATCH
-            scores[:] = scoreArray_view[x-1, y-1, :]
-            choice = np.argmin(scores)
-            scoreArray_view[x, y, 0] = diagScore+scores[choice]
+            #scores_view[:] = scoreArray_view[x-1, y-1, :]
+            scores_view[0] = scoreArray_view[x-1, y-1, 0]
+            scores_view[1] = scoreArray_view[x-1, y-1, 1]
+            scores_view[2] = scoreArray_view[x-1, y-1, 2]
+            #choice = np.argmin(scores)
+            if scores_view[0] < scores_view[1]:
+                choice = 0
+            else:
+                choice = 1
+            if scores_view[2] < scores_view[choice]:
+                choice = 2
+            
+            scoreArray_view[x, y, 0] = diagScore+scores_view[choice]
             previousPos_view[x, y, 0] = choice
             
             #the "X" matrix
-            scores[:] = (scoreArray_view[x-1, y, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x-1, y, 1]+GAP_EXTEND, scoreArray_view[x-1, y, 2]+GAP_OPEN+GAP_EXTEND)
-            choice = np.argmin(scores)
-            scoreArray_view[x, y, 1] = scores[choice]
+            scores_view[0] = scoreArray_view[x-1, y, 0]+GAP_OPEN+GAP_EXTEND
+            scores_view[1] = scoreArray_view[x-1, y, 1]+GAP_EXTEND
+            scores_view[2] = scoreArray_view[x-1, y, 2]+GAP_OPEN+GAP_EXTEND
+            #choice = np.argmin(scores)
+            if scores_view[0] < scores_view[1]:
+                choice = 0
+            else:
+                choice = 1
+            if scores_view[2] < scores_view[choice]:
+                choice = 2
+            scoreArray_view[x, y, 1] = scores_view[choice]
             previousPos_view[x, y, 1] = choice
             
             #the "Y" matrix
-            scores[:] = (scoreArray_view[x, y-1, 0]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 1]+GAP_OPEN+GAP_EXTEND, scoreArray_view[x, y-1, 2]+GAP_EXTEND)
-            choice = np.argmin(scores)
-            scoreArray_view[x, y, 2] = scores[choice]
+            scores_view[0] = scoreArray_view[x, y-1, 0]+GAP_OPEN+GAP_EXTEND
+            scores_view[1] = scoreArray_view[x, y-1, 1]+GAP_OPEN+GAP_EXTEND
+            scores_view[2] = scoreArray_view[x, y-1, 2]+GAP_EXTEND
+            #choice = np.argmin(scores)
+            if scores_view[0] < scores_view[1]:
+                choice = 0
+            else:
+                choice = 1
+            if scores_view[2] < scores_view[choice]:
+                choice = 2
+            scoreArray_view[x, y, 2] = scores_view[choice]
             previousPos_view[x, y, 2] = choice
     
     cdef unsigned long MATCH_T = 0
@@ -92,7 +121,13 @@ def fullAlign(bytes original, bytes modified):
     
     x = oLen
     y = mLen
-    choice = np.argmin(scoreArray_view[x, y])
+    #choice = np.argmin(scoreArray[x, y, :])
+    if scoreArray_view[x, y, 0] < scoreArray_view[x, y, 1]:
+        choice = 0
+    else:
+        choice = 1
+    if scoreArray_view[x, y, 2] < scoreArray_view[x, y, choice]:
+        choice = 2
     
     while x != 0 or y != 0:
         nc = previousPos_view[x, y, choice]
@@ -178,15 +213,6 @@ def fullAlign_noGO(bytes original, bytes modified):
                     previousPos_view[x+1, y+1, 1] = y
             
             #now handle deletions to the original
-            '''
-            jumpScore = scoreArray_view[x, y]+GAP_OPEN
-            for z in xrange(x+1, oLen+1):
-                jumpScore += GAP_EXTEND
-                if scoreArray_view[z, y] > jumpScore:
-                    scoreArray_view[z, y] = jumpScore
-                    previousPos_view[z, y, 0] = x
-                    previousPos_view[z, y, 1] = y
-            '''
             if x < oLen:
                 jumpScore = scoreArray_view[x, y]+GAP_EXTEND
                 if scoreArray_view[x+1, y] > jumpScore:
@@ -196,15 +222,6 @@ def fullAlign_noGO(bytes original, bytes modified):
                 
             
             #now handle insertions to the original
-            '''
-            jumpScore = scoreArray_view[x, y]+GAP_OPEN
-            for z in xrange(y+1, mLen+1):
-                jumpScore += GAP_EXTEND
-                if scoreArray_view[x, z] > jumpScore:
-                    scoreArray_view[x, z] = jumpScore
-                    previousPos_view[x, z, 0] = x
-                    previousPos_view[x, z, 1] = y
-            '''
             if y < mLen:
                 jumpScore = scoreArray_view[x, y]+GAP_EXTEND
                 if scoreArray_view[x, y+1] > jumpScore:
@@ -288,8 +305,8 @@ cpdef unsigned long alignChanges(bytes original, bytes modified):
     cdef unsigned long oLen = len(original)
     cdef unsigned long mLen = len(modified)
     
-    if oLen != mLen:
-        raise Exception("Indels not handled right now")
+    #if oLen != mLen:
+    #    raise Exception("Indels not handled right now")
     
     #initialize the scores
     cdef np.ndarray[np.uint32_t, ndim=2, mode='c'] scoreArray = np.empty(dtype='<u4', shape=(oLen+1, mLen+1))
@@ -326,22 +343,6 @@ cpdef unsigned long alignChanges(bytes original, bytes modified):
             #insertions to the original
             if scoreArray_view[x, y+1] > scoreArray_view[x, y]+GAP_EXTEND:
                 scoreArray_view[x, y+1] = scoreArray_view[x, y]+GAP_EXTEND
-            
-            '''
-            #now handle deletions to the original
-            jumpScore = scoreArray_view[x, y]+GAP_OPEN
-            for z in xrange(x+1, oLen+1):
-                jumpScore += GAP_EXTEND
-                if scoreArray_view[z, y] > jumpScore:
-                    scoreArray_view[z, y] = jumpScore
-            
-            #now handle insertions to the original
-            jumpScore = scoreArray_view[x, y]+GAP_OPEN
-            for z in xrange(y+1, mLen+1):
-                jumpScore += GAP_EXTEND
-                if scoreArray_view[x, z] > jumpScore:
-                    scoreArray_view[x, z] = jumpScore
-            '''
     
     #just return the final number
     return scoreArray_view[oLen, mLen]
