@@ -33,41 +33,6 @@ cdef class BasicBWT(object):
     iterNext
     iterNext_cython
     '''
-    '''
-    #declared in .pxd now
-    cdef np.ndarray numToChar
-    cdef unsigned char [:] numToChar_view
-    cdef np.ndarray charToNum
-    cdef unsigned char [:] charToNum_view
-    cdef unsigned int vcLen
-    cdef unsigned int cacheDepth
-    
-    cdef char * dirName
-    cdef np.ndarray bwt
-    cdef np.uint8_t [:] bwt_view
-    
-    cdef unsigned long totalSize
-    cdef np.ndarray totalCounts
-    cdef np.uint64_t [:] totalCounts_view
-    
-    cdef np.ndarray startIndex
-    cdef np.uint64_t [:] startIndex_view
-    cdef np.ndarray endIndex
-    cdef np.uint64_t [:] endIndex_view
-    
-    cdef dict searchCache
-    cdef unsigned long bitPower
-    cdef unsigned long binSize
-    cdef np.ndarray partialFM
-    cdef np.uint64_t[:, :] partialFM_view
-    
-    cdef unsigned long iterIndex
-    cdef unsigned long iterCount
-    cdef unsigned long iterPower
-    cdef np.uint8_t iterCurrChar
-    cdef np.uint8_t iterCurrCount
-    cdef unsigned long fileSize
-    '''
     
     def __init__(BasicBWT self):
         '''
@@ -86,10 +51,6 @@ cdef class BasicBWT(object):
         self.charToNum_view = self.charToNum
         for i in range(0, self.vcLen):
             self.charToNum_view[self.numToChar_view[i]] = i
-        
-        #this is purely for querying and determines how big our cache will be to shorten query times
-        #TODO: experiment with this number
-        self.cacheDepth = 6
         
         #these are merely defaults, override if wanted but maintain the relationship of, binSize = 2**bitPower
         self.bitPower = 11
@@ -159,8 +120,6 @@ cdef class BasicBWT(object):
         #create a view of the sequence that can be used in a nogil region
         cdef unsigned char * seq_view = seq
         
-        #with nogil:
-        #for x in range(0, s):
         for x in range(s-1, -1, -1):
             #get the character from the sequence, then search at both high and low
             c = self.charToNum_view[seq_view[x]]
@@ -200,7 +159,6 @@ cdef class BasicBWT(object):
         #create a view of the sequence that can be used in a nogil region
         cdef unsigned char * seq_view = seq
         
-        #with nogil:
         for x in range(s-1, -1, -1):
             #get the character from the sequence, then search at both high and low
             c = self.charToNum_view[seq_view[x]]
@@ -661,7 +619,7 @@ cdef class BasicBWT(object):
         '''
         pass
     
-    cpdef np.ndarray countPileup(BasicBWT self, bytes seq, long kmerSize):
+    cpdef np.ndarray[np.uint64_t, ndim=1, mode='c'] countPileup(BasicBWT self, bytes seq, long kmerSize):
         '''
         This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
         "kmerSize" in that sequence and return it in an array. Automatically includes reverse complement.
@@ -809,6 +767,96 @@ cdef class BasicBWT(object):
                 
         return (ret, otherChoices)
     
+    cdef bwtRange getOccurrenceOfCharAtRange(BasicBWT self, unsigned long sym, bwtRange inRange) nogil:
+        cdef bwtRange ret
+        ret.l = 0
+        ret.h = 0
+        return ret
+    
+    cdef bwtRange findRangeOfStr(BasicBWT self, bytes seq):
+        '''
+        This function will search for a string and find the location of that string OR the last index less than it. It also
+        will start its search within a given range instead of the whole structure
+        @param seq - the sequence to search for
+        @param givenRange - the range to search for, whole range by default
+        @return - a python range representing the start and end of the sequence in the bwt
+        '''
+        cdef bwtRange ret
+        cdef unsigned long s
+        cdef long x
+        cdef unsigned long c
+        
+        #initialize our search to the whole BWT
+        ret.l = 0
+        ret.h = self.totalSize
+        s = len(seq)
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        
+        for x in range(s-1, -1, -1):
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[x]]
+            ret = self.getOccurrenceOfCharAtRange(c, ret)
+            
+        #return the difference
+        return ret
+    
+    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] countPileup_c(BasicBWT self, bytes seq, long kmerSize):
+        '''
+        This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
+        "kmerSize" in that sequence and return it in an array. Automatically includes reverse complement.
+        @param seq - the seq to scan
+        @param kmerSize - the size of the k-mer to count
+        @return - a numpy array of size (len(seq)-kmerSize+1) containing the counts
+        '''
+        cdef long seqLen = len(seq)
+        cdef long numCounts = max(0, seqLen-kmerSize+1)
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.zeros(dtype='<u8', shape=(numCounts, ))
+        cdef np.uint64_t [:] ret_view = ret
+        
+        #cdef bytes subseq, subseqRevComp
+        cdef bytes revCompSeq = MultiStringBWT.reverseComplement(seq)
+        
+        cdef unsigned char * seq_view = seq
+        cdef unsigned char * revCompSeq_view = revCompSeq
+        
+        cdef unsigned long x
+        for x in range(0, numCounts):
+            #subseq = seq[x:x+kmerSize]
+            #subseqRevComp = revCompSeq[seqLen-kmerSize-x:seqLen-x]
+            #ret_view[x] = (self.countOccurrencesOfSeq_c(subseq)+
+            #               self.countOccurrencesOfSeq_c(subseqRevComp)
+            ret_view[x] = (self.countOccurrencesOfSeq_c(&seq_view[x], kmerSize)+
+                           self.countOccurrencesOfSeq_c(&revCompSeq_view[seqLen-kmerSize-x], kmerSize))
+        
+        return ret
+    cdef unsigned long countOccurrencesOfSeq_c(BasicBWT self, unsigned char * seq_view, unsigned long seqLen):
+        '''
+        This function counts the number of occurrences of the given sequence
+        @param seq - the sequence to search for
+        @param givenRange - the range to start from (if a partial search has already been run), default=whole range
+        @return - an integer count of the number of times seq occurred in this BWT
+        '''
+        #initialize our search to the whole BWT
+        cdef unsigned long l = 0
+        cdef unsigned long h = self.totalSize
+        cdef long x
+        cdef unsigned long c
+        
+        for x in range(seqLen-1, -1, -1):
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[x]]
+            l = self.getOccurrenceOfCharAtIndex(c, l)
+            h = self.getOccurrenceOfCharAtIndex(c, h)
+            
+            #early exit for counts
+            if l == h:
+                break
+        
+        #return the difference
+        return h - l
+    
     cpdef np.ndarray countStrandedSeqMatchesNoOther(BasicBWT self, bytes seq, unsigned long kmerSize):
         '''
         This function takes an input sequence "seq" and counts the number of occurrences of all k-mers of size
@@ -834,10 +882,14 @@ cdef class BasicBWT(object):
         
         #ranges for counting
         cdef unsigned long currLen = 0
-        cdef unsigned long l = 0
-        cdef unsigned long h = self.totalSize
+        #cdef unsigned long l = 0
+        #cdef unsigned long h = self.totalSize
+        cdef bwtRange mainRange
+        mainRange.l = 0
+        mainRange.h = self.totalSize
         
-        cdef unsigned long newL, newH
+        #cdef unsigned long newL, newH
+        cdef bwtRange newRange
         
         #other vars
         cdef unsigned long c
@@ -847,47 +899,53 @@ cdef class BasicBWT(object):
         #now we start traversing
         for x in range(s-1, -1, -1):
             c = self.charToNum_view[seq_view[x]]
-            newL = self.getOccurrenceOfCharAtIndex(c, l)
-            newH = self.getOccurrenceOfCharAtIndex(c, h)
+            #newL = self.getOccurrenceOfCharAtIndex(c, l)
+            #newH = self.getOccurrenceOfCharAtIndex(c, h)
+            newRange = self.getOccurrenceOfCharAtRange(c, mainRange)
             
             if currLen == kmerSize-1:
-                self.fillFmAtIndex(lowArray_view, l)
-                self.fillFmAtIndex(highArray_view, h)
+                self.fillFmAtIndex(lowArray_view, mainRange.l)
+                self.fillFmAtIndex(highArray_view, mainRange.h)
                 
-            while newL == newH and currLen > 0:
+            #while newL == newH and currLen > 0:
+            while newRange.l == newRange.h and currLen > 0:
                 #loosen up a bit
                 currLen -= 1
-                while l > 0 and self.lcps_view[l-1] >= currLen:
-                    l -= 1
-                while h < self.totalSize and self.lcps_view[h-1] >= currLen:
-                    h += 1
+                while mainRange.l > 0 and self.lcps_view[mainRange.l-1] >= currLen:
+                    mainRange.l -= 1
+                while mainRange.h < self.totalSize and self.lcps_view[mainRange.h-1] >= currLen:
+                    mainRange.h += 1
                 
                 #re-search
-                newL = self.getOccurrenceOfCharAtIndex(c, l)
-                newH = self.getOccurrenceOfCharAtIndex(c, h)
+                #newL = self.getOccurrenceOfCharAtIndex(c, l)
+                #newH = self.getOccurrenceOfCharAtIndex(c, h)
+                newRange = self.getOccurrenceOfCharAtRange(c, mainRange)
             
-            if newL == newH and currLen == 0:
+            #if newL == newH and currLen == 0:
+            if newRange.l == newRange.h and currLen == 0:
                 #this symbol just doesn't occur at all
-                l = 0
-                h = self.totalSize
+                mainRange.l = 0
+                mainRange.h = self.totalSize
             else:
                 #else, we set our l/h to newL/newH and increment the length
-                l = newL
-                h = newH
+                #l = newL
+                #h = newH
+                mainRange.l = newRange.l
+                mainRange.h = newRange.h
                 currLen += 1
                 
                 #check if we're ready to start counting
                 if x < numCounts:
                     if currLen == kmerSize:
                         #store the count
-                        ret_view[x] = h-l
+                        ret_view[x] = mainRange.h-mainRange.l
                         
                         #now reduce the currLen and loosen
                         currLen -= 1
-                        while l > 0 and self.lcps_view[l-1] >= currLen:
-                            l -= 1
-                        while h < self.totalSize and self.lcps_view[h-1] >= currLen:
-                            h += 1
+                        while mainRange.l > 0 and self.lcps_view[mainRange.l-1] >= currLen:
+                            mainRange.l -= 1
+                        while mainRange.h < self.totalSize and self.lcps_view[mainRange.h-1] >= currLen:
+                            mainRange.h += 1
                         
                     else:
                         #we're too small, this means the count is 0
@@ -990,25 +1048,7 @@ cdef class BasicBWT(object):
                 currLen += 1
                 
                 #store the length of the k-mer we found
-                #ret_view[x] = currLen
                 rightRet_view[x] = currLen
-                
-                #TODO: this can likely be moved into the above loop to avoid a whole lot of checks
-                '''
-                for y in range(x, x+currLen):
-                    leftRet_view[y] = max(leftRet_view[y], y-x+1)
-                '''
-                
-                #this stores it for all values
-                #for y in range(x, x+currLen):
-                #    ret_view[y] = max(ret_view[y], currLen)
-        
-        #return (leftRet+rightRet)/2
-        '''
-        for x in range(0, s):
-            leftRet_view[x] = max(leftRet_view[x], rightRet_view[x])
-        return leftRet
-        '''
         
         #TODO: currently returning (and calculating) just the right side, are other metrics better?
         return rightRet
@@ -1061,35 +1101,6 @@ cdef class BasicBWT(object):
             self.fillFmAtIndex(highArray_view, h)
             newL = lowArray_view[c]
             newH = highArray_view[c]
-            
-            '''
-            #here's the ret value magic
-            maxAlt = 0
-            altCurrLen = currLen
-            altL = l
-            altH = h
-            
-            while maxAlt < threshold and altCurrLen > 0:
-                #print altCurrLen
-                for altC in range(1, self.vcLen):
-                    if altC != c:
-                        altVal = highArray_view[altC] - lowArray_view[altC]
-                        if altVal > maxAlt:
-                            maxAlt = altVal
-                
-                if maxAlt < threshold:
-                    #loosen up
-                    altCurrLen -= 1
-                    while altL > 0 and self.lcps_view[altL-1] >= altCurrLen:
-                        altL -= 1
-                    while altH < self.totalSize and self.lcps_view[altH-1] >= altCurrLen:
-                        altH += 1
-                    
-                    #re-calc the fm index with the loosened range
-                    self.fillFmAtIndex(lowArray_view, altL)
-                    self.fillFmAtIndex(highArray_view, altH)
-            ret_view[x] = altCurrLen
-            '''
             
             if currLen > 20:
                 maxAlt = 0

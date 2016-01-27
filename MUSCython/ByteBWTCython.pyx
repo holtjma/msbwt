@@ -93,7 +93,6 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
         @param logger - the logger to print output to
         '''
         #sampling method
-        self.searchCache = {}
         self.bitPower = 11
         self.binSize = 2**self.bitPower
         fmIndexFN = self.dirName+'/fmIndex.npy'

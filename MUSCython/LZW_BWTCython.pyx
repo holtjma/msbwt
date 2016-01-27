@@ -152,7 +152,6 @@ cdef class LZW_BWT(BasicBWT.BasicBWT):
         This file is always stored in '<DIR>/fmIndex.npy'
         '''
         #sampling method
-        self.searchCache = {}
         fmIndexFN = self.dirName+'/lzw_fmIndex.npy'
         totalCountsFN = self.dirName+'/totalCounts.npy'
         

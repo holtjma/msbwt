@@ -15,6 +15,17 @@ import MSBWTGenCython as MSBWTGen
 import AlignmentUtil
 from cython.operator cimport preincrement as inc
 
+cdef enum:
+    letterBits = 3 #defined
+    numberBits = 5 #8-letterBits
+    numPower = 32  #2**numberBits
+    mask = 7       #255 >> numberBits 
+    
+    bitPower = 11  #defined
+    binSize = 2048 #2**self.bitPower
+    
+    vcLen = 6      #defined
+
 cdef class RLE_BWT(BasicBWT.BasicBWT):
     '''
     This structure inherits from the BasicBWT and includes several functions with identical functionality to the ByteBWT
@@ -74,10 +85,10 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned long currentCount
         cdef unsigned long powerMultiple
         
-        self.letterBits = 3
-        self.numberBits = 8-self.letterBits
-        self.numPower = 2**self.numberBits
-        self.mask = 255 >> self.numberBits
+        #self.letterBits = 3
+        #self.numberBits = 8-self.letterBits
+        #self.numPower = 2**self.numberBits
+        #self.mask = 255 >> self.numberBits
         
         cdef str abtFN = self.dirName+'/totalCounts.npy'
         if os.path.exists(abtFN):
@@ -90,7 +101,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             if logger != None:
                 logger.info('First time calculation of \'%s\'' % abtFN)
             
-            self.totalCounts = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+            self.totalCounts = np.zeros(dtype='<u8', shape=(vcLen, ))
             self.totalCounts_view = self.totalCounts
             numBytes = self.bwt.shape[0]
             prevChar = 255
@@ -98,14 +109,14 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             
             with nogil:
                 for i in range(0, numBytes):
-                    currentChar = self.bwt_view[i] & self.mask
+                    currentChar = self.bwt_view[i] & mask
                     if currentChar == prevChar:
-                        powerMultiple *= self.numPower
+                        powerMultiple *= numPower
                     else:
                         powerMultiple = 1
                     prevChar = currentChar
                     
-                    currentCount = (self.bwt_view[i] >> self.letterBits) * powerMultiple
+                    currentCount = (self.bwt_view[i] >> letterBits) * powerMultiple
                     self.totalCounts_view[currentChar] += currentCount
             
             np.save(abtFN, self.totalCounts)
@@ -128,10 +139,6 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         a particular FM-index count.  The two files necessary are '<DIR>/comp_fmIndex.npy' and '<DIR>/comp_refIndex.npy'
         '''
         #sampling method
-        self.searchCache = {}
-        self.bitPower = 11
-        self.binSize = 2**self.bitPower
-        
         cdef unsigned long i, j
         cdef unsigned long binID
         cdef unsigned long totalCharCount
@@ -166,8 +173,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                 logger.info('First time calculation of \'%s\'' % fmIndexFN)
             
             #pre-allocate space
-            samplingSize = int(math.ceil(float(self.totalSize+1)/self.binSize))
-            self.partialFM = np.lib.format.open_memmap(fmIndexFN, 'w+', '<u8', (samplingSize, self.vcLen))
+            samplingSize = int(math.ceil(float(self.totalSize+1)/binSize))
+            self.partialFM = np.lib.format.open_memmap(fmIndexFN, 'w+', '<u8', (samplingSize, vcLen))
             self.partialFM_view = self.partialFM
             self.refFM = np.lib.format.open_memmap(fmRefFN, 'w+', '<u8', (samplingSize,))
             self.refFM_view = self.refFM
@@ -187,17 +194,17 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             with nogil:
                 #go through each byte, we'll determine when to save inside the loop
                 for i in range(0, numBytes):
-                    currentChar = self.bwt_view[i] & self.mask
+                    currentChar = self.bwt_view[i] & mask
                     if currentChar == prevChar:
-                        totalCharCount += (self.bwt_view[i] >> self.letterBits) * powerMultiple
-                        powerMultiple *= self.numPower
+                        totalCharCount += (self.bwt_view[i] >> letterBits) * powerMultiple
+                        powerMultiple *= numPower
                     else:
                         #first save this count
                         while bwtIndex + totalCharCount >= binEnd:
                             self.refFM_view[binID] = prevStart
-                            for j in range(0, self.vcLen):
+                            for j in range(0, vcLen):
                                 self.partialFM_view[binID,j] = countsSoFar_view[j]
-                            binEnd += self.binSize
+                            binEnd += binSize
                             inc(binID)
                         
                         #add the previous
@@ -206,14 +213,14 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                         
                         prevChar = currentChar
                         prevStart = i
-                        totalCharCount = (self.bwt_view[i] >> self.letterBits)
-                        powerMultiple = self.numPower
+                        totalCharCount = (self.bwt_view[i] >> letterBits)
+                        powerMultiple = numPower
                 
                 while bwtIndex + totalCharCount >= binEnd:
                     self.refFM_view[binID] = prevStart
-                    for j in range(0, self.vcLen):
+                    for j in range(0, vcLen):
                         self.partialFM_view[binID,j] = countsSoFar_view[j]
-                    binEnd += self.binSize
+                    binEnd += binSize
                     inc(binID)
             
         #we'll use this later when we do lookups
@@ -227,32 +234,32 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         @param return - return the character in our BWT that's at a particular index (integer format)
         '''
         #get the bin we should start from
-        cdef unsigned long binID = index >> self.bitPower
+        cdef unsigned long binID = index >> bitPower
         cdef unsigned long bwtIndex = self.refFM_view[binID]
         
         #these are the values that indicate how far in we really are
         cdef unsigned long trueIndex = 0
         cdef unsigned long i
-        for i in range(0, self.vcLen):
+        for i in range(0, vcLen):
             trueIndex += self.partialFM_view[binID,i]
         trueIndex -= self.offsetSum
         
-        cdef unsigned long prevChar = self.bwt_view[bwtIndex] & self.mask
+        cdef unsigned long prevChar = self.bwt_view[bwtIndex] & mask
         cdef unsigned long currentChar
-        cdef unsigned long prevCount = self.bwt_view[bwtIndex] >> self.letterBits
+        cdef unsigned long prevCount = self.bwt_view[bwtIndex] >> letterBits
         cdef unsigned long powerMultiple = 1
         
         while trueIndex + prevCount <= index:
             trueIndex += prevCount
             bwtIndex += 1
             
-            currentChar = self.bwt_view[bwtIndex] & self.mask
+            currentChar = self.bwt_view[bwtIndex] & mask
             if currentChar == prevChar:
-                powerMultiple *= self.numPower
-                prevCount = (self.bwt_view[bwtIndex] >> self.letterBits) * powerMultiple
+                powerMultiple *= numPower
+                prevCount = (self.bwt_view[bwtIndex] >> letterBits) * powerMultiple
             else:
                 powerMultiple = 1
-                prevCount = self.bwt_view[bwtIndex] >> self.letterBits
+                prevCount = self.bwt_view[bwtIndex] >> letterBits
             
             prevChar = currentChar
         
@@ -266,8 +273,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         @param binID - the bin we're copying
         '''
         cdef unsigned long x
-        cdef unsigned long startIndex = binID*self.binSize
-        cdef unsigned long endIndex = min((binID+1)*self.binSize, self.totalSize)
+        cdef unsigned long startIndex = binID*binSize
+        cdef unsigned long endIndex = min((binID+1)*binSize, self.totalSize)
         
         #get the bin we should start from
         cdef unsigned long bwtIndex = self.refFM_view[binID]
@@ -275,13 +282,13 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         #these are the values that indicate how far in we really are
         cdef unsigned long trueIndex = 0
         cdef unsigned long i
-        for i in range(0, self.vcLen):
+        for i in range(0, vcLen):
             trueIndex += self.partialFM_view[binID,i]
         trueIndex -= self.offsetSum
         
-        cdef unsigned long prevChar = self.bwt_view[bwtIndex] & self.mask
+        cdef unsigned long prevChar = self.bwt_view[bwtIndex] & mask
         cdef unsigned long currentChar
-        cdef unsigned long prevCount = self.bwt_view[bwtIndex] >> self.letterBits
+        cdef unsigned long prevCount = self.bwt_view[bwtIndex] >> letterBits
         cdef unsigned powerMultiple = 1
         
         #first, we may need to skip ahead some
@@ -290,13 +297,13 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             #inc(bwtIndex)
             bwtIndex += 1
             
-            currentChar = self.bwt_view[bwtIndex] & self.mask
+            currentChar = self.bwt_view[bwtIndex] & mask
             if currentChar == prevChar:
-                powerMultiple *= self.numPower
-                prevCount = (self.bwt_view[bwtIndex] >> self.letterBits) * powerMultiple
+                powerMultiple *= numPower
+                prevCount = (self.bwt_view[bwtIndex] >> letterBits) * powerMultiple
             else:
                 powerMultiple = 1
-                prevCount = self.bwt_view[bwtIndex] >> self.letterBits
+                prevCount = self.bwt_view[bwtIndex] >> letterBits
             prevChar = currentChar
         
         #now we actually do the same loop only with some writes
@@ -313,13 +320,13 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             bwtIndex += 1
             
             #pull out the char and update powers/counts
-            currentChar = self.bwt_view[bwtIndex] & self.mask
+            currentChar = self.bwt_view[bwtIndex] & mask
             if currentChar == prevChar:
-                powerMultiple *= self.numPower
-                prevCount = (self.bwt_view[bwtIndex] >> self.letterBits) * powerMultiple
+                powerMultiple *= numPower
+                prevCount = (self.bwt_view[bwtIndex] >> letterBits) * powerMultiple
             else:
                 powerMultiple = 1
-                prevCount = self.bwt_view[bwtIndex] >> self.letterBits
+                prevCount = self.bwt_view[bwtIndex] >> letterBits
             prevChar = currentChar
         
         #finally fill in the remaining stuff
@@ -335,9 +342,9 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         @return - a range of integers representing the characters in the bwt from start to end
         '''
         #set aside an array block to fill
-        startBlockIndex = start >> self.bitPower
-        endBlockIndex = int(math.floor(float(end)/self.binSize))
-        trueStart = startBlockIndex*self.binSize
+        startBlockIndex = start >> bitPower
+        endBlockIndex = int(math.floor(float(end)/binSize))
+        trueStart = startBlockIndex*binSize
         
         #first we will extract the range of blocks
         return self.decompressBlocks(startBlockIndex, endBlockIndex)[start-trueStart:end-trueStart]
@@ -351,7 +358,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         @param endBlock - the index of the final block we will decode, if they are the same, we decode one block
         @return - an array of size blockSize*(endBlock-startBlock+1), interpreting that block is up to getBWTRange(...)
         '''
-        expectedIndex = startBlock*self.binSize
+        expectedIndex = startBlock*binSize
         trueIndex = np.sum(self.partialFM[startBlock])-self.offsetSum
         dist = expectedIndex - trueIndex
         
@@ -359,11 +366,11 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         startRange = self.refFM[startBlock]
         if endBlock >= self.refFM.shape[0]-1:
             endRange = self.bwt.shape[0]
-            returnSize = self.binSize*(endBlock-startBlock)+(self.totalSize % self.binSize)
+            returnSize = binSize*(endBlock-startBlock)+(self.totalSize % binSize)
         else:
             endRange = self.refFM[endBlock+1]+1
-            returnSize = self.binSize*(endBlock-startBlock+1)
-            while endRange < self.bwt.shape[0] and (self.bwt[endRange] & self.mask) == (self.bwt[endRange-1] & self.mask):
+            returnSize = binSize*(endBlock-startBlock+1)
+            while endRange < self.bwt.shape[0] and (self.bwt[endRange] & mask) == (self.bwt[endRange-1] & mask):
                 endRange += 1
         
         ret = np.zeros(dtype='<u1', shape=(returnSize,))
@@ -372,15 +379,15 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         endRange = int(endRange)
         
         #split the letters and numbers in the compressed bwt
-        letters = np.bitwise_and(self.bwt[startRange:endRange], self.mask)
-        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] counts = np.right_shift(self.bwt[startRange:endRange], self.letterBits, dtype='<u8')
+        letters = np.bitwise_and(self.bwt[startRange:endRange], mask)
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] counts = np.right_shift(self.bwt[startRange:endRange], letterBits, dtype='<u8')
         
         #multiply counts where needed
         i = 1
         #same = (letters[0:-1] == letters[1:])
         same = (letters[0:letters.shape[0]-1] == letters[1:])
         while np.count_nonzero(same) > 0:
-            (counts[i:])[same] *= self.numPower
+            (counts[i:])[same] *= numPower
             i += 1
             #same = np.bitwise_and(same[0:-1], same[1:])
             same = np.bitwise_and(same[0:same.shape[0]-1], same[1:])
@@ -413,11 +420,11 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         @param index - the index we want to find the occurrence level at
         @return - the number of occurrences of char before the specified index
         '''
-        cdef unsigned long binID = index >> self.bitPower
+        cdef unsigned long binID = index >> bitPower
         cdef unsigned long compressedIndex = self.refFM_view[binID]
         cdef unsigned long bwtIndex = 0
         cdef unsigned long j
-        for j in range(0, self.vcLen):
+        for j in range(0, vcLen):
             bwtIndex += self.partialFM_view[binID,j]
         bwtIndex -= self.offsetSum
             
@@ -430,21 +437,21 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         #cdef unsigned long powerMultiple = 0
         
         while bwtIndex + prevCount < index:
-            currentChar = self.bwt_view[compressedIndex] & self.mask
+            currentChar = self.bwt_view[compressedIndex] & mask
             if currentChar == prevChar:
-                prevCount += (self.bwt_view[compressedIndex] >> self.letterBits) * powerMultiple
-                powerMultiple *= self.numPower
-                #prevCount += <unsigned long>(self.bwt_view[compressedIndex] >> self.letterBits) << powerMultiple
-                #powerMultiple += self.numberBits
+                prevCount += (self.bwt_view[compressedIndex] >> letterBits) * powerMultiple
+                powerMultiple *= numPower
+                #prevCount += <unsigned long>(self.bwt_view[compressedIndex] >> letterBits) << powerMultiple
+                #powerMultiple += numberBits
             else:
                 if prevChar == sym:
                     ret += prevCount
                 
                 bwtIndex += prevCount
-                prevCount = (self.bwt_view[compressedIndex] >> self.letterBits)
+                prevCount = (self.bwt_view[compressedIndex] >> letterBits)
                 prevChar = currentChar
-                powerMultiple = self.numPower
-                #powerMultiple = self.numberBits
+                powerMultiple = numPower
+                #powerMultiple = numberBits
                 
             compressedIndex += 1
         
@@ -453,8 +460,90 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         
         return ret
     
+    cdef BasicBWT.bwtRange getOccurrenceOfCharAtRange(RLE_BWT self, unsigned long sym, BasicBWT.bwtRange inRange) nogil:
+        '''
+        This functions gets the FM-index value of a character at the specified position
+        @param sym - the character to find the occurrence level
+        @param index - the index we want to find the occurrence level at
+        @return - the number of occurrences of char before the specified index
+        '''
+        cdef unsigned long binID = inRange.l >> bitPower
+        cdef unsigned long compressedIndex = self.refFM_view[binID]
+        cdef unsigned long bwtIndex = 0
+        cdef unsigned long j
+        for j in range(0, vcLen):
+            bwtIndex += self.partialFM_view[binID,j]
+        bwtIndex -= self.offsetSum
+        
+        cdef BasicBWT.bwtRange ret
+        ret.l = self.partialFM_view[binID,sym]
+        
+        cdef np.uint8_t prevChar = 255
+        cdef np.uint8_t currentChar
+        cdef unsigned long prevCount = 0
+        cdef unsigned long powerMultiple = 1
+        
+        while bwtIndex + prevCount < inRange.l:
+            currentChar = self.bwt_view[compressedIndex] & mask
+            if currentChar == prevChar:
+                prevCount += (self.bwt_view[compressedIndex] >> letterBits) * powerMultiple
+                powerMultiple *= numPower
+            else:
+                if prevChar == sym:
+                    ret.l += prevCount
+                
+                bwtIndex += prevCount
+                prevCount = (self.bwt_view[compressedIndex] >> letterBits)
+                prevChar = currentChar
+                powerMultiple = numPower
+                
+            compressedIndex += 1
+        
+        cdef unsigned long tempC = ret.l
+        if prevChar == sym:
+            ret.l += inRange.l-bwtIndex
+        
+        cdef unsigned long binID_h = inRange.h >> bitPower
+        if binID == binID_h:
+            #we can continue, just set this value
+            ret.h = tempC
+        else:
+            #we need to load everything
+            compressedIndex = self.refFM_view[binID_h]
+            bwtIndex = 0
+            for j in range(0, vcLen):
+                bwtIndex += self.partialFM_view[binID_h,j]
+            bwtIndex -= self.offsetSum
+            
+            ret.h = self.partialFM_view[binID_h,sym]
+            
+            prevChar = 255
+            prevCount = 0
+            powerMultiple = 1
+        
+        while bwtIndex + prevCount < inRange.h:
+            currentChar = self.bwt_view[compressedIndex] & mask
+            if currentChar == prevChar:
+                prevCount += (self.bwt_view[compressedIndex] >> letterBits) * powerMultiple
+                powerMultiple *= numPower
+            else:
+                if prevChar == sym:
+                    ret.h += prevCount
+                
+                bwtIndex += prevCount
+                prevCount = (self.bwt_view[compressedIndex] >> letterBits)
+                prevChar = currentChar
+                powerMultiple = numPower
+                
+            compressedIndex += 1
+        
+        if prevChar == sym:
+            ret.h += inRange.h-bwtIndex
+        
+        return ret
+    
     def getFullFMAtIndex(RLE_BWT self, np.uint64_t index):
-        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.empty(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] ret = np.empty(dtype='<u8', shape=(vcLen, ))
         cdef np.uint64_t [:] ret_view = ret
         self.fillFmAtIndex(ret_view, index)
         return ret
@@ -471,34 +560,34 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                  1 2 4 4 4
         @return - the above information in the form of an array that already incorporates the offset value into the counts
         '''
-        cdef unsigned long binID = index >> self.bitPower
+        cdef unsigned long binID = index >> bitPower
         cdef unsigned long compressedIndex = self.refFM_view[binID]
         cdef unsigned long bwtIndex = 0
         cdef unsigned long j
         
-        for j in range(0, self.vcLen):
+        for j in range(0, vcLen):
             bwtIndex += self.partialFM_view[binID,j]
             ret_view[j] = self.partialFM_view[binID,j]
         bwtIndex -= self.offsetSum
         
-        cdef np.uint8_t prevChar = self.bwt_view[compressedIndex] & self.mask
+        cdef np.uint8_t prevChar = self.bwt_view[compressedIndex] & mask
         cdef np.uint8_t currentChar
-        cdef unsigned long prevCount = self.bwt_view[compressedIndex] >> self.letterBits
-        cdef unsigned long powerMultiple = self.numPower
+        cdef unsigned long prevCount = self.bwt_view[compressedIndex] >> letterBits
+        cdef unsigned long powerMultiple = numPower
         compressedIndex += 1
         
         while bwtIndex + prevCount < index:
-            currentChar = self.bwt_view[compressedIndex] & self.mask
+            currentChar = self.bwt_view[compressedIndex] & mask
             if currentChar == prevChar:
-                prevCount += (self.bwt_view[compressedIndex] >> self.letterBits) * powerMultiple
-                powerMultiple *= self.numPower
+                prevCount += (self.bwt_view[compressedIndex] >> letterBits) * powerMultiple
+                powerMultiple *= numPower
             else:
                 ret_view[prevChar] += prevCount
                 
                 bwtIndex += prevCount
-                prevCount = (self.bwt_view[compressedIndex] >> self.letterBits)
+                prevCount = (self.bwt_view[compressedIndex] >> letterBits)
                 prevChar = currentChar
-                powerMultiple = self.numPower
+                powerMultiple = numPower
             
             compressedIndex += 1
             
@@ -521,7 +610,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             inc(self.iterCount)
         elif self.iterIndex < self.fileSize:
             #we have more bytes to process
-            sym = self.bwt_view[self.iterIndex] & self.mask
+            sym = self.bwt_view[self.iterIndex] & mask
             
             #increment our power if necessary
             if sym == self.iterCurrChar:
@@ -533,7 +622,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                 self.iterCurrChar = sym
                 
             #pull out the number of counts here and reset our counting
-            self.iterCurrCount += (self.bwt_view[self.iterIndex] >> self.letterBits) * (self.numPower**self.iterPower)
+            self.iterCurrCount += (self.bwt_view[self.iterIndex] >> letterBits) * (numPower**self.iterPower)
             inc(self.iterCount) 
             ret = self.iterCurrChar
             inc(self.iterIndex)
@@ -637,7 +726,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned long currentCount = 0
         cdef unsigned long powerMultiple = 1
         cdef unsigned long totalCounted = 0
-        cdef np.uint8_t NUM_MASK = (0xFF >> self.letterBits)#0x1F
+        cdef np.uint8_t NUM_MASK = (0xFF >> letterBits)#0x1F
         
         if logger != None:
             logger.info('Deleting indices...')
@@ -648,12 +737,12 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         #go through each byte in the BWT
         for i in range(0, numBytes):
             #figure out which character is in this run
-            currentChar = self.bwt_view[i] & self.mask
+            currentChar = self.bwt_view[i] & mask
             
             #compare the currentChar to the prevChar, tells us if a run is going on
             if currentChar == prevChar:
                 #this is a continuation, so increment the power
-                powerMultiple *= self.numPower
+                powerMultiple *= numPower
             else:
                 #increase the number of counted symbols
                 totalCounted += currentCount
@@ -670,8 +759,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                     else:
                         #symbols are different, time to write out our previous run
                         while lastRunCount > 0:
-                            self.bwt_view[writeByte] = ((lastRunCount & NUM_MASK) << self.letterBits) | lastRunSym
-                            lastRunCount = lastRunCount >> self.numberBits
+                            self.bwt_view[writeByte] = ((lastRunCount & NUM_MASK) << letterBits) | lastRunSym
+                            lastRunCount = lastRunCount >> numberBits
                             writeByte += 1
                         
                         #now store the next run
@@ -687,7 +776,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                 prevChar = currentChar
             
             #add the count based on the current multiple
-            currentCount += (self.bwt_view[i] >> self.letterBits)*powerMultiple
+            currentCount += (self.bwt_view[i] >> letterBits)*powerMultiple
         
         #do this one last time in case there's a late deletion
         totalCounted += currentCount
@@ -703,8 +792,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             else:
                 #symbols are different, time to write out our previous run
                 while lastRunCount > 0:
-                    self.bwt_view[writeByte] = ((lastRunCount & NUM_MASK) << self.letterBits) | lastRunSym
-                    lastRunCount = lastRunCount >> self.numberBits
+                    self.bwt_view[writeByte] = ((lastRunCount & NUM_MASK) << letterBits) | lastRunSym
+                    lastRunCount = lastRunCount >> numberBits
                     writeByte += 1
                 
                 #now store the next run
@@ -713,8 +802,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         
         #now write out the final run which we know is there
         while lastRunCount > 0:
-            self.bwt_view[writeByte] = ((lastRunCount & NUM_MASK) << self.letterBits) | lastRunSym
-            lastRunCount = lastRunCount >> self.numberBits
+            self.bwt_view[writeByte] = ((lastRunCount & NUM_MASK) << letterBits) | lastRunSym
+            lastRunCount = lastRunCount >> numberBits
             writeByte += 1
         
         #finally, clear out everything from the current write byte to the maximum array size
@@ -886,8 +975,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned char * seq_view = seq
         
         #arrays for the fm-indices
-        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
-        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(vcLen, ))
         cdef np.uint64_t [:] lowArray_view = lowArray
         cdef np.uint64_t [:] highArray_view = highArray
         
@@ -899,7 +988,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
             self.fillFmAtIndex(lowArray_view, l)
             self.fillFmAtIndex(highArray_view, h)
             
-            for c2 in xrange(1, self.vcLen):
+            for c2 in xrange(1, vcLen):
                 if c2 != c:# and (x < halfLen or currLen >= halfLen):#<---if you do this, need a different function below
                     #BEGIN SNP CHECK
                     #copy x into y, and set the altPos at -1 since it isn't actually added yet
@@ -1066,8 +1155,8 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         cdef unsigned long symBefore, symAfter
         
         #arrays for the fm-indices
-        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
-        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(vcLen, ))
         cdef np.uint64_t [:] lowArray_view = lowArray
         cdef np.uint64_t [:] highArray_view = highArray
         
@@ -1215,7 +1304,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
                         self.fillFmAtIndex(highArray_view, hH)
                         
                         #for all other symbols
-                        for c2 in range(1, self.vcLen):
+                        for c2 in range(1, vcLen):
                             if nextC != c2:
                                 if highArray_view[c2] - lowArray_view[c2] <= 1:
                                     #THIS METHOD WORKS WELL WHEN THERE ARE SPARSE ERRORS
