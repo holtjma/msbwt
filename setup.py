@@ -10,7 +10,7 @@ from MUS import util
 
 #borrowed from online code: http://stackoverflow.com/questions/4505747/how-should-i-structure-a-python-package-that-contains-cython-code
 try:
-    from Cython.Distutils import _build_ext
+    from Cython.Distutils import build_ext as _build_ext
 except ImportError:
     from setuptools.command.build_ext import build_ext as _build_ext
     useCython = False

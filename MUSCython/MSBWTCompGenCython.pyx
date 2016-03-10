@@ -20,11 +20,13 @@ currently resides.
 from libc.stdio cimport FILE, fopen, fwrite, fclose
 
 #python imports
+import glob
 import math
 import multiprocessing
 import numpy as np
 cimport numpy as np
 import os
+import shutil
 import time
 
 #my imports
@@ -60,6 +62,20 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] offsets = np.load(offsetFN, 'r+')
     cdef unsigned long seqLen = offsets[0]
     
+    #some basic counting variables
+    cdef unsigned long i, j, c, columnID, c2
+    cdef unsigned long initColumnID = 0
+    for i in xrange(0, seqLen):
+        for c in xrange(0, numValidChars):
+            if not os.path.exists(bwtDir+'/state.'+str(c)+'.'+str(i)+'.dat'):
+                break
+        else:
+            #do two more checks for information we need
+            if (os.path.exists(bwtDir+'/fmStarts.'+str(i)+'.npy') and
+                os.path.exists(bwtDir+'/fmDeltas.'+str(i)+'.npy')):
+                initColumnID = i
+                break
+    
     #finalSymbols stores the last real symbols in the strings (not the '$', the ones right before)
     cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] finalSymbols = np.load(seqFNPrefix+'.1.npy', 'r+')
     cdef np.uint8_t [:] finalSymbols_view = finalSymbols
@@ -67,71 +83,108 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
     
     logger.warning('Beta version of Cython compressed creation')
     logger.info('Preparing to merge '+str(numSeqs)+' sequences...')
-    logger.info('Generating level 1 insertions...')
     
-    #1 - load <DIR>/seqs.npy.<seqLen-2>.npy, these are the characters before the '$'s
-    #    use them as the original inserts storing <insert position, insert character, sequence ID>
-    #    note that inserts should be stored in a minimum of 6 files, one for each character
-    initialInsertsFN = bwtDir+'/inserts.initial.npy'
-    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] initialInserts = np.lib.format.open_memmap(initialInsertsFN, 'w+', '<u8', (numSeqs, 3))
-    cdef np.uint64_t [:, :] initialInserts_view = initialInserts
-    
-    #some basic counting variables
-    cdef unsigned long i, j, c, columnID, c2
-    
-    #this will still the initial counts of symbols in the final column of our strings
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] initialFmDeltas = np.zeros(dtype='<u8', shape=(numValidChars, ))
-    cdef np.uint64_t [:] initialFmDeltas_view = initialFmDeltas
-    
-    for i in range(0, numSeqs):
-        #index to insert, symbol, sequence
-        initialInserts_view[i, 0] = i
-        initialInserts_view[i, 1] = finalSymbols_view[i]
-        initialInserts_view[i, 2] = i
-        initialFmDeltas_view[finalSymbols_view[i]] += 1
+    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] initialInserts
+    cdef np.uint64_t [:, :] initialInserts_view
+    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] initialFmDeltas
+    cdef np.uint64_t [:] initialFmDeltas_view
     
     #fmStarts is basically an fm-index offset, fmdeltas tells us how much fmStarts should change each iterations
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmStarts = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
     cdef np.uint64_t [:, :] fmStarts_view = fmStarts
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmDeltas = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
     cdef np.uint64_t [:, :] fmDeltas_view = fmDeltas
-    cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmEnds = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
-    cdef np.uint64_t [:, :] fmEnds_view = fmEnds
+    #cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] fmEnds = np.zeros(dtype='<u8', shape=(numValidChars, numValidChars))
+    #cdef np.uint64_t [:, :] fmEnds_view = fmEnds
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] nextFmDeltas = np.empty(dtype='<u8', shape=(numValidChars, numValidChars))
     cdef np.uint64_t [:, :] nextFmDeltas_view = nextFmDeltas
     cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] retFmDeltas
     cdef np.uint64_t [:, :] retFmDeltas_view
     
-    #fmDeltas[0][:] = initialFmDeltas[:]
-    for i in range(0, numValidChars):
-        fmDeltas_view[0, i] = initialFmDeltas[i]
-    
-    #figure out the files we insert in each iteration
     cdef dict insertionFNDict = {}
     cdef dict nextInsertionFNDict = {}
     cdef FILE * tempFP
-    for c in range(0, numValidChars):
-        #create an initial empty region for each symbol
-        tempFN = bwtDir+'/state.'+str(c)+'.0.dat'
-        tempFP = fopen(tempFN, 'w+')
-        fclose(tempFP)
+    
+    if initColumnID == 0:
+        logger.info('Generating level 1 insertions...')
+        #1 - load <DIR>/seqs.npy.<seqLen-2>.npy, these are the characters before the '$'s
+        #    use them as the original inserts storing <insert position, insert character, sequence ID>
+        #    note that inserts should be stored in a minimum of 6 files, one for each character
+        initialInsertsFN = bwtDir+'/inserts.initial.npy'
+        initialInserts = np.lib.format.open_memmap(initialInsertsFN, 'w+', '<u8', (numSeqs, 3))
+        initialInserts_view = initialInserts
+
+        #this will store the initial counts of symbols in the final column of our strings
+        initialFmDeltas = np.zeros(dtype='<u8', shape=(numValidChars, ))
+        initialFmDeltas_view = initialFmDeltas
         
-        #create an empty list of files for insertion
-        insertionFNDict[c] = []
-        nextInsertionFNDict[c] = []
+        for i in range(0, numSeqs):
+            #index to insert, symbol, sequence
+            initialInserts_view[i, 0] = i
+            initialInserts_view[i, 1] = finalSymbols_view[i]
+            initialInserts_view[i, 2] = i
+            initialFmDeltas_view[finalSymbols_view[i]] += 1
+        
+        #fmDeltas[0][:] = initialFmDeltas[:]
+        for i in range(0, numValidChars):
+            fmDeltas_view[0, i] = initialFmDeltas[i]
+        
+        #figure out the files we insert in each iteration
+        insertionFNDict = {}
+        nextInsertionFNDict = {}
+        for c in range(0, numValidChars):
+            #create an initial empty region for each symbol
+            tempFN = bwtDir+'/state.'+str(c)+'.0.dat'
+            tempFP = fopen(tempFN, 'w+')
+            fclose(tempFP)
+            
+            #create an empty list of files for insertion
+            insertionFNDict[c] = []
+            nextInsertionFNDict[c] = []
+        
+        #add the single insertion file we generated earlier
+        insertionFNDict[0].append(initialInsertsFN)
+        
+        np.save(bwtDir+'/fmDeltas.0.npy', fmDeltas)
+        np.save(bwtDir+'/fmStarts.0.npy', fmStarts)
+        
+        etc = time.clock()
+        et = time.time()
+        logger.info('Finished init in '+str(et-st)+' seconds.')
+        
+    else:
+        #print 'FOUND PARTIAL RUN STARTING AT '+str(initColumnID)
+        logger.info('Resuming previous run from '+str(initColumnID)+', loading partial BWT...')
+        
+        fmDeltas = np.load(bwtDir+'/fmDeltas.'+str(initColumnID)+'.npy')
+        fmDeltas_view = fmDeltas
+        fmStarts = np.load(bwtDir+'/fmStarts.'+str(initColumnID)+'.npy')
+        fmStarts_view = fmStarts
+        
+        for c in range(0, numValidChars):
+            #create an empty list of files for insertion
+            insertionFNDict[c] = []
+            nextInsertionFNDict[c] = []
+            
+        gl = sorted(glob.glob(bwtDir+'/inserts.*.'+str(initColumnID)+'.npy'))
+        for fn in gl:
+            firstSym = fn.split('/')
+            firstSym = firstSym[len(firstSym)-1]
+            firstSym = firstSym.split('.')
+            firstSym = int(firstSym[1][0])
+            
+            insertionFNDict[firstSym].append(fn)
+        
+        #print insertionFNDict
+        
+        #raise Exception('')
     
-    #add the single insertion file we generated earlier
-    insertionFNDict[0].append(initialInsertsFN)
-    
-    etc = time.clock()
-    et = time.time()
-    logger.info('Finished init in '+str(et-st)+' seconds.')
     logger.info('Beginning iterations...')
     
     cdef unsigned long cumsum
     
     #2 - go back one column at a time, building new inserts
-    for columnID in range(0, seqLen):
+    for columnID in range(initColumnID, seqLen):
         st = time.time()
         stc = time.clock()
         
@@ -143,10 +196,10 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
             for j in range(0, numValidChars-1):
                 cumsum += fmDeltas_view[j,i]
                 fmStarts_view[j+1, i] += cumsum
-                fmEnds_view[j, i] += cumsum
+                #fmEnds_view[j, i] += cumsum
                 nextFmDeltas_view[j, i] = 0
             cumsum += fmDeltas_view[numValidChars-1, i]
-            fmEnds_view[numValidChars-1, i] += cumsum
+            #fmEnds_view[numValidChars-1, i] += cumsum
             nextFmDeltas_view[numValidChars-1, i] = 0
         
         #clear out the next fmDeltas
@@ -155,7 +208,8 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
             currentSymbolFN = bwtDir+'/state.'+str(c)+'.'+str(columnID)+'.dat'
             nextSymbolFN = bwtDir+'/state.'+str(c)+'.'+str(columnID+1)+'.dat'
             nextSeqFN = seqFNPrefix+'.'+str((columnID+2) % seqLen)+'.npy'
-            tup = (c, np.copy(fmStarts[c]), np.copy(fmDeltas[c]), np.copy(fmEnds[c]), insertionFNDict[c], currentSymbolFN, nextSymbolFN, bwtDir, columnID, nextSeqFN)
+            #tup = (c, np.copy(fmStarts[c]), np.copy(fmDeltas[c]), np.copy(fmEnds[c]), insertionFNDict[c], currentSymbolFN, nextSymbolFN, bwtDir, columnID, nextSeqFN)
+            tup = (c, np.copy(fmStarts[c]), np.copy(fmDeltas[c]), insertionFNDict[c], currentSymbolFN, nextSymbolFN, bwtDir, columnID, nextSeqFN)
             tups.append(tup)
         
         '''
@@ -188,6 +242,15 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
         
         myPool.close()
         
+        #copy the fmDeltas and insertion filenames
+        #fmDeltas[:] = nextFmDeltas[:]
+        for i in range(0, numValidChars):
+            for j in range(0, numValidChars):
+                fmDeltas_view[i, j] = nextFmDeltas_view[i, j]
+        
+        np.save(bwtDir+'/fmDeltas.'+str(columnID+1)+'.npy', fmDeltas)
+        np.save(bwtDir+'/fmStarts.'+str(columnID+1)+'.npy', fmStarts)
+        
         #remove the old insertions and old state files
         for c in insertionFNDict:
             for fn in insertionFNDict[c]:
@@ -196,18 +259,24 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
                 except:
                     logger.warning('Failed to remove \''+fn+'\' from file system.')
             
-            if len(insertionFNDict[c]) > 0:
-                try:
-                    rmStateFN = bwtDir+'/state.'+str(c)+'.'+str(columnID)+'.dat'
-                    os.remove(rmStateFN)
-                except:
-                    logger.warning('Failed to remove\''+rmStateFN+'\' from file system.')
+            #if len(insertionFNDict[c]) > 0:
+            try:
+                rmStateFN = bwtDir+'/state.'+str(c)+'.'+str(columnID)+'.dat'
+                os.remove(rmStateFN)
+            except:
+                logger.warning('Failed to remove\''+rmStateFN+'\' from file system.')
         
-        #copy the fmDeltas and insertion filenames
-        #fmDeltas[:] = nextFmDeltas[:]
-        for i in range(0, numValidChars):
-            for j in range(0, numValidChars):
-                fmDeltas_view[i, j] = nextFmDeltas_view[i, j]
+        try:
+            fn = bwtDir+'/fmDeltas.'+str(columnID)+'.npy'
+            os.remove(fn)
+        except:
+            logger.warning('Failed to remove\''+fn+'\' from the file system.')
+        
+        try:
+            fn = bwtDir+'/fmStarts.'+str(columnID)+'.npy'
+            os.remove(fn)
+        except:
+            logger.warning('Failed to remove\''+fn+'\' from the file system.')
         
         insertionFNDict = nextInsertionFNDict
         nextInsertionFNDict = {}
@@ -359,6 +428,19 @@ def createMsbwtFromSeqs(bwtDir, unsigned int numProcs, logger):
         except:
             logger.warning('Failed to remove \''+bwtDir+'/state.'+str(c)+'.'+str(seqLen)+'.dat'+'\' from file system.')
     
+    try:
+        fn = bwtDir+'/fmDeltas.'+str(seqLen)+'.npy'
+        os.remove(fn)
+    except:
+        logger.warning('Failed to remove\''+fn+'\' from the file system.')
+    
+    try:
+        fn = bwtDir+'/fmStarts.'+str(seqLen)+'.npy'
+        os.remove(fn)
+    except:
+        logger.warning('Failed to remove\''+fn+'\' from the file system.')
+        
+    
     logger.info('Final output saved to \''+bwtFN+'\'.')
     totalEndTime = time.time()
     logger.info('Finished all iterations in '+str(totalEndTime-totalStartTime)+' seconds.')
@@ -371,14 +453,15 @@ def iterateMsbwtCreate(tuple tup):
     cdef np.uint8_t idChar
     cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] fmIndex
     cdef np.uint64_t [:] fmIndex_view
-    cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] fmEndex
-    cdef np.uint64_t [:] fmEndex_view
+    #cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] fmEndex
+    #cdef np.uint64_t [:] fmEndex_view
     cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] prevFmDelta
     cdef np.uint64_t [:] prevFmDelta_view
     cdef unsigned long column
-    (idChar, fmIndex, prevFmDelta, fmEndex, insertionFNs, currentSymbolFN, nextSymbolFN, bwtDir, column, nextSeqFN) = tup
+    #(idChar, fmIndex, prevFmDelta, fmEndex, insertionFNs, currentSymbolFN, nextSymbolFN, bwtDir, column, nextSeqFN) = tup
+    (idChar, fmIndex, prevFmDelta, insertionFNs, currentSymbolFN, nextSymbolFN, bwtDir, column, nextSeqFN) = tup
     fmIndex_view = fmIndex
-    fmEndex_view = fmEndex
+    #fmEndex_view = fmEndex
     prevFmDelta_view = prevFmDelta
     
     #hardcoded
@@ -449,7 +532,8 @@ def iterateMsbwtCreate(tuple tup):
     if len(insertionFNs) == 0:
         #we don't need to do anything except rename our file
         if os.path.exists(currentSymbolFN):
-            os.rename(currentSymbolFN, nextSymbolFN)
+            #os.rename(currentSymbolFN, nextSymbolFN)
+            shutil.copyfile(currentSymbolFN, nextSymbolFN)
     else:
         #first, open the file for output
         nextBwtFP = fopen(nextSymbolFN, 'w+')
@@ -608,4 +692,3 @@ cdef inline void setNextRLE(FILE * fp, unsigned long sym, unsigned long rl):
         writeValue = sym + ((rl & 0x1F) << 3)
         fwrite(&writeValue, 1, 1, fp)
         rl = (rl >> 5)
-        
