@@ -639,6 +639,7 @@ cdef class BasicBWT(object):
         for x in range(0, numCounts):
             subseq = seq[x:x+kmerSize]
             subseqRevComp = revCompSeq[seqLen-kmerSize-x:seqLen-x]
+            #ret_view[x] = self.countOccurrencesOfSeq(subseq)+self.countOccurrencesOfSeq(subseqRevComp)
             ret_view[x] = self.countOccurrencesOfSeq(subseq)+self.countOccurrencesOfSeq(subseqRevComp)
         
         return ret
@@ -831,7 +832,8 @@ cdef class BasicBWT(object):
                            self.countOccurrencesOfSeq_c(&revCompSeq_view[seqLen-kmerSize-x], kmerSize))
         
         return ret
-    cdef unsigned long countOccurrencesOfSeq_c(BasicBWT self, unsigned char * seq_view, unsigned long seqLen):
+    
+    cdef unsigned long countOccurrencesOfSeq_c(BasicBWT self, unsigned char * seq_view, unsigned long seqLen, unsigned long mc=1):
         '''
         This function counts the number of occurrences of the given sequence
         @param seq - the sequence to search for
@@ -839,23 +841,59 @@ cdef class BasicBWT(object):
         @return - an integer count of the number of times seq occurred in this BWT
         '''
         #initialize our search to the whole BWT
-        cdef unsigned long l = 0
-        cdef unsigned long h = self.totalSize
+        cdef bwtRange ret
+        cdef unsigned long c
+        
+        #initialize our search to the whole BWT
+        ret.l = 0
+        ret.h = self.totalSize
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef long x
+        for x in range(seqLen-1, -1, -1):
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[x]]
+            ret = self.getOccurrenceOfCharAtRange(c, ret)
+            
+            #early exit for counts
+            #if ret.l == ret.h:
+            #    return 0
+            if ret.h-ret.l < mc:
+                return ret.h-ret.l
+        
+        #return the difference
+        return ret.h-ret.l
+    
+    cdef unsigned long getOccurrenceOfCharAtIndex_c(BasicBWT self, unsigned long sym, unsigned long index):# nogil:
+        '''
+        dummy function, shouldn't be called
+        '''
+        cdef unsigned long ret = 0
+        return ret
+    
+    cdef bwtRange findRangeOfStr_c(BasicBWT self, unsigned char * seq_view, unsigned long seqLen):
+        '''
+        This function will search for a string and find the location of that string OR the last index less than it. It also
+        will start its search within a given range instead of the whole structure
+        @param seq - the sequence to search for
+        @param givenRange - the range to search for, whole range by default
+        @return - a python range representing the start and end of the sequence in the bwt
+        '''
+        cdef bwtRange ret
         cdef long x
         cdef unsigned long c
+        
+        #initialize our search to the whole BWT
+        ret.l = 0
+        ret.h = self.totalSize
         
         for x in range(seqLen-1, -1, -1):
             #get the character from the sequence, then search at both high and low
             c = self.charToNum_view[seq_view[x]]
-            l = self.getOccurrenceOfCharAtIndex(c, l)
-            h = self.getOccurrenceOfCharAtIndex(c, h)
+            ret = self.getOccurrenceOfCharAtRange(c, ret)
             
-            #early exit for counts
-            if l == h:
-                break
-        
         #return the difference
-        return h - l
+        return ret
     
     cpdef np.ndarray countStrandedSeqMatchesNoOther(BasicBWT self, bytes seq, unsigned long kmerSize):
         '''

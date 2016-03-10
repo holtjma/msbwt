@@ -2,6 +2,7 @@
 #cython: boundscheck=False
 #cython: wraparound=False
 #cython: initializedcheck=False
+#cythoan: profile=True
 
 import math
 import numpy as np
@@ -414,6 +415,53 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         return ret
     
     cpdef unsigned long getOccurrenceOfCharAtIndex(RLE_BWT self, unsigned long sym, unsigned long index):# nogil:
+        '''
+        This functions gets the FM-index value of a character at the specified position
+        @param sym - the character to find the occurrence level
+        @param index - the index we want to find the occurrence level at
+        @return - the number of occurrences of char before the specified index
+        '''
+        cdef unsigned long binID = index >> bitPower
+        cdef unsigned long compressedIndex = self.refFM_view[binID]
+        cdef unsigned long bwtIndex = 0
+        cdef unsigned long j
+        for j in range(0, vcLen):
+            bwtIndex += self.partialFM_view[binID,j]
+        bwtIndex -= self.offsetSum
+            
+        cdef unsigned long ret = self.partialFM_view[binID,sym]
+        
+        cdef np.uint8_t prevChar = 255
+        cdef np.uint8_t currentChar
+        cdef unsigned long prevCount = 0
+        cdef unsigned long powerMultiple = 1
+        #cdef unsigned long powerMultiple = 0
+        
+        while bwtIndex + prevCount < index:
+            currentChar = self.bwt_view[compressedIndex] & mask
+            if currentChar == prevChar:
+                prevCount += (self.bwt_view[compressedIndex] >> letterBits) * powerMultiple
+                powerMultiple *= numPower
+                #prevCount += <unsigned long>(self.bwt_view[compressedIndex] >> letterBits) << powerMultiple
+                #powerMultiple += numberBits
+            else:
+                if prevChar == sym:
+                    ret += prevCount
+                
+                bwtIndex += prevCount
+                prevCount = (self.bwt_view[compressedIndex] >> letterBits)
+                prevChar = currentChar
+                powerMultiple = numPower
+                #powerMultiple = numberBits
+                
+            compressedIndex += 1
+        
+        if prevChar == sym:
+            ret += index-bwtIndex
+        
+        return ret
+    
+    cdef unsigned long getOccurrenceOfCharAtIndex_c(RLE_BWT self, unsigned long sym, unsigned long index):# nogil:
         '''
         This functions gets the FM-index value of a character at the specified position
         @param sym - the character to find the occurrence level
