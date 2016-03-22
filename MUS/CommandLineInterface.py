@@ -12,6 +12,7 @@ import sys
 import MSBWTGen
 import util
 
+from MUSCython import CompressToRLE
 from MUSCython import GenericMerge
 from MUSCython import MSBWTCompGenCython
 from MUSCython import MSBWTGenCython
@@ -91,6 +92,10 @@ def mainRun():
     p9.add_argument('-p', metavar='numProcesses', dest='numProcesses', type=int, default=1, help='number of processes to run (default: 1)')
     p9.add_argument('srcDir', type=util.existingDirectory, help='the source directory for the BWT to compress')
     p9.add_argument('dstDir', type=util.newDirectory, help='the destination directory')
+    
+    p10 = sp.add_parser('convert', help='convert from a raw text input to RLE')
+    p10.add_argument('-i', metavar='inputTextFN', dest='inputTextFN', default=None, help='input text filename (default: stdin)')
+    p10.add_argument('dstDir', type=util.newDirectory, help='the destination directory')
     
     args = p.parse_args()
     
@@ -226,6 +231,16 @@ def mainRun():
             else:
                 output.write(kmer+','+str(c)+'\n')
         logger.info('Queries complete.')
+    
+    elif args.subparserID == 'convert':
+        if args.inputTextFN == None:
+            logger.info('Input: stdin')
+        else:
+            logger.info('Input: '+args.inputTextFN)
+        logger.info('Output: '+args.dstDir)
+        logger.info('Beginning conversion...')
+        CompressToRLE.compressInput(args.inputTextFN, args.dstDir)
+        logger.info('Finished conversion.')
         
     else:
         print args.subparserID+" is currently not implemented, please wait for a future release."
