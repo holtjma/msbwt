@@ -1,7 +1,7 @@
 Introduction
 ============
 
-Msbwt is a package for combining strings from sequencing into a data structure known as the multi-string BWT (MSBWT).  
+MSBWT is a package for combining strings from sequencing into a data structure known as the multi-string BWT (MSBWT).  
 This structure allows for querying a k-mer in O(k) time regardless of how many strings are present in the MSBWT.  This
 particular package was created originally for merging MSBWTs after creation.  In short, this allows for multiple data
 sets to be combined into a single structure which allows for queries over both data sets simultaneously.
@@ -47,6 +47,12 @@ The argparse module is used to parse the command line arguments of the module. I
 Standard Library since Python 2.7.  Its latest package can be downloaded from:
 
 	http://code.google.com/p/argparse/
+
+*[numpy] - Tested with numpy 1.10.1
+
+The numpy module provide various fast numerical functions for Python.  Its latest package can be downloaded from:
+
+	http://www.numpy.org
 
 Installation
 ============
@@ -147,6 +153,7 @@ list of each along with the expected output.
 						FM-index will need to be reconstructed for the new data format.
 	decompress			This function takes a compressed MSBWT and converts it back into its original uncompressed format.
 						The auxiliary FM-index will need to be reconstructed for this format.
+	convert				This function converted a raw text input BWT to our run-length encoded version.
 
 The latest release also includes installation of the Cython library used to load the MSBWTs and perform merges.  After 
 installation, the libraries are available through regular Python imports like so:
@@ -155,4 +162,4 @@ installation, the libraries are available through regular Python imports like so
 	msbwt = MultiStringBWT.loadBWT('/path/to/directory')
 	msbwt.countOccurrencesOfSeq('CAT')
 
-Other commands are available as well. For more information, refer to the code available at https://code.google.com/p/msbwt/.
+Other commands are available as well. For more information, refer to the code available at https://github.com/holtjma/msbwt.
