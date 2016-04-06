@@ -28,7 +28,8 @@ def compressInput(str fn, str bwtDir):
     if not os.path.exists(bwtDir):
         os.makedirs(bwtDir)
     
-    cdef FILE * outputStream = fopen(bwtDir+'/comp_msbwt.npy', 'w+')
+    cdef str outputFN = bwtDir+'/comp_msbwt.npy'
+    cdef FILE * outputStream = fopen(outputFN, 'w+')
     
     cdef unsigned long BUFFER_SIZE = 1024
     cdef bytes strBuffer = '\x00'*BUFFER_SIZE
