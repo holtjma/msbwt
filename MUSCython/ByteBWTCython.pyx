@@ -181,6 +181,38 @@ cdef class ByteBWT(BasicBWT.BasicBWT):
                 inc(ret)
         
         return ret
+    
+    cdef BasicBWT.bwtRange getOccurrenceOfCharAtRange(ByteBWT self, unsigned long sym, BasicBWT.bwtRange inRange) nogil:
+        '''
+        This functions gets the FM-index value of a character at the specified position
+        @param sym - the character to find the occurrence level
+        @param index - the index we want to find the occurrence level at
+        @return - the number of occurrences of char before the specified index
+        '''
+        #sampling method
+        cdef unsigned long binID = inRange.l >> self.bitPower
+        cdef BasicBWT.bwtRange ret
+        ret.l = self.partialFM_view[binID, sym]
+        cdef unsigned long start = binID << self.bitPower
+        cdef unsigned long i
+        
+        for i in range(start, inRange.l):
+            if self.bwt_view[i] == sym:
+                ret.l += 1
+        
+        cdef unsigned long binID_h = inRange.h >> self.bitPower
+        if binID == binID_h:
+            ret.h = ret.l
+            start = inRange.l
+        else:
+            ret.h = self.partialFM_view[binID_h, sym]
+            start = binID_h << self.bitPower
+        
+        for i in range(start, inRange.h):
+            if self.bwt_view[i] == sym:
+                ret.h += 1
+        
+        return ret
         
     def getFullFMAtIndex(ByteBWT self, unsigned long index):
         '''
