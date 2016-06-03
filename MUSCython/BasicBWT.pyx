@@ -2,6 +2,7 @@
 #cython: boundscheck=False
 #cython: wraparound=False
 #cython: initializedcheck=False
+#cython: profile=False
 
 import numpy as np
 cimport numpy as np
@@ -485,6 +486,359 @@ cdef class BasicBWT(object):
         #it needs to be moved, to here and made generic for all BWTs (if not already generic)
         #if it can't be generalized, then specific impls/errors need to be written for subclasses
         return set([])
+    
+    cpdef list findKmerWithError(BasicBWT self, bytes seq, unsigned long minThresh=1):
+        '''
+        This function takes a k-mer input and finds all k-mers with an edit distance of 1 that occur at least
+        "minThresh" times in the dataset.  Indels at the beginning/end of the 'seq' are not considered.
+        @param seq - the k-mer sequence we want to match
+        @param minThresh - the minimum number of times any in-exact matching k-mers must occur to be returned
+        @return - a list of ranges AND the change made to the k-mer to get that range stored in tuples
+            tuple: (start range, end range, k-mer)
+            start range - the start index in the bwt
+            end range - the end index in the bwt
+            k-mer - the k-mer associated with this range
+        '''
+        cdef list ret = []
+        
+        cdef unsigned long l, h
+        cdef unsigned long lc, hc
+        cdef unsigned long s
+        cdef long x, y
+        cdef unsigned long c, altC
+        
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] lowArray_view = lowArray
+        cdef np.uint64_t [:] highArray_view = highArray
+        
+        #initialize our search to the whole '$' range of the BWT since we want reads
+        l = 0
+        h = self.totalSize
+        s = len(seq)
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        
+        #start with the last symbol and work downwards as long as we have a range length > 0
+        x = s-1
+        while x >= 0 and l < h:
+            #get the character from the sequence, then search at both high and low
+            c = self.charToNum_view[seq_view[x]]
+            self.fillFmAtIndex(lowArray_view, l)
+            self.fillFmAtIndex(highArray_view, h)
+            
+            #print lowArray
+            #print highArray
+            
+            for altC in xrange(1, self.vcLen):
+                if altC != c:
+                    lc = lowArray_view[altC]
+                    hc = highArray_view[altC]
+            
+                    #this is the SNP version, start one symbol past and work down forcing exact matching now
+                    y = x-1
+                    
+                    #print c, altC, lc, hc, y
+                    
+                    while y >= 0 and hc-lc >= minThresh:
+                        lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], lc)
+                        hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], hc)
+                        y -= 1
+                    
+                    if hc-lc >= minThresh:
+                        ret.append((lc, hc, seq[0:x]+chr(self.numToChar[altC])+seq[x+1:]))
+                    
+                    #this one is the insertion version, but starting at x now
+                    #if x != s-1:
+                    lc = lowArray_view[altC]
+                    hc = highArray_view[altC]
+                    y = x
+                    while y >= 0 and hc-lc >= minThresh:
+                        lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], lc)
+                        hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], hc)
+                        y -= 1
+                    
+                    if hc-lc >= minThresh:
+                        ret.append((lc, hc, seq[0:x+1]+chr(self.numToChar[altC])+seq[x+1:]))
+        
+            #deletion is similar to SNP version but we start with the current range
+            #if x != s-1 and x != 0:
+            lc = l
+            hc = h
+            y = x-1
+            while y >= 0 and hc-lc >= minThresh:
+                lc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], lc)
+                hc = self.getOccurrenceOfCharAtIndex(self.charToNum_view[seq_view[y]], hc)
+                y -= 1
+        
+            #go one further symbol using bonusStr
+            if hc-lc >= minThresh:
+                ret.append((lc, hc, seq[0:x]+seq[x+1:]))
+            
+            #now we can update to our exact matching sequence
+            #second handle the exact matches
+            l = lowArray_view[c]
+            h = highArray_view[c]
+            x -= 1
+        
+        #finally add all strings that exactly terminate here
+        cdef str tempSeq
+        cdef list filteredRet
+        
+        if h-l > 0:
+            filteredRet = [(l, h, seq)]
+            for (lc, hc, tempSeq) in ret:
+                #if lc >= l and lc < h:
+                #    lc = h
+                #if hc > l and hc <= h:
+                #    hc = l
+                
+                #if lc < hc:
+                if (len(tempSeq) < s or 
+                    (tempSeq[0:s] != seq and tempSeq[s-len(tempSeq):] != seq)):
+                    filteredRet.append((lc, hc, tempSeq))
+            return filteredRet
+        else:
+            return ret
+    
+    cpdef list findKmerWithErrors(BasicBWT self, bytes seq, unsigned long editDistance, unsigned long minThresh=1):
+        '''
+        This function takes a k-mer input and finds all k-mers with an edit distance of 1 that occur at least
+        "minThresh" times in the dataset.  Indels at the beginning/end of the 'seq' are not considered.
+        @param seq - the k-mer sequence we want to match
+        @param editDistance - the maximum edit distance to match
+        @param minThresh - the minimum number of times any in-exact matching k-mers must occur to be returned
+        @return - a list of ranges AND the change made to the k-mer to get that range stored in tuples
+            tuple: (start range, end range, k-mer)
+            start range - the start index in the bwt
+            end range - the end index in the bwt
+            k-mer - the k-mer associated with this range
+        '''
+        cdef list ret = []
+        
+        cdef unsigned long l, h
+        cdef unsigned long s
+        cdef long x, y
+        cdef unsigned long c, altC, seqC
+        
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] lowArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.ndarray[np.uint64_t, ndim=1, mode='c'] highArray = np.zeros(dtype='<u8', shape=(self.vcLen, ))
+        cdef np.uint64_t [:] lowArray_view = lowArray
+        cdef np.uint64_t [:] highArray_view = highArray
+        
+        #initialize our search to the whole '$' range of the BWT since we want reads
+        l = 0
+        h = self.totalSize
+        s = len(seq)
+        
+        #store the FM-index for each piece of the stack
+        cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] lowArrayStack = np.zeros(dtype='<u8', shape=(s+editDistance+1, self.vcLen))
+        cdef np.ndarray[np.uint64_t, ndim=2, mode='c'] highArrayStack = np.zeros(dtype='<u8', shape=(s+editDistance+1, self.vcLen))
+        cdef np.uint64_t [:, :] lowArrayStack_view = lowArrayStack
+        cdef np.uint64_t [:, :] highArrayStack_view = highArrayStack
+        
+        #currType is 0 if doing match/SNP; 1 if insertion; 2 if deletion
+        cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] currTypeStack = np.zeros(dtype='<u1', shape=(s+editDistance+1, ))
+        cdef np.uint8_t [:] currTypeStack_view = currTypeStack
+        
+        #currSym is the currently selected symbol
+        cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] currSymStack = np.zeros(dtype='<u1', shape=(s+editDistance+1, ))
+        cdef np.uint8_t [:] currSymStack_view = currSymStack
+        
+        #currEdit is the currently number of errors up to that point
+        cdef np.ndarray[np.uint8_t, ndim=1, mode='c'] currEditStack = np.zeros(dtype='<u1', shape=(s+editDistance+1, ))
+        cdef np.uint8_t [:] currEditStack_view = currEditStack
+        
+        cdef np.ndarray[np.int8_t, ndim=1, mode='c'] currShiftStack = np.zeros(dtype='<i1', shape=(s+editDistance+1, ))
+        cdef np.int8_t [:] currShiftStack_view = currShiftStack
+        
+        #create a view of the sequence that can be used in a nogil region
+        cdef unsigned char * seq_view = seq
+        
+        #initialize the stack
+        cdef long stackIndex = 0
+        self.fillFmAtIndex(lowArray_view, l)
+        self.fillFmAtIndex(highArray_view, h)
+        for c in range(0, self.vcLen):
+            lowArrayStack_view[0][c] = lowArray_view[c]
+            highArrayStack_view[0][c] = highArray_view[c]
+        #start at 'A', not '$'
+        currSymStack_view[0] = 1
+        
+        cdef unsigned long currSeqIndex
+        cdef bint iterNext = False
+        
+        cdef unsigned long exactL = 0
+        cdef unsigned long exactH = 0
+        
+        while stackIndex >= 0:
+            currSeqIndex = s-1-stackIndex+currShiftStack_view[stackIndex]
+            seqC = self.charToNum_view[seq_view[currSeqIndex]]
+            
+            c = currSymStack_view[stackIndex]
+            
+            #print ''.join(reversed([chr(self.numToChar_view[currSymStack_view[x]]) if currTypeStack_view[x] != 2 else '-' for x in xrange(0, stackIndex+1)]))
+            #print ''.join(reversed([str(currTypeStack_view[x]) for x in xrange(0, stackIndex+1)]))
+            
+            if highArrayStack_view[stackIndex][c] - lowArrayStack_view[stackIndex][c] >= minThresh:
+                if currTypeStack_view[stackIndex] == 0:
+                    #currently only handling mismatches
+                    if c == seqC:
+                        if currSeqIndex == 0:
+                            #add this result
+                            if currEditStack_view[stackIndex] == 0:
+                                exactL = lowArrayStack_view[stackIndex][c]
+                                exactH = highArrayStack_view[stackIndex][c]
+                            elif currTypeStack_view[0] == 0 and currTypeStack_view[stackIndex] == 0:
+                                ret.append((lowArrayStack_view[stackIndex][c], highArrayStack_view[stackIndex][c], 
+                                            ''.join(reversed([chr(self.numToChar_view[currSymStack_view[x]]) if currTypeStack_view[x] != 2 else '' for x in xrange(0, stackIndex+1)])),
+                                            ''.join(reversed([str(currTypeStack_view[x]) for x in xrange(0, stackIndex+1)]))))
+                            
+                            #we are done with this part of our stack testing
+                            iterNext = True
+                            
+                        else:
+                            #handle a match, but there's more to process
+                            self.fillFmAtIndex(lowArray_view, lowArrayStack_view[stackIndex][c])
+                            self.fillFmAtIndex(highArray_view, highArrayStack_view[stackIndex][c])
+                            for altC in range(0, self.vcLen):
+                                lowArrayStack_view[stackIndex+1][altC] = lowArray_view[altC]
+                                highArrayStack_view[stackIndex+1][altC] = highArray_view[altC]
+                            
+                            #we added to our stack, but not an error
+                            stackIndex += 1
+                            currTypeStack_view[stackIndex] = 0
+                            currSymStack_view[stackIndex] = 1
+                            currEditStack_view[stackIndex] = currEditStack_view[stackIndex-1]
+                            currShiftStack_view[stackIndex] = currShiftStack_view[stackIndex-1]
+                    else:
+                        #handle some form of a misMatch
+                        if currEditStack_view[stackIndex] < editDistance:
+                            if currSeqIndex == 0:
+                                #add this result
+                                if currTypeStack_view[0] == 0 and currTypeStack_view[stackIndex] == 0:
+                                    ret.append((lowArrayStack_view[stackIndex][c], highArrayStack_view[stackIndex][c], 
+                                                ''.join(reversed([chr(self.numToChar_view[currSymStack_view[x]]) if currTypeStack_view[x] != 2 else '' for x in xrange(0, stackIndex+1)])),
+                                                ''.join(reversed([str(currTypeStack_view[x]) for x in xrange(0, stackIndex+1)]))))
+                                
+                                #we are done with this part of our stack testing
+                                iterNext = True
+                            else:
+                                #handle a match, but there's more to process
+                                self.fillFmAtIndex(lowArray_view, lowArrayStack_view[stackIndex][c])
+                                self.fillFmAtIndex(highArray_view, highArrayStack_view[stackIndex][c])
+                                for altC in range(0, self.vcLen):
+                                    lowArrayStack_view[stackIndex+1][altC] = lowArray_view[altC]
+                                    highArrayStack_view[stackIndex+1][altC] = highArray_view[altC]
+                                
+                                #we added to our stack, and it was a mismatch
+                                stackIndex += 1
+                                currTypeStack_view[stackIndex] = 0
+                                currSymStack_view[stackIndex] = 1
+                                currEditStack_view[stackIndex] = currEditStack_view[stackIndex-1]+1
+                                currShiftStack_view[stackIndex] = currShiftStack_view[stackIndex-1]
+                        else:
+                            #we have no room to add another error
+                            iterNext = True
+                
+                elif currTypeStack_view[stackIndex] == 1:
+                    #handle insertions
+                    #if currEditStack_view[stackIndex] < editDistance:
+                    '''
+                    insertions are only allowed if we don't match AND we haven't reached the ED AND 
+                    it's not the first thing AND the previous entry wasn't a deletion
+                    '''
+                    if (c != seqC and 
+                        currEditStack_view[stackIndex] < editDistance and
+                        stackIndex != 0 and
+                        currTypeStack_view[stackIndex-1] != 2):
+                        self.fillFmAtIndex(lowArray_view, lowArrayStack_view[stackIndex][c])
+                        self.fillFmAtIndex(highArray_view, highArrayStack_view[stackIndex][c])
+                        for altC in range(0, self.vcLen):
+                            lowArrayStack_view[stackIndex+1][altC] = lowArray_view[altC]
+                            highArrayStack_view[stackIndex+1][altC] = highArray_view[altC]
+                        
+                        #we added to our stack, and it was an insertion
+                        stackIndex += 1
+                        currTypeStack_view[stackIndex] = 0
+                        currSymStack_view[stackIndex] = 1
+                        currEditStack_view[stackIndex] = currEditStack_view[stackIndex-1]+1
+                        currShiftStack_view[stackIndex] = currShiftStack_view[stackIndex-1]+1
+                    else:
+                        iterNext = True
+                    
+                else:
+                    #handle deletions
+                    #if currEditStack_view[stackIndex] < editDistance:
+                    '''
+                    deletions are only allowed if we haven't reached the ED AND 
+                    it's not the first thing AND the previous entry wasn't an insertion
+                    '''
+                    #if (c != seqC and 
+                    if (currEditStack_view[stackIndex] < editDistance and
+                        stackIndex != 0 and
+                        currTypeStack_view[stackIndex-1] != 1):
+                        #copy the fm-index to the next level, we are skipping whichever character we are currently looking at
+                        for altC in range(0, self.vcLen):
+                            lowArrayStack_view[stackIndex+1][altC] = lowArrayStack_view[stackIndex][altC]
+                            highArrayStack_view[stackIndex+1][altC] = highArrayStack_view[stackIndex][altC]
+                        
+                        #we added to our stack, and it was a deletion
+                        stackIndex += 1
+                        currTypeStack_view[stackIndex] = 0
+                        currSymStack_view[stackIndex] = 1
+                        currEditStack_view[stackIndex] = currEditStack_view[stackIndex-1]+1
+                        currShiftStack_view[stackIndex] = currShiftStack_view[stackIndex-1]
+                    else:
+                        iterNext = True
+                
+            else:
+                iterNext = True
+            
+            #if we are iterating to the next test for any reason, here are the steps
+            while iterNext:
+                currTypeStack_view[stackIndex] += 1
+                if currTypeStack_view[stackIndex] == 2 and currSymStack_view[stackIndex] != 1:
+                    currTypeStack_view[stackIndex] += 1
+                
+                if currTypeStack_view[stackIndex] == 3:
+                    currTypeStack_view[stackIndex] = 0
+                    currSymStack_view[stackIndex] += 1
+                    
+                    if currSymStack_view[stackIndex] == 6:
+                        #we finished this, so "pop" the stack and iterNext on it also
+                        stackIndex -= 1
+                        if stackIndex < 0:
+                            iterNext = False
+                    else:
+                        iterNext = False
+                else:
+                    iterNext = False
+        
+        cdef list filteredRet = []
+        cdef unsigned long lc, hc
+        cdef str tempSeq, b
+        cdef unsigned long maxOverlap
+        
+        if exactL != exactH:
+            filteredRet.append((exactL, exactH, seq, '0'*s))
+            #filteredRet.append((exactL, exactH, seq))
+            for (lc, hc, tempSeq, b) in ret:
+            #for (lc, hc, tempSeq) in ret:
+                #first, shift any ranges so they don't start or end within 
+                if lc >= exactL and lc < exactH:
+                    lc = exactH
+                if hc > exactL and hc <= exactH:
+                    hc = exactL
+                
+                if lc < hc and hc-lc >= minThresh:
+                    if (not (seq in tempSeq) and not (tempSeq in seq)):
+                        filteredRet.append((lc, hc, tempSeq, b))
+            return filteredRet
+        
+        else:
+            return ret
         
     cpdef unsigned long getCharAtIndex(BasicBWT self, unsigned long index):# nogil:
         '''
@@ -835,10 +1189,13 @@ cdef class BasicBWT(object):
     
     cdef unsigned long countOccurrencesOfSeq_c(BasicBWT self, unsigned char * seq_view, unsigned long seqLen, unsigned long mc=1):
         '''
-        This function counts the number of occurrences of the given sequence
-        @param seq - the sequence to search for
-        @param givenRange - the range to start from (if a partial search has already been run), default=whole range
-        @return - an integer count of the number of times seq occurred in this BWT
+        This function counts the number of occurrences of the given sequence so long as the number of occurrences is >= mc;
+        essentially lets you exit early if the value is smaller than some meaningful threshold "mc"
+        @param seq_view - the pointer to the sequence to search for
+        @param seqLen - the number of symbols in the sequence
+        @param mc - the min count value; if the number of sequences < mc; then it will stop and return that value
+        @return - an integer count of the number of times the sequence occurs so long as that number >= mc; 
+            else an undefined number < mc
         '''
         #initialize our search to the whole BWT
         cdef bwtRange ret
@@ -856,8 +1213,6 @@ cdef class BasicBWT(object):
             ret = self.getOccurrenceOfCharAtRange(c, ret)
             
             #early exit for counts
-            #if ret.l == ret.h:
-            #    return 0
             if ret.h-ret.l < mc:
                 return ret.h-ret.l
         

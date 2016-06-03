@@ -56,6 +56,8 @@ cdef class BasicBWT(object):
     cpdef list findStrWithError(BasicBWT self, bytes seq, bytes bonusStr)
     cpdef list findPatternWithError(BasicBWT self, bytes seq, bytes bonusStr)
     cpdef set findReadsMatchingSeq(BasicBWT self, bytes seq, unsigned long strLen)
+    cpdef list findKmerWithError(BasicBWT self, bytes seq, unsigned long minThresh=*)
+    cpdef list findKmerWithErrors(BasicBWT self, bytes seq, unsigned long editDistance, unsigned long minThresh=*)
     
     #single character queries, both cython and python compatible
     cpdef unsigned long getCharAtIndex(BasicBWT self, unsigned long index)

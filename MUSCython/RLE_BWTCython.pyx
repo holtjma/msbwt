@@ -2,7 +2,7 @@
 #cython: boundscheck=False
 #cython: wraparound=False
 #cython: initializedcheck=False
-#cythoan: profile=True
+#cython: profile=False
 
 import math
 import numpy as np
@@ -515,7 +515,7 @@ cdef class RLE_BWT(BasicBWT.BasicBWT):
         @param index - the index we want to find the occurrence level at
         @return - the number of occurrences of char before the specified index
         '''
-        cdef unsigned long binID = inRange.l >> bitPower
+        cdef unsigned long binID = inRange.l >> self.bitPower
         cdef unsigned long compressedIndex = self.refFM_view[binID]
         cdef unsigned long bwtIndex = 0
         cdef unsigned long j
