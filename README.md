@@ -110,55 +110,27 @@ The msbwt package is primarily focused on creation, merging, and querying of MSB
 data structures are useful and stored with the MSBWT.  To handle this, each MSBWT is grouped into a directory which
 contains standardized filenames.  Here is the description of what each file contains:
 
-	seqs.npy			Contains the raw input strings in a sorted, numerical format. It can be safely deleted after 
-						msbwt.npy has been fully instantiated.
-	offsets.npy			Contains meta-data regarding seq.npy.  For strings of uniform length, this file is very small.
-						If strings have variable size, it will be O(S) where S is the number of strings.  This file can
-						be safely deleted after msbwt.npy has been fully instantiated.
-	about.npy			Contains information regarding the origin of the sorted strings to be stored in the MSBWT.  For
-						example, if multiple FASTQ files are used for input, this file includes both the source file and
-						which read it was in that file.  For paired end reads, this can be useful for finding mates.
-						If deleted, this file is NOT recoverable from msbwt.npy.
-	msbwt.npy			Contains the full, uncompressed MSBWT.  Each symbol in the MSBWT takes one byte of space.  If
-						deleted, the MSBWT is NOT recoverable except from comp_msbwt.npy.
-	fmIndex.npy			Contains a sampled FM-index for msbwt.npy.  This is derived from msbwt.npy and must be created
-						for any queries to work.  If deleted, the file will be automatically re-created if a query is
-						performed on the data set.
-	comp_msbwt.npy		Contains the compressed MSBWT.  Each byte contains 3 bits for the symbol and 5 bits for a count.
-						Each run is compressed into a symbol/length pairs and lengths too big for 5 bits expanded to 
-						multiple bytes such that one byte contains lengths < 32, two bytes < 32^2, three bytes < 32^3, 
-						and so on for as many bytes are necessary to store the run length.  If deleted, this file is NOT
-						recoverable except from msbwt.npy.
-	comp_fmIndex.npy	Contains a sampled FM-index for comp_msbwt.npy.  This is derived from comp_msbwt.npy and must be
-						created for any queries to work.  If deleted, this file will be automatically re-created if a query
-						is performed on the data set.
-	comp_refIndex.npy	Contains offset information for the sample FM-index.  This is derived from comp_msbwt.npy and must
-						be created for any queries to work.  If deleted, this file will be automatically re-created if a
-						query if performed on the data set.
+ * seqs.npy - Contains the raw input strings in a sorted, numerical format. It can be safely deleted after msbwt.npy has been fully instantiated.
+ * offsets.npy - Contains meta-data regarding seq.npy.  For strings of uniform length, this file is very small. If strings have variable size, it will be O(S) where S is the number of strings.  This file can be safely deleted after msbwt.npy has been fully instantiated.
+ * about.npy - Contains information regarding the origin of the sorted strings to be stored in the MSBWT.  For example, if multiple FASTQ files are used for input, this file includes both the source file and which read it was in that file.  For paired end reads, this can be useful for finding mates. If deleted, this file is NOT recoverable from msbwt.npy.
+ * msbwt.npy - Contains the full, uncompressed MSBWT.  Each symbol in the MSBWT takes one byte of space.  If deleted, the MSBWT is NOT recoverable except from comp_msbwt.npy.
+ * fmIndex.npy - Contains a sampled FM-index for msbwt.npy.  This is derived from msbwt.npy and must be created for any queries to work.  If deleted, the file will be automatically re-created if a query is performed on the data set.
+ * comp\_msbwt.npy - Contains the compressed MSBWT.  Each byte contains 3 bits for the symbol and 5 bits for a count. Each run is compressed into a symbol/length pairs and lengths too big for 5 bits expanded to multiple bytes such that one byte contains lengths < 32, two bytes < 32^2, three bytes < 32^3, and so on for as many bytes are necessary to store the run length.  If deleted, this file is NOT recoverable except from msbwt.npy.
+ * comp\_fmIndex.npy	- Contains a sampled FM-index for comp\_msbwt.npy.  This is derived from comp\_msbwt.npy and must be created for any queries to work.  If deleted, this file will be automatically re-created if a query is performed on the data set.
+ * comp\_refIndex.npy - Contains offset information for the sample FM-index.  This is derived from com\p_msbwt.npy and must be created for any queries to work.  If deleted, this file will be automatically re-created if a query if performed on the data set.
 
 The msbwt package is broken down into various sub-functions which include MSBWT creation, merging, and querying.  Below is a
 list of each along with the expected output.
 
-	cffq				Create From FASTQ.  This function takes a list of input FASTQ files and will create the MSBWT from
-						the strings contained in them to be stored in the end result of msbwt.npy.  This is functionally the
-						same as doing 'pp' followed by 'cfpp'.  Note that strings of uniform length can be processed faster
-						than strings of non-uniform length.
-	pp					Pre-Process.  This function takes a list of input FASTQ files and will create the seqs.npy, offsets.npy,
-						and about.npy files for those FASTQ files.  Note that strings of uniform length can be processed faster
-						than strings of non-uniform length.
-	cfpp				Create From Pre-Process.  This function takes a pre-processed directory and creates the MSBWT from the
-						strings contained in seqs.npy to create msbwt.npy.
-	merge				This function takes a list of input MSBWT directories and merges them into a single output MSBWT.  The
-						resulting BWT will always be stored in msbwt.npy of the output directory.
-	query				This function is for performing a single query of a specific k-mer within the data.  Options exist for
-						dumping the associated strings containing that k-mer as well.
-	massquery			This function takes a list of queries in a line separated file and performs those searches storing counts
-						for each query in a CSV file.
-	compress			This function takes an uncompressed MSBWT and converts it to the compressed version.  The auxiliary
-						FM-index will need to be reconstructed for the new data format.
-	decompress			This function takes a compressed MSBWT and converts it back into its original uncompressed format.
-						The auxiliary FM-index will need to be reconstructed for this format.
-	convert				This function converted a raw text input BWT to our run-length encoded version.
+ * cffq - Create From FASTQ.  This function takes a list of input FASTQ files and will create the MSBWT from the strings contained in them to be stored in the end result of msbwt.npy.  This is functionally the same as doing 'pp' followed by 'cfpp'.  Note that strings of uniform length can be processed faster than strings of non-uniform length.
+ * pp - Pre-Process.  This function takes a list of input FASTQ files and will create the seqs.npy, offsets.npy, and about.npy files for those FASTQ files.  Note that strings of uniform length can be processed faster than strings of non-uniform length.
+ * cfpp - Create From Pre-Process.  This function takes a pre-processed directory and creates the MSBWT from the strings contained in seqs.npy to create msbwt.npy.
+ * merge - This function takes a list of input MSBWT directories and merges them into a single output MSBWT.  The resulting BWT will always be stored in msbwt.npy of the output directory.
+ * query - This function is for performing a single query of a specific k-mer within the data.  Options exist for dumping the associated strings containing that k-mer as well.
+ * massquery - This function takes a list of queries in a line separated file and performs those searches storing counts for each query in a CSV file.
+ * compress - This function takes an uncompressed MSBWT and converts it to the compressed version.  The auxiliary FM-index will need to be reconstructed for the new data format.
+ * decompress - This function takes a compressed MSBWT and converts it back into its original uncompressed format. The auxiliary FM-index will need to be reconstructed for this format.
+ * convert - This function converted a raw text input BWT to our run-length encoded version.
 
 The latest release also includes installation of the Cython library used to load the MSBWTs and perform merges.  After 
 installation, the libraries are available through regular Python imports like so:
