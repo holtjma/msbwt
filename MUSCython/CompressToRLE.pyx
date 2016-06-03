@@ -32,7 +32,7 @@ def compressInput(str fn, str bwtDir):
     cdef FILE * outputStream = fopen(outputFN, 'w+')
     
     cdef unsigned long BUFFER_SIZE = 1024
-    cdef bytes strBuffer = '\x00'*BUFFER_SIZE
+    cdef bytes strBuffer = <bytes>('\x00'*BUFFER_SIZE)
     cdef unsigned char * buffer = strBuffer
     
     #most of the files I've seen are 80 and '\x46', I'm increasing it just in case
