@@ -38,7 +38,7 @@ corresponding C files.  We recommend using installing Cython prior to installing
 
 Two Python modules are required to run the code.
 
-*[pysam] - Tested with pysam 0.7.4
+[pysam] - Tested with pysam 0.7.4
 
 As a wrapper of Samtools, the pysam module facilitates the manipulation of SAM/BAM files in Python. Its latest 
 package can be downloaded from:
@@ -46,14 +46,14 @@ package can be downloaded from:
 	http://code.google.com/p/pysam/
 
 
-*[argparse] - Tested with argparse 1.2.1
+[argparse] - Tested with argparse 1.2.1
 
 The argparse module is used to parse the command line arguments of the module. It has been maintained in Python 
 Standard Library since Python 2.7.  Its latest package can be downloaded from:
 
 	http://code.google.com/p/argparse/
 
-*[numpy] - Tested with numpy 1.10.1
+[numpy] - Tested with numpy 1.10.1
 
 The numpy module provide various fast numerical functions for Python.  Its latest package can be downloaded from:
 
@@ -140,3 +140,9 @@ installation, the libraries are available through regular Python imports like so
 	msbwt.countOccurrencesOfSeq('CAT')
 
 Other commands are available as well. For more information, refer to the code available at https://github.com/holtjma/msbwt.
+
+References
+==========
+Holt, James, and Leonard McMillan. "Merging of multi-string BWTs with applications." *Bioinformatics* (2014): btu584.
+
+Holt, James, and Leonard McMillan. "Constructing Burrows-Wheeler transforms of large string collections via merging." *Proceedings of the 5th ACM Conference on Bioinformatics, Computational Biology, and Health Informatics.* ACM, 2014.
